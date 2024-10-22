@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tommyhedley/fibery/fibery-tsheets-integration/actions"
 	"github.com/tommyhedley/fibery/fibery-tsheets-integration/oauth2"
 	"github.com/tommyhedley/fibery/fibery-tsheets-integration/synchronizer"
 	"github.com/tommyhedley/fibery/fibery-tsheets-integration/webhooks"
@@ -128,7 +129,7 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/synchronizer/data", synchronizer.DataHandler)
 	mux.HandleFunc("POST /api/v1/synchronizer/filter/validate", synchronizer.ValidateFiltersHandler)
 
-	mux.Handle("POST /api/v1/automations/sync_action/{type}", syncActionAuth(http.HandlerFunc(syncActionHandler)))
+	mux.Handle("POST /api/v1/automations/sync_action/{type}", actions.SyncActionAuth(http.HandlerFunc(actions.SyncActionHandler)))
 
 	mux.HandleFunc("POST /api/v1/synchronizer/webhooks", webhooks.RegisterHandler)
 	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/verify", webhooks.VerifyHandler)

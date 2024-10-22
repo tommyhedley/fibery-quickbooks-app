@@ -31,17 +31,17 @@ type refreshTokenRequest struct {
 }
 
 type accessTokenResponse struct {
-	AccessToken            string `json:"access_token"`
-	RefreshToken           string `json:"refresh_token"`
-	TokenType              string `json:"token_type"`
-	IdToken                string `json:"id_token"`
-	ExpiresIn              int    `json:"expires_in"`
-	XRefreshTokenExpiresIn int    `json:"x_refresh_token_expires_in"`
+	AccessToken            string      `json:"access_token,omitempty"`
+	RefreshToken           string      `json:"refresh_token,omitempty"`
+	TokenType              string      `json:"token_type,omitempty"`
+	IdToken                string      `json:"id_token,omitempty"`
+	ExpiresIn              json.Number `json:"expires_in,omitempty" type:"string`
+	XRefreshTokenExpiresIn json.Number `json:"x_refresh_token_expires_in,omitempty" type:"string"`
 }
 
 type tokenHandlerResponse struct {
 	accessTokenResponse
-	ExpiresOn string `json:"expires_on"`
+	ExpiresOn string `json:"expires_on,omitempty"`
 }
 
 type address struct {
@@ -151,9 +151,15 @@ func (params *refreshTokenRequest) refresh(URL string) (accessTokenResponse, err
 func TokenHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
 		Fields struct {
+			ID          string `json:"_id"`
+			App         string `json:"app"`
+			Owner       string `json:"owner"`
+			ExpireOn    string `json:"expireOn"`
 			CallbackURI string `json:"callback_uri"`
+			State       string `json:"state"`
 		} `json:"fields"`
-		Code string `json:"code"`
+		Code  string `json:"code"`
+		State string `json:"state"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -180,11 +186,16 @@ func TokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tokenExpInt, err := tokenResponse.ExpiresIn.Int64()
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to convert token exp string to int: %w", err))
+	}
+
 	currentAccessToken = tokenResponse.AccessToken
 
 	utils.RespondWithJSON(w, http.StatusOK, tokenHandlerResponse{
 		accessTokenResponse: tokenResponse,
-		ExpiresOn:           time.Now().UTC().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second).Format(time.RFC3339),
+		ExpiresOn:           time.Now().UTC().Add(time.Duration(tokenExpInt) * time.Second).Format(time.RFC3339),
 	})
 }
 
@@ -209,7 +220,7 @@ func ValidateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshNeeded, err := refreshNeeded(reqBody.Fields.ExpiresOn, 2)
+	refreshNeeded, err := refreshNeeded(reqBody.Fields.ExpiresOn, 30)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("error checking token expiration: %w", err))
 		return
@@ -233,13 +244,18 @@ func ValidateHandler(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("token validation error: %w", err))
 		}
 
+		tokenExpInt, err := refreshResponse.ExpiresIn.Int64()
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to convert token exp string to int: %w", err))
+		}
+
 		currentAccessToken = refreshResponse.AccessToken
 
 		utils.RespondWithJSON(w, http.StatusOK, responseBody{
 			Name: currentUser.Email,
 			tokenHandlerResponse: tokenHandlerResponse{
 				accessTokenResponse: refreshResponse,
-				ExpiresOn:           time.Now().UTC().Add(time.Duration(refreshResponse.ExpiresIn) * time.Second).Format(time.RFC3339),
+				ExpiresOn:           time.Now().UTC().Add(time.Duration(tokenExpInt) * time.Second).Format(time.RFC3339),
 			},
 		})
 		return
@@ -284,11 +300,11 @@ func validate(URL, token string) (userInfoResponse, error) {
 	return resp, nil
 }
 
-func refreshNeeded(expiresOn string, hoursToRefresh int) (bool, error) {
+func refreshNeeded(expiresOn string, minutesToRefresh int) (bool, error) {
 	expiration, err := time.Parse(time.RFC3339, expiresOn)
 	if err != nil {
 		return false, fmt.Errorf("unable to parse token expiration time: %w", err)
 	}
-	deadline := expiration.Add(time.Duration(hoursToRefresh) * time.Hour)
+	deadline := expiration.Add(time.Duration(minutesToRefresh) * time.Minute)
 	return time.Now().UTC().After(deadline), nil
 }

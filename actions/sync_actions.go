@@ -1,4 +1,4 @@
-package main
+package actions
 
 import (
 	"encoding/json"
@@ -11,10 +11,10 @@ import (
 )
 
 type timesheet struct {
-	TimesheetID json.Number 
-	UserID   json.Number `json:"user_id" type:"string"`
-	JobcodeId json.Number `json:"jobcode_id" type:"string"`
-	Type      string      `json:"type"`
+	TimesheetID json.Number
+	UserID      json.Number `json:"user_id" type:"string"`
+	JobcodeId   json.Number `json:"jobcode_id" type:"string"`
+	Type        string      `json:"type"`
 }
 
 type manualTimesheet struct {
@@ -29,7 +29,7 @@ type regularTimesheet struct {
 	End   string `json:"end"`
 }
 
-func syncActionHandler(w http.ResponseWriter, r *http.Request) {
+func SyncActionHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("type") {
 	case "manual-timesheet":
 		decoder := json.NewDecoder(r.Body)
@@ -39,7 +39,7 @@ func syncActionHandler(w http.ResponseWriter, r *http.Request) {
 			utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to decode request parameters: %w", err))
 			return
 		}
-		
+
 	case "regular-timehsheet":
 		decoder := json.NewDecoder(r.Body)
 		params := []regularTimesheet{}
@@ -55,7 +55,7 @@ func syncActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func syncActionAuth(next http.Handler) http.Handler {
+func SyncActionAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		syncActionToken := os.Getenv("SYNC_ACTION_API_KEY")
 		authHeader := r.Header.Get("Authorization")

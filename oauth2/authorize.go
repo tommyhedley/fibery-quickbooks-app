@@ -26,10 +26,6 @@ func AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("error with discovery api request: %w", err))
-	}
-
 	redirectURI, err := url.Parse(discoveryParams.AuthorizationEndpoint)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusUnauthorized, fmt.Errorf("error parsing base url: %w", err))
@@ -39,7 +35,7 @@ func AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 	parameters := url.Values{}
 	parameters.Add("client_id", os.Getenv("OAUTH_CLIENT_ID"))
 	parameters.Add("response_type", "code")
-	parameters.Add("scope", "com.intuit.quickbooks.accounting")
+	parameters.Add("scope", "com.intuit.quickbooks.accounting openid email")
 	parameters.Add("redirect_uri", reqBody.CallbackURI)
 	parameters.Add("state", reqBody.State)
 
