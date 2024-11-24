@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/internal/utils"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
 )
 
 type Authentication struct {
@@ -54,42 +54,31 @@ type AuthFields struct {
 	Value       string `json:"value,omitempty"`
 }
 
-type Filter struct {
-	Id       string `json:"id"`
-	Title    string `json:"title"`
-	Type     string `json:"type"`
-	Datalist bool   `json:"datalist,omitempty"`
-	Optional bool   `json:"optional,omitempty"`
-	Secured  bool   `json:"secured,omitempty"`
+var config = AppConfig{
+	ID:          "qbo",
+	Name:        "QuickBooks Online",
+	Website:     "https://quickbooks.intuit.com",
+	Version:     "0.1.0",
+	Description: "Integrate QuickBooks Online data with Fibery",
+	Authentication: []Authentication{
+		{
+			ID:          "oauth2",
+			Name:        "OAuth v2 Authentication",
+			Description: "OAuth v2-based authentication and authorization for access to QuickBooks Online",
+			Fields: []interface{}{AuthFields{
+				ID:          "callback_uri",
+				Title:       "callback_uri",
+				Description: "OAuth post-auth redirect URI",
+				Type:        "oauth",
+			}},
+		},
+	},
+	Sources: []string{},
+	ResponsibleFor: ResponsibleFor{
+		DataSynchronization: true,
+	},
 }
 
 func ConfigHandler(w http.ResponseWriter, r *http.Request) {
-	oauth2 := AuthFields{
-		Title:       "callback_uri",
-		Description: "OAuth post-auth redirect URI",
-		Type:        "oauth",
-		ID:          "callback_uri",
-	}
-
-	config := AppConfig{
-		ID:          "qbo",
-		Name:        "QuickBooks Online",
-		Website:     "https://quickbooks.intuit.com",
-		Version:     "0.1.0",
-		Description: "Integrate QuickBooks Online data with Fibery",
-		Authentication: []Authentication{
-			{
-				ID:          "oauth2",
-				Name:        "OAuth v2 Authentication",
-				Description: "OAuth v2-based authentication and authorization for access to Quickbooks Time",
-				Fields:      []interface{}{oauth2},
-			},
-		},
-		Sources: []string{},
-		ResponsibleFor: ResponsibleFor{
-			DataSynchronization: true,
-		},
-	}
-
 	utils.RespondWithJSON(w, http.StatusOK, config)
 }

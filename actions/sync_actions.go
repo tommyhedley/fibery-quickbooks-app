@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/internal/utils"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
 )
 
 type timesheet struct {

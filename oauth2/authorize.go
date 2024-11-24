@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/internal/utils"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
 )
 
 func AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -26,22 +26,19 @@ func AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectURI, err := url.Parse(discoveryParams.AuthorizationEndpoint)
+	client, err := qbo.NewClient("", nil)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusUnauthorized, fmt.Errorf("error parsing base url: %w", err))
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error creating new client: %w", err))
 		return
 	}
 
-	parameters := url.Values{}
-	parameters.Add("client_id", os.Getenv("OAUTH_CLIENT_ID"))
-	parameters.Add("response_type", "code")
-	parameters.Add("scope", "com.intuit.quickbooks.accounting openid email")
-	parameters.Add("redirect_uri", reqBody.CallbackURI)
-	parameters.Add("state", reqBody.State)
-
-	redirectURI.RawQuery = parameters.Encode()
+	redirectURI, err := client.FindAuthorizationUrl(os.Getenv("SCOPE"), reqBody.State, reqBody.CallbackURI)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error generating redirect uri: %w", err))
+		return
+	}
 
 	utils.RespondWithJSON(w, http.StatusOK, responseBody{
-		RedirectURI: redirectURI.String(),
+		RedirectURI: redirectURI,
 	})
 }

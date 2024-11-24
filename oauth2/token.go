@@ -1,152 +1,13 @@
 package oauth2
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
-	"os"
-	"strings"
-	"time"
 
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/internal/utils"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
 )
-
-type baseTokenRequest struct {
-	GrantType    string `url:"grant_type"`
-	ClientId     string `url:"client_id"`
-	ClientSecret string `url:"client_secret"`
-}
-
-type accessTokenRequest struct {
-	baseTokenRequest
-	Code        string `url:"code"`
-	RedirectURI string `url:"redirect_uri"`
-}
-
-type refreshTokenRequest struct {
-	baseTokenRequest
-	RefreshToken string `url:"refresh_token"`
-}
-
-type accessTokenResponse struct {
-	AccessToken            string      `json:"access_token,omitempty"`
-	RefreshToken           string      `json:"refresh_token,omitempty"`
-	TokenType              string      `json:"token_type,omitempty"`
-	IdToken                string      `json:"id_token,omitempty"`
-	ExpiresIn              json.Number `json:"expires_in,omitempty" type:"string`
-	XRefreshTokenExpiresIn json.Number `json:"x_refresh_token_expires_in,omitempty" type:"string"`
-}
-
-type tokenHandlerResponse struct {
-	accessTokenResponse
-	ExpiresOn string `json:"expires_on,omitempty"`
-}
-
-type address struct {
-	StreetAddress string `json:"streetAddress"`
-	Locality      string `json:"locality"`
-	Region        string `json:"region"`
-	PostalCode    string `json:"postalCode"`
-	Country       string `json:"country"`
-}
-
-type userInfoResponse struct {
-	Sub                 string  `json:"sub"`
-	Email               string  `json:"email"`
-	EmailVerified       bool    `json:"emailVerified"`
-	GivenName           string  `json:"givenName"`
-	FamilyName          string  `json:"familyName"`
-	PhoneNumber         string  `json:"phoneNumber"`
-	PhoneNumberVerified bool    `json:"phoneNumberVerified"`
-	Address             address `json:"address"`
-}
-
-var currentAccessToken string
-
-func (params *accessTokenRequest) get(URL string) (accessTokenResponse, error) {
-	baseURL, err := url.Parse(URL)
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("error parsing base url: %w", err)
-	}
-
-	body := url.Values{}
-	body.Set("grant_type", params.GrantType)
-	body.Add("code", params.Code)
-	body.Add("redirect_uri", params.RedirectURI)
-
-	req, err := http.NewRequest("POST", baseURL.String(), strings.NewReader(body.Encode()))
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("error creating request: %w", err)
-	}
-
-	auth := base64.StdEncoding.EncodeToString([]byte(params.ClientId + ":" + params.ClientSecret))
-
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
-	req.Header.Set("Authorization", "Basic "+auth)
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("error executing request: %w", err)
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode > 299 {
-		return accessTokenResponse{}, fmt.Errorf("request error: %d", res.StatusCode)
-	}
-
-	decoder := json.NewDecoder(res.Body)
-	var resp accessTokenResponse
-	err = decoder.Decode(&resp)
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("unable to decode response: %w", err)
-	}
-	return resp, nil
-}
-
-func (params *refreshTokenRequest) refresh(URL string) (accessTokenResponse, error) {
-	baseURL, err := url.Parse(URL)
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("error parsing base url: %w", err)
-	}
-
-	body := url.Values{}
-	body.Set("grant_type", params.GrantType)
-	body.Add("refresh_token", params.RefreshToken)
-
-	req, err := http.NewRequest("POST", baseURL.String(), strings.NewReader(body.Encode()))
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("error creating request: %w", err)
-	}
-
-	auth := base64.StdEncoding.EncodeToString([]byte(params.ClientId + ":" + params.ClientSecret))
-
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
-	req.Header.Set("Authorization", "Basic "+auth)
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("error executing request: %w", err)
-	}
-
-	defer res.Body.Close()
-
-	if res.StatusCode > 299 {
-		return accessTokenResponse{}, fmt.Errorf("request error: %d", res.StatusCode)
-	}
-
-	decoder := json.NewDecoder(res.Body)
-	var resp accessTokenResponse
-	err = decoder.Decode(&resp)
-	if err != nil {
-		return accessTokenResponse{}, fmt.Errorf("unable to decode response: %w", err)
-	}
-	return resp, nil
-}
 
 func TokenHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
@@ -158,8 +19,14 @@ func TokenHandler(w http.ResponseWriter, r *http.Request) {
 			CallbackURI string `json:"callback_uri"`
 			State       string `json:"state"`
 		} `json:"fields"`
-		Code  string `json:"code"`
-		State string `json:"state"`
+		Code    string `json:"code"`
+		State   string `json:"state"`
+		RealmID string `json:"realmId"`
+	}
+
+	type responseBody struct {
+		RealmID string          `json:"realmId"`
+		Token   qbo.BearerToken `json:"token"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -170,32 +37,21 @@ func TokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenRequest := accessTokenRequest{
-		baseTokenRequest: baseTokenRequest{
-			GrantType:    "authorization_code",
-			ClientId:     os.Getenv("OAUTH_CLIENT_ID"),
-			ClientSecret: os.Getenv("OAUTH_CLIENT_SECRET"),
-		},
-		Code:        reqBody.Code,
-		RedirectURI: reqBody.Fields.CallbackURI,
-	}
-
-	tokenResponse, err := tokenRequest.get(discoveryParams.TokenEndpoint)
+	client, err := qbo.NewClient(reqBody.RealmID, nil)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("error with access token request: %w", err))
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
 		return
 	}
 
-	tokenExpInt, err := tokenResponse.ExpiresIn.Int64()
+	token, err := client.RetrieveBearerToken(reqBody.Code, reqBody.Fields.CallbackURI)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to convert token exp string to int: %w", err))
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retreive bearer token: %w", err))
+		return
 	}
 
-	currentAccessToken = tokenResponse.AccessToken
-
-	utils.RespondWithJSON(w, http.StatusOK, tokenHandlerResponse{
-		accessTokenResponse: tokenResponse,
-		ExpiresOn:           time.Now().UTC().Add(time.Duration(tokenExpInt) * time.Second).Format(time.RFC3339),
+	utils.RespondWithJSON(w, http.StatusOK, responseBody{
+		RealmID: reqBody.RealmID,
+		Token:   (*token),
 	})
 }
 
@@ -203,13 +59,16 @@ func ValidateHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
 		Id     string `json:"id"`
 		Fields struct {
-			Name string `json:"name"`
-			tokenHandlerResponse
+			Name    string          `json:"name"`
+			RealmID string          `json:"realmId"`
+			Token   qbo.BearerToken `json:"token"`
 		} `json:"fields"`
 	}
+
 	type responseBody struct {
-		Name string `json:"name"`
-		tokenHandlerResponse
+		Name    string          `json:"name"`
+		RealmID string          `json:"realmId"`
+		Token   qbo.BearerToken `json:"token"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -220,91 +79,38 @@ func ValidateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshNeeded, err := refreshNeeded(reqBody.Fields.ExpiresOn, 30)
+	client, err := qbo.NewClient(reqBody.Fields.RealmID, &reqBody.Fields.Token)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("error checking token expiration: %w", err))
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
+		return
+	}
+
+	token := reqBody.Fields.Token
+
+	refreshNeeded, err := token.RefreshNeeded()
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to determine if token refresh is needed: %w", err))
 		return
 	}
 
 	if refreshNeeded {
-		requestParams := refreshTokenRequest{
-			baseTokenRequest: baseTokenRequest{
-				GrantType:    "refresh_token",
-				ClientId:     os.Getenv("OAUTH_CLIENT_ID"),
-				ClientSecret: os.Getenv("OAUTH_CLIENT_SECRET"),
-			},
-			RefreshToken: reqBody.Fields.RefreshToken,
-		}
-		refreshResponse, err := requestParams.refresh(discoveryParams.TokenEndpoint)
+		newToken, err := client.RefreshToken(token.RefreshToken)
 		if err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("error with refresh token request: %w", err))
+			utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to refresh token: %w", err))
+			return
 		}
-		currentUser, err := validate(discoveryParams.UserinfoEndpoint, refreshResponse.AccessToken)
-		if err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("token validation error: %w", err))
-		}
+		token = *newToken
+	}
 
-		tokenExpInt, err := refreshResponse.ExpiresIn.Int64()
-		if err != nil {
-			utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to convert token exp string to int: %w", err))
-		}
-
-		currentAccessToken = refreshResponse.AccessToken
-
-		utils.RespondWithJSON(w, http.StatusOK, responseBody{
-			Name: currentUser.Email,
-			tokenHandlerResponse: tokenHandlerResponse{
-				accessTokenResponse: refreshResponse,
-				ExpiresOn:           time.Now().UTC().Add(time.Duration(tokenExpInt) * time.Second).Format(time.RFC3339),
-			},
-		})
+	info, err := client.FindCompanyInfo()
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to find company info: %w", err))
 		return
 	}
 
-	currentUser, err := validate(discoveryParams.UserinfoEndpoint, reqBody.Fields.AccessToken)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, fmt.Errorf("token validation error: %w", err))
-	}
 	utils.RespondWithJSON(w, http.StatusOK, responseBody{
-		Name: currentUser.Email,
+		Name:    info.CompanyName,
+		RealmID: reqBody.Fields.RealmID,
+		Token:   token,
 	})
-}
-
-func validate(URL, token string) (userInfoResponse, error) {
-	baseURL, err := url.Parse(URL)
-	if err != nil {
-		return userInfoResponse{}, fmt.Errorf("error parsing base url: %w", err)
-	}
-
-	req, err := http.NewRequest("GET", baseURL.String(), nil)
-	if err != nil {
-		return userInfoResponse{}, fmt.Errorf("error creating request: %w", err)
-	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return userInfoResponse{}, fmt.Errorf("error executing request: %w", err)
-	}
-
-	defer res.Body.Close()
-
-	decoder := json.NewDecoder(res.Body)
-	var resp userInfoResponse
-	err = decoder.Decode(&resp)
-	if err != nil {
-		return userInfoResponse{}, fmt.Errorf("unable to decode response: %w", err)
-	}
-
-	return resp, nil
-}
-
-func refreshNeeded(expiresOn string, minutesToRefresh int) (bool, error) {
-	expiration, err := time.Parse(time.RFC3339, expiresOn)
-	if err != nil {
-		return false, fmt.Errorf("unable to parse token expiration time: %w", err)
-	}
-	deadline := expiration.Add(time.Duration(minutesToRefresh) * time.Minute)
-	return time.Now().UTC().After(deadline), nil
 }

@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,10 +11,11 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/oauth2"
+	"github.com/patrickmn/go-cache"
+	"golang.org/x/sync/singleflight"
 )
 
-var SlogConfig sloggerConfig
+var Production bool
 
 func main() {
 	godotenv.Load()
@@ -22,17 +24,16 @@ func main() {
 	loggerLevel := os.Getenv("LOGGER_LEVEL")
 	loggerStyle := os.Getenv("LOGGER_STYLE")
 
-	SlogConfig = newSlogConfig(loggerLevel, loggerStyle)
-	httpLogger := SlogConfig.Create()
+	c := cache.New(5*time.Minute, 10*time.Minute)
+	var group singleflight.Group
 
-	err := oauth2.GetDiscovery()
-	if err != nil {
-		log.Fatalf("unable to get discovery info: %v", err)
-	}
+	SlogConfig := newSlogConfig(loggerLevel, loggerStyle)
+	logger := SlogConfig.Create()
+	slog.SetDefault(logger)
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      NewServer(httpLogger),
+		Handler:      NewServer(c, &group),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
@@ -44,23 +45,23 @@ func main() {
 
 	go func() {
 		<-quit
-		log.Println("Server is shutting down...")
+		slog.Info("Server is shutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
 		defer cancel()
 		server.SetKeepAlivesEnabled(false)
 		if err := server.Shutdown(ctx); err != nil {
-			log.Fatalf("Could not gracefully shutdown the server %+v\n", err)
+			slog.Error(fmt.Sprintf("Could not gracefully shutdown the server %+v", err))
 		}
 		close(done)
 	}()
 
-	log.Printf("Server starting at port %s...\n", port)
+	slog.Info(fmt.Sprintf("Server starting at port %s...", port))
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Could not listen on :%s %+v\n", port, err)
+		slog.Error(fmt.Sprintf("Could not listen on :%s %+v", port, err))
 	}
 
 	<-done
-	log.Println("Server stopped")
+	slog.Info("Server stopped")
 }

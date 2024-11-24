@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/actions"
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/oauth2"
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/synchronizer"
-	"github.com/tommyhedley/fibery/fibery-tsheets-integration/webhooks"
+	"github.com/patrickmn/go-cache"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/actions"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/oauth2"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/sync"
+	"golang.org/x/sync/singleflight"
 )
 
 type loggingResponseWriter struct {
@@ -44,7 +45,7 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func loggingMiddleware(httpLogger *slog.Logger) func(http.Handler) http.Handler {
+func loggingMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -87,11 +88,11 @@ func loggingMiddleware(httpLogger *slog.Logger) func(http.Handler) http.Handler 
 
 			switch {
 			case lrw.statusCode >= 500:
-				httpLogger.Error("HTTP Request Error", request, response)
+				slog.Error("HTTP Request Error", request, response)
 			case lrw.statusCode >= 400:
-				httpLogger.Warn("HTTP Request Warning", request, response)
+				slog.Warn("HTTP Request Warning", request, response)
 			default:
-				httpLogger.Info("HTTP Request", request, response)
+				slog.Info("HTTP Request", request, response)
 			}
 		})
 	}
@@ -116,7 +117,7 @@ func gzipMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func addRoutes(mux *http.ServeMux) {
+func addRoutes(mux *http.ServeMux, c *cache.Cache, group *singleflight.Group) {
 	mux.HandleFunc("GET /", ConfigHandler)
 	mux.HandleFunc("GET /logo", LogoHandler)
 
@@ -124,25 +125,25 @@ func addRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /oauth2/v1/access_token", oauth2.TokenHandler)
 	mux.HandleFunc("POST /validate", oauth2.ValidateHandler)
 
-	mux.HandleFunc("POST /api/v1/synchronizer/config", synchronizer.ConfigHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/schema", synchronizer.SchemaHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/data", synchronizer.DataHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/filter/validate", synchronizer.ValidateFiltersHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/config", sync.ConfigHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/schema", sync.SchemaHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/data", sync.DataHandler(c, group))
+	mux.HandleFunc("POST /api/v1/synchronizer/filter/validate", sync.ValidateFiltersHandler)
 
 	mux.Handle("POST /api/v1/automations/sync_action/{type}", actions.SyncActionAuth(http.HandlerFunc(actions.SyncActionHandler)))
 
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks", webhooks.RegisterHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/verify", webhooks.VerifyHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/transform", webhooks.TransformHandler)
-	mux.HandleFunc("DELETE /api/v1/synchronizer/webhooks", webhooks.DeleteHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/webhooks", RegisterHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/verify", VerifyHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/transform", TransformHandler)
+	mux.HandleFunc("DELETE /api/v1/synchronizer/webhooks", DeleteHandler)
 }
 
-func NewServer(httpLogger *slog.Logger) http.Handler {
+func NewServer(c *cache.Cache, group *singleflight.Group) http.Handler {
 	mux := http.NewServeMux()
-	addRoutes(mux)
+	addRoutes(mux, c, group)
 	var handler http.Handler = mux
 
-	handler = loggingMiddleware(httpLogger)(handler)
+	handler = loggingMiddleware()(handler)
 	handler = gzipMiddleware(handler)
 	return handler
 }
