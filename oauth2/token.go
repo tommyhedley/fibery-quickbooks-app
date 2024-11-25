@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
@@ -37,7 +38,20 @@ func TokenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := qbo.NewClient(reqBody.RealmID, nil)
+	// Temporary workaround until Fibery authorization response supports dynamic parameters
+	realmId := reqBody.RealmID
+	if realmId == "" {
+		mode := os.Getenv("MODE")
+		switch mode {
+		case "production":
+			realmId = os.Getenv("REALM_ID_PRODUCTION")
+		case "sandbox":
+			realmId = os.Getenv("REALM_ID_SANDBOX")
+		default:
+			utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid mode: %s", mode))
+		}
+	}
+	client, err := qbo.NewClient(realmId, nil)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
 		return
@@ -50,7 +64,7 @@ func TokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, http.StatusOK, responseBody{
-		RealmID: reqBody.RealmID,
+		RealmID: realmId,
 		Token:   (*token),
 	})
 }

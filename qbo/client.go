@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,21 +36,21 @@ type Client struct {
 
 // NewClient initializes a new QuickBooks client for interacting with their Online API
 func NewClient(realmId string, token *BearerToken) (c *Client, err error) {
-	var clientId, clientSecret, minorVersion string
+	var clientId, clientSecret string
 	var clientEndpoint *url.URL
 	mode := os.Getenv("MODE")
 	switch mode {
 	case "production":
 		clientId = os.Getenv("OAUTH_CLIENT_ID_PRODUCTION")
 		clientSecret = os.Getenv("OAUTH_CLIENT_SECRET_PRODUCTION")
-		clientEndpoint, err = url.Parse(os.Getenv("API_ENDPOINT_PRODUCTION"))
+		clientEndpoint, err = url.Parse(os.Getenv("PRODUCTION_ENDPOINT"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse API endpoint: %v", err)
 		}
 	case "sandbox":
 		clientId = os.Getenv("OAUTH_CLIENT_ID_SANDBOX")
 		clientSecret = os.Getenv("OAUTH_CLIENT_SECRET_SANDBOX")
-		clientEndpoint, err = url.Parse(os.Getenv("API_ENDPOINT_SANDBOX"))
+		clientEndpoint, err = url.Parse(os.Getenv("SANDBOX_ENDPOINT"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse API endpoint: %v", err)
 		}
@@ -57,6 +58,7 @@ func NewClient(realmId string, token *BearerToken) (c *Client, err error) {
 		return nil, fmt.Errorf("invalid mode: %s", mode)
 	}
 
+	minorVersion := os.Getenv("MINOR_VERSION")
 	if minorVersion == "" {
 		return nil, errors.New("minor version is required")
 	}
@@ -109,7 +111,7 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 	}
 
 	endpointUrl := *c.endpoint
-	endpointUrl.Path += endpoint
+	endpointUrl.Path += "/v3/company/" + c.realmId + "/" + endpoint
 	urlValues := url.Values{}
 
 	if len(queryParameters) > 0 {
@@ -131,7 +133,7 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 			return fmt.Errorf("failed to marshal payload: %v", err)
 		}
 	}
-
+	slog.Info("Requesting %s %s", method, endpointUrl.String())
 	req, err := http.NewRequest(method, endpointUrl.String(), bytes.NewBuffer(marshalledJson))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)

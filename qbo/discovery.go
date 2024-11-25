@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type DiscoveryAPI struct {
@@ -52,13 +54,14 @@ func CallDiscoveryAPI(discoveryEndpoint EndpointUrl) (*DiscoveryAPI, error) {
 }
 
 func init() {
+	godotenv.Load()
 	mode := os.Getenv("MODE")
 	var discoverURL string
 	switch mode {
 	case "production":
-		discoverURL = os.Getenv("DISCOVERY_URL_PRODUCTION")
+		discoverURL = os.Getenv("DISCOVERY_PRODUCTION_ENDPOINT")
 	case "sandbox":
-		discoverURL = os.Getenv("DISCOVERY_URL_SANDBOX")
+		discoverURL = os.Getenv("DISCOVERY_SANDBOX_ENDPOINT")
 	default:
 		log.Fatalf("invalid mode: %s", mode)
 	}

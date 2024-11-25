@@ -10,16 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
 )
 
-var Production bool
-
 func main() {
-	godotenv.Load()
-
 	port := os.Getenv("PORT")
 	loggerLevel := os.Getenv("LOGGER_LEVEL")
 	loggerStyle := os.Getenv("LOGGER_STYLE")

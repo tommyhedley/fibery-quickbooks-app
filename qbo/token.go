@@ -147,7 +147,7 @@ func (c *Client) RevokeToken(refreshToken string) error {
 // RefreshNeeded
 // Check if the token needs to be refreshed based on the TOKEN_REFRESH_BEFORE_EXPRIRATION environment variable (in seconds)
 func (b *BearerToken) RefreshNeeded() (bool, error) {
-	refreshBeforeDuration, err := strconv.Atoi(os.Getenv("TOKEN_REFRESH_BEFORE_EXPRIRATION"))
+	refreshBeforeDuration, err := strconv.Atoi(os.Getenv("TOKEN_REFRESH_BEFORE_EXPIRATION"))
 	if err != nil {
 		return false, fmt.Errorf("unable to parse TOKEN_REFRESH_BEFORE_EXPRIRATION to int: %w", err)
 	}
