@@ -1,4 +1,4 @@
-package oauth2
+package main
 
 import (
 	"encoding/json"
@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
 )
 
@@ -22,23 +21,23 @@ func AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
 	reqBody := requestBody{}
 	err := decoder.Decode(&reqBody)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to decode request parameters: %w", err))
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to decode request parameters: %w", err))
 		return
 	}
 
 	client, err := qbo.NewClient("", nil)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error creating new client: %w", err))
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error creating new client: %w", err))
 		return
 	}
 
 	redirectURI, err := client.FindAuthorizationUrl(os.Getenv("SCOPE"), reqBody.State, reqBody.CallbackURI)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error generating redirect uri: %w", err))
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error generating redirect uri: %w", err))
 		return
 	}
 
-	utils.RespondWithJSON(w, http.StatusOK, responseBody{
+	RespondWithJSON(w, http.StatusOK, responseBody{
 		RedirectURI: redirectURI,
 	})
 }

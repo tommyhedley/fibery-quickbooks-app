@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 )
@@ -38,7 +38,7 @@ func (f Failure) Error() string {
 
 // parseFailure takes a response reader and tries to parse a Failure.
 func parseFailure(resp *http.Response) error {
-	msg, err := ioutil.ReadAll(resp.Body)
+	msg, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return errors.New("When reading response body:" + err.Error())
 	}
@@ -50,4 +50,13 @@ func parseFailure(resp *http.Response) error {
 	}
 
 	return errStruct
+}
+
+type RequestLimit struct {
+	Message      error
+	ResetSeconds int
+}
+
+func (r RequestLimit) Error() string {
+	return r.Message.Error()
 }

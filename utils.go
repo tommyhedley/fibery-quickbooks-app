@@ -1,28 +1,10 @@
-package utils
+package main
 
 import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
 )
-
-type RequestError struct {
-	StatusCode int
-	Err        error
-	TryLater   bool
-}
-
-func (e *RequestError) Error() string {
-	return e.Err.Error()
-}
-
-func NewRequestError(statusCode int, err error, tryLater bool) *RequestError {
-	return &RequestError{
-		StatusCode: statusCode,
-		TryLater:   tryLater,
-		Err:        err,
-	}
-}
 
 func RespondWithError(w http.ResponseWriter, code int, err error) {
 	if code >= 500 {
@@ -37,7 +19,7 @@ func RespondWithError(w http.ResponseWriter, code int, err error) {
 	})
 }
 
-func RespondWithTryLater(w http.ResponseWriter, code int, err error) {
+func RespondWithRequestLimit(w http.ResponseWriter, code int, err error) {
 	if code >= 500 {
 		slog.Error(err.Error(), "StatusCode", code)
 	}

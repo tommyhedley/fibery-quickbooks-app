@@ -14,6 +14,10 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+type Test struct {
+	Name string
+}
+
 func main() {
 	port := os.Getenv("PORT")
 	loggerLevel := os.Getenv("LOGGER_LEVEL")

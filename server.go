@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/actions"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/oauth2"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/sync"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -118,19 +115,19 @@ func gzipMiddleware(next http.Handler) http.Handler {
 }
 
 func addRoutes(mux *http.ServeMux, c *cache.Cache, group *singleflight.Group) {
-	mux.HandleFunc("GET /", ConfigHandler)
+	mux.HandleFunc("GET /", AppConfigHandler)
 	mux.HandleFunc("GET /logo", LogoHandler)
 
-	mux.HandleFunc("POST /oauth2/v1/authorize", oauth2.AuthorizeHandler)
-	mux.HandleFunc("POST /oauth2/v1/access_token", oauth2.TokenHandler)
-	mux.HandleFunc("POST /validate", oauth2.ValidateHandler)
+	mux.HandleFunc("POST /oauth2/v1/authorize", AuthorizeHandler)
+	mux.HandleFunc("POST /oauth2/v1/access_token", TokenHandler)
+	mux.HandleFunc("POST /validate", ValidateHandler)
 
-	mux.HandleFunc("POST /api/v1/synchronizer/config", sync.ConfigHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/schema", sync.SchemaHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/data", sync.DataHandler(c, group))
-	mux.HandleFunc("POST /api/v1/synchronizer/filter/validate", sync.ValidateFiltersHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/config", SyncConfigHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/schema", SchemaHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/data", DataHandler(c, group))
+	mux.HandleFunc("POST /api/v1/synchronizer/filter/validate", ValidateFiltersHandler)
 
-	mux.Handle("POST /api/v1/automations/sync_action/{type}", actions.SyncActionAuth(http.HandlerFunc(actions.SyncActionHandler)))
+	mux.Handle("POST /api/v1/automations/sync_action/{type}", ActionAuth(http.HandlerFunc(ActionHandler)))
 
 	mux.HandleFunc("POST /api/v1/synchronizer/webhooks", RegisterHandler)
 	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/verify", VerifyHandler)

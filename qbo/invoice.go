@@ -9,22 +9,22 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/sync"
+	"github.com/patrickmn/go-cache"
 )
 
-var InvoiceType = sync.DataType{
+var InvoiceType = DataType{
 	ID:   "invoice",
 	Name: "Invoice",
-	Schema: map[string]sync.Field{
+	Schema: map[string]Field{
 		"id": {
 			Name: "id",
-			Type: sync.ID,
+			Type: ID,
 		},
 		"customer_id": {
 			Name: "Customer ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Customer",
 				TargetName:    "Invoices",
 				TargetType:    "customer",
@@ -33,47 +33,122 @@ var InvoiceType = sync.DataType{
 		},
 		"sync_token": {
 			Name:     "Sync Token",
-			Type:     sync.Text,
+			Type:     Text,
 			ReadOnly: true,
 		},
-		"shipping_address": {
-			Name:    "Shipping Address",
-			Type:    sync.Text,
-			SubType: sync.MD,
+		"shipping_line_1": {
+			Name: "Shipping Line 1",
+			Type: Text,
 		},
-		"billing_address": {
-			Name:    "Billing Address",
-			Type:    sync.Text,
-			SubType: sync.MD,
+		"shipping_line_2": {
+			Name: "Shipping Line 2",
+			Type: Text,
+		},
+		"shipping_line_3": {
+			Name: "Shipping Line 3",
+			Type: Text,
+		},
+		"shipping_line_4": {
+			Name: "Shipping Line 4",
+			Type: Text,
+		},
+		"shipping_line_5": {
+			Name: "Shipping Line 5",
+			Type: Text,
+		},
+		"shipping_city": {
+			Name: "Shipping City",
+			Type: Text,
+		},
+		"shipping_state": {
+			Name: "Shipping State",
+			Type: Text,
+		},
+		"shipping_postal_code": {
+			Name: "Shipping Postal Code",
+			Type: Text,
+		},
+		"shipping_country": {
+			Name: "Shipping Country",
+			Type: Text,
+		},
+		"shipping_lat": {
+			Name: "Shipping Latitude",
+			Type: Text,
+		},
+		"shipping_long": {
+			Name: "Shipping Longitude",
+			Type: Text,
+		},
+		"billing_line_1": {
+			Name: "Billing Line 1",
+			Type: Text,
+		},
+		"billing_line_2": {
+			Name: "Billing Line 2",
+			Type: Text,
+		},
+		"billing_line_3": {
+			Name: "Billing Line 3",
+			Type: Text,
+		},
+		"billing_line_4": {
+			Name: "Billing Line 4",
+			Type: Text,
+		},
+		"billing_line_5": {
+			Name: "Billing Line 5",
+			Type: Text,
+		},
+		"billing_city": {
+			Name: "Billing City",
+			Type: Text,
+		},
+		"billing_state": {
+			Name: "Billing State",
+			Type: Text,
+		},
+		"billing_postal_code": {
+			Name: "Billing Postal Code",
+			Type: Text,
+		},
+		"billing_country": {
+			Name: "Billing Country",
+			Type: Text,
+		},
+		"billing_lat": {
+			Name: "Billing Latitude",
+			Type: Text,
+		},
+		"billing_long": {
+			Name: "Billing Longitude",
+			Type: Text,
 		},
 		"invoice_num": {
 			Name: "Invoice",
-			Type: sync.Text,
+			Type: Text,
 		},
 		"email": {
 			Name:    "To",
-			Type:    sync.Text,
-			SubType: sync.Email,
+			Type:    Text,
+			SubType: Email,
 		},
 		"email_cc": {
 			Name:    "CC",
-			Type:    sync.Text,
-			SubType: sync.Email,
+			Type:    Text,
+			SubType: Email,
 		},
 		"email_bcc": {
 			Name:    "BCC",
-			Type:    sync.Text,
-			SubType: sync.Email,
+			Type:    Text,
+			SubType: Email,
 		},
 		"email_status": {
 			Name:     "Email Status",
-			Type:     sync.Text,
-			SubType:  sync.SingleSelect,
+			Type:     Text,
+			SubType:  SingleSelect,
 			ReadOnly: true,
 			Options: []map[string]any{
-				{
-					"name": "Not Sent",
-				},
 				{
 					"name": "Need To Send",
 				},
@@ -84,21 +159,21 @@ var InvoiceType = sync.DataType{
 		},
 		"email_send_time": {
 			Name: "Send Time",
-			Type: sync.Date,
+			Type: DateType,
 		},
 		"date": {
 			Name: "Date",
-			Type: sync.Date,
+			Type: DateType,
 		},
 		"due_date": {
 			Name: "Due Date",
-			Type: sync.Date,
+			Type: DateType,
 		},
 		"class_id": {
 			Name: "Class ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Class",
 				TargetName:    "Invoices",
 				TargetType:    "class",
@@ -107,13 +182,10 @@ var InvoiceType = sync.DataType{
 		},
 		"print_status": {
 			Name:     "Print Status",
-			Type:     sync.Text,
-			SubType:  sync.SingleSelect,
+			Type:     Text,
+			SubType:  SingleSelect,
 			ReadOnly: true,
 			Options: []map[string]any{
-				{
-					"name": "Not Set",
-				},
 				{
 					"name": "Need To Print",
 				},
@@ -124,9 +196,9 @@ var InvoiceType = sync.DataType{
 		},
 		"term_id": {
 			Name: "Term ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Term",
 				TargetName:    "Invoices",
 				TargetType:    "term",
@@ -135,28 +207,28 @@ var InvoiceType = sync.DataType{
 		},
 		"statement_memo": {
 			Name:    "Statement Message",
-			Type:    sync.Text,
-			SubType: sync.Title,
+			Type:    Text,
+			SubType: Title,
 		},
 		"customer_memo": {
 			Name: "Invoice Message",
-			Type: sync.Text,
+			Type: Text,
 		},
 		"allow_ach": {
 			Name:    "ACH Payments",
-			Type:    sync.Text,
-			SubType: sync.Boolean,
+			Type:    Text,
+			SubType: Boolean,
 		},
 		"allow_cc": {
 			Name:    "Credit Card Payments",
-			Type:    sync.Text,
-			SubType: sync.Boolean,
+			Type:    Text,
+			SubType: Boolean,
 		},
 		"tax_code_id": {
 			Name: "Tax Code ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Tax Code",
 				TargetName:    "Invoices",
 				TargetType:    "tax_code",
@@ -165,8 +237,8 @@ var InvoiceType = sync.DataType{
 		},
 		"tax_position": {
 			Name:     "Apply Tax",
-			Type:     sync.Text,
-			SubType:  sync.SingleSelect,
+			Type:     Text,
+			SubType:  SingleSelect,
 			ReadOnly: true,
 			Options: []map[string]any{
 				{
@@ -180,9 +252,9 @@ var InvoiceType = sync.DataType{
 		},
 		"tax_exemption_id": {
 			Name: "Tax Exemption ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Tax Exemption",
 				TargetName:    "Invoices",
 				TargetType:    "tax_exemption",
@@ -191,9 +263,9 @@ var InvoiceType = sync.DataType{
 		},
 		"deposit_account_id": {
 			Name: "Deposit Account ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Deposit Account",
 				TargetName:    "Invoice Deposits",
 				TargetType:    "account",
@@ -202,7 +274,7 @@ var InvoiceType = sync.DataType{
 		},
 		"deposit_field": {
 			Name: "Deposit Amount",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -212,8 +284,8 @@ var InvoiceType = sync.DataType{
 		},
 		"discount_type": {
 			Name:     "Discount Type",
-			Type:     sync.Text,
-			SubType:  sync.SingleSelect,
+			Type:     Text,
+			SubType:  SingleSelect,
 			ReadOnly: true,
 			Options: []map[string]any{
 				{
@@ -226,7 +298,7 @@ var InvoiceType = sync.DataType{
 		},
 		"discount_percent": {
 			Name: "Discount Percent",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":    "Percent",
 				"precision": 2,
@@ -234,7 +306,7 @@ var InvoiceType = sync.DataType{
 		},
 		"discount_amount": {
 			Name: "Discount Amount",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -244,7 +316,17 @@ var InvoiceType = sync.DataType{
 		},
 		"tax": {
 			Name: "Tax",
-			Type: sync.Number,
+			Type: Number,
+			Format: map[string]any{
+				"format":               "Money",
+				"currencyCode":         "USD",
+				"hasThousandSeperator": true,
+				"precision":            2,
+			},
+		},
+		"subtotal": {
+			Name: "Subtotal",
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -254,7 +336,7 @@ var InvoiceType = sync.DataType{
 		},
 		"total": {
 			Name: "Total",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -264,7 +346,7 @@ var InvoiceType = sync.DataType{
 		},
 		"balance": {
 			Name: "Balance",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -272,55 +354,59 @@ var InvoiceType = sync.DataType{
 				"precision":            2,
 			},
 		},
-		"link": {
-			Name:    "URL",
-			Type:    sync.Text,
-			SubType: sync.URL,
-		},
 		"created_qbo": {
 			Name: "Creation Date (QBO)",
-			Type: sync.Date,
+			Type: DateType,
 		},
 		"last_updated_qbo": {
 			Name: "Last Updated (QBO)",
-			Type: sync.Date,
+			Type: DateType,
+		},
+		"__syncAction": {
+			Type: Text,
+			Name: "Sync Action",
 		},
 	},
-	DataRequest: getInvoiceSubtype("invoice"),
+	DataRequest: func(req RequestParameters) ([]map[string]any, bool, error) {
+		return getInvoiceData("invoice", req)
+	},
 }
 
-var InvoiceLineType = sync.DataType{
+var InvoiceLineType = DataType{
 	ID:   "invoice_line",
 	Name: "Invoice Line",
-	Schema: map[string]sync.Field{
+	Schema: map[string]Field{
 		"id": {
 			Name: "id",
-			Type: sync.ID,
+			Type: ID,
 		},
 		"description": {
 			Name:    "Description",
-			Type:    sync.Text,
-			SubType: sync.Title,
+			Type:    Text,
+			SubType: Title,
 		},
-		"type": {
-			Name:    "Type",
-			Type:    sync.Text,
-			SubType: sync.SingleSelect,
+		"line_type": {
+			Name:    "Line Type",
+			Type:    Text,
+			SubType: SingleSelect,
 			Options: []map[string]any{
 				{
-					"name": "Sales Item Line",
+					"name": "Sales Item",
 				},
 				{
-					"name": "Group Line",
+					"name": "Group",
 				},
 				{
-					"name": "Description Line",
+					"name": "Description",
+				},
+				{
+					"name": "Group",
 				},
 			},
 		},
 		"quantity": {
 			Name: "Quantity",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Number",
 				"hasThousandSeparator": true,
@@ -329,7 +415,7 @@ var InvoiceLineType = sync.DataType{
 		},
 		"unit_price": {
 			Name: "Unit Price",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -339,7 +425,7 @@ var InvoiceLineType = sync.DataType{
 		},
 		"amount": {
 			Name: "Amount",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":               "Money",
 				"currencyCode":         "USD",
@@ -349,14 +435,14 @@ var InvoiceLineType = sync.DataType{
 		},
 		"line_num": {
 			Name:    "Line",
-			Type:    sync.Number,
-			SubType: sync.Integer,
+			Type:    Number,
+			SubType: Integer,
 		},
 		"group_line_id": {
 			Name: "Group Line ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Group",
 				TargetName:    "Lines",
 				TargetType:    "invoice_line",
@@ -365,9 +451,9 @@ var InvoiceLineType = sync.DataType{
 		},
 		"item_id": {
 			Name: "Item",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Item",
 				TargetName:    "Invoice Lines",
 				TargetType:    "item",
@@ -376,9 +462,9 @@ var InvoiceLineType = sync.DataType{
 		},
 		"class_id": {
 			Name: "Class ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Class",
 				TargetName:    "Expense Account Line(s)",
 				TargetType:    "class",
@@ -387,9 +473,9 @@ var InvoiceLineType = sync.DataType{
 		},
 		"tax_code_id": {
 			Name: "Tax Code ID",
-			Type: sync.Text,
-			Relation: &sync.Relation{
-				Cardinality:   sync.MTO,
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
 				Name:          "Tax Code",
 				TargetName:    "Invoice Lines",
 				TargetType:    "tax_code",
@@ -398,7 +484,7 @@ var InvoiceLineType = sync.DataType{
 		},
 		"markup_percent": {
 			Name: "Markup",
-			Type: sync.Number,
+			Type: Number,
 			Format: map[string]any{
 				"format":    "Percent",
 				"precision": 2,
@@ -406,28 +492,289 @@ var InvoiceLineType = sync.DataType{
 		},
 		"service_date": {
 			Name:    "Date",
-			Type:    sync.Date,
-			SubType: sync.Day,
+			Type:    DateType,
+			SubType: Day,
+		},
+		"__syncAction": {
+			Type: Text,
+			Name: "Sync Action",
 		},
 	},
-	DataRequest: getInvoiceSubtype("invoice_line"),
+	DataRequest: func(req RequestParameters) ([]map[string]any, bool, error) {
+		return getInvoiceData("invoice_line", req)
+	},
 }
 
-func getInvoiceSubtype(subTypeID string) sync.DataRequest {
-	return func(req sync.RequestParameters) ([]map[string]any, bool, error) {
-		return getInvoices(subTypeID, req)
+func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]any, morePages bool, err error) {
+	convertInvoiceData := func(subTypeID string, sync SyncType, invoices []Invoice) ([]map[string]any, error) {
+		switch subTypeID {
+		case "invoice":
+			var emailStatus = map[string]string{
+				"NotSet":     "",
+				"NeedToSend": "Need To Send",
+				"EmailSent":  "Sent",
+			}
+
+			var printStatus = map[string]string{
+				"NotSet":        "",
+				"NeedToPrint":   "Need To Print",
+				"PrintComplete": "Print Complete",
+			}
+
+			var taxPosition = map[bool]string{
+				true:  "After Discount",
+				false: "Before Discount",
+			}
+
+			var discountType = map[bool]string{
+				true:  "Percentage",
+				false: "Amount",
+			}
+			var data []map[string]any
+			for _, invoice := range invoices {
+				discountLine := make([]Line, 1)
+				subtotalLine := make([]Line, 1)
+				for _, line := range invoice.Line {
+					if line.DetailType == "DiscountLineDetail" {
+						discountLine = append(discountLine, line)
+					}
+					if line.DetailType == "SubtotalLineDetail" {
+						subtotalLine = append(subtotalLine, line)
+					}
+				}
+				if len(discountLine) > 1 {
+					return nil, fmt.Errorf("invoice %s has more than one discount line", invoice.Id)
+				}
+				if len(subtotalLine) > 1 {
+					return nil, fmt.Errorf("invoice %s has more than one subtotal line", invoice.Id)
+				}
+				data = append(data, map[string]any{
+					"id":                   invoice.Id,
+					"customer_id":          invoice.CustomerRef.Value,
+					"sync_token":           invoice.SyncToken,
+					"shipping_line_1":      invoice.ShipAddr.Line1,
+					"shipping_line_2":      invoice.ShipAddr.Line2,
+					"shipping_line_3":      invoice.ShipAddr.Line3,
+					"shipping_line_4":      invoice.ShipAddr.Line4,
+					"shipping_line_5":      invoice.ShipAddr.Line5,
+					"shipping_city":        invoice.ShipAddr.City,
+					"shipping_state":       invoice.ShipAddr.CountrySubDivisionCode,
+					"shipping_postal_code": invoice.ShipAddr.PostalCode,
+					"shipping_country":     invoice.ShipAddr.Country,
+					"shipping_lat":         invoice.ShipAddr.Lat,
+					"shipping_long":        invoice.ShipAddr.Long,
+					"billing_line_1":       invoice.BillAddr.Line1,
+					"billing_line_2":       invoice.BillAddr.Line2,
+					"billing_line_3":       invoice.BillAddr.Line3,
+					"billing_line_4":       invoice.BillAddr.Line4,
+					"billing_line_5":       invoice.BillAddr.Line5,
+					"billing_city":         invoice.BillAddr.City,
+					"billing_state":        invoice.BillAddr.CountrySubDivisionCode,
+					"billing_postal_code":  invoice.BillAddr.PostalCode,
+					"billing_country":      invoice.BillAddr.Country,
+					"billing_lat":          invoice.BillAddr.Lat,
+					"billing_long":         invoice.BillAddr.Long,
+					"invoice_num":          invoice.DocNumber,
+					"email":                invoice.BillEmail.Address,
+					"email_cc":             invoice.BillEmailCC.Address,
+					"email_bcc":            invoice.BillEmailBCC.Address,
+					"email_status":         emailStatus[invoice.EmailStatus],
+					"email_send_time":      invoice.DeliveryInfo.DeliveryTime.Format(fiberyDateFormat),
+					"date":                 invoice.TxnDate.Format(fiberyDateFormat),
+					"due_date":             invoice.DueDate.Format(fiberyDateFormat),
+					"class_id":             invoice.ClassRef.Value,
+					"print_status":         printStatus[invoice.PrintStatus],
+					"term_id":              invoice.SalesTermRef.Value,
+					"statement_memo":       invoice.PrivateNote,
+					"customer_memo":        invoice.CustomerMemo.Value,
+					"allow_ach":            invoice.AllowOnlineACHPayment,
+					"allow_cc":             invoice.AllowOnlineCreditCardPayment,
+					"tax_code_id":          invoice.TxnTaxDetail.TxnTaxCodeRef.Value,
+					"tax_position":         taxPosition[invoice.ApplyTaxAfterDiscount],
+					"tax_exemption_id":     invoice.TaxExemptionRef.Value,
+					"deposit_account_id":   invoice.DepositToAccountRef.Value,
+					"deposit_field":        invoice.Deposit,
+					"discount_type":        discountType[discountLine[0].DiscountLineDetail.PercentBased],
+					"discount_percent":     discountLine[0].DiscountLineDetail.DiscountPercent,
+					"discount_amount":      discountLine[0].Amount,
+					"tax":                  invoice.TxnTaxDetail.TotalTax,
+					"subtotal":             subtotalLine[0].Amount,
+					"total":                invoice.TotalAmt,
+					"balance":              invoice.Balance,
+					"created_qbo":          invoice.MetaData.CreateTime.Format(fiberyDateFormat),
+					"last_updated_qbo":     invoice.MetaData.LastUpdatedTime.Format(fiberyDateFormat),
+					"__syncAction":         sync,
+				})
+			}
+			return data, nil
+		case "invoice_line":
+			var lineTypes = map[string]string{
+				"SalesItemLineDetail": "Sales Item Line",
+				"GroupLineDetail":     "Group Line",
+				"DescriptionOnly":     "Description Line",
+			}
+
+			var data []map[string]any
+			for _, invoice := range invoices {
+				for _, line := range invoice.Line {
+					if line.DetailType == "GroupLineDetail" {
+						data = append(data, map[string]any{
+							"id":           line.Id,
+							"description":  line.Description,
+							"line_type":    lineTypes[line.DetailType],
+							"quantity":     line.GroupLineDetail.Quantity,
+							"line_num":     line.LineNum,
+							"item_id":      line.GroupLineDetail.GroupItemRef.Value,
+							"__syncAction": sync,
+						})
+						for _, groupLine := range line.GroupLineDetail.Line {
+							data = append(data, map[string]any{
+								"id":             groupLine.Id,
+								"description":    groupLine.Description,
+								"line_type":      lineTypes[groupLine.DetailType],
+								"quantity":       groupLine.SalesItemLineDetail.Qty,
+								"unit_price":     groupLine.SalesItemLineDetail.UnitPrice,
+								"amount":         groupLine.Amount,
+								"line_num":       groupLine.LineNum,
+								"group_line_id":  line.Id,
+								"item_id":        groupLine.SalesItemLineDetail.ItemRef.Value,
+								"class_id":       groupLine.SalesItemLineDetail.ClassRef.Value,
+								"tax_code_id":    groupLine.SalesItemLineDetail.TaxCodeRef.Value,
+								"markup_percent": groupLine.SalesItemLineDetail.MarkupInfo.Percent,
+								"service_date":   groupLine.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
+								"__syncAction":   sync,
+							})
+						}
+					} else {
+						data = append(data, map[string]any{
+							"id":             line.Id,
+							"description":    line.Description,
+							"type":           lineTypes[line.DetailType],
+							"quantity":       line.SalesItemLineDetail.Qty,
+							"unit_price":     line.SalesItemLineDetail.UnitPrice,
+							"amount":         line.Amount,
+							"line_num":       line.LineNum,
+							"item_id":        line.SalesItemLineDetail.ItemRef.Value,
+							"class_id":       line.SalesItemLineDetail.ClassRef.Value,
+							"tax_code_id":    line.SalesItemLineDetail.TaxCodeRef.Value,
+							"markup_percent": line.SalesItemLineDetail.MarkupInfo.Percent,
+							"service_date":   line.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
+							"__syncAction":   sync,
+						})
+					}
+				}
+			}
+			return data, nil
+		default:
+			return nil, fmt.Errorf("invalid subtype: %s", subTypeID)
+		}
 	}
+
+	groupKey := fmt.Sprintf("%s:%s", req.OperationID, subtypeID)
+	cacheKey := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
+	sync := fullSync
+	if req.LastSynced != "" {
+		sync = deltaSync
+	}
+
+	type result struct {
+		data []map[string]any
+		more bool
+	}
+
+	res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
+		if cacheEntryInterface, exists := req.Cache.Get(cacheKey); exists {
+			cacheEntry := cacheEntryInterface.(*CacheEntry[Invoice])
+
+			cacheEntry.mu.Lock()
+			defer cacheEntry.mu.Unlock()
+
+			invoices := cacheEntry.Data
+			more := cacheEntry.More
+
+			cacheEntry.ProcessedTypes[subtypeID] = true
+
+			req.Cache.Set(cacheKey, cacheEntry, cache.DefaultExpiration)
+
+			allProcessed := true
+			for _, processed := range cacheEntry.ProcessedTypes {
+				if !processed {
+					allProcessed = false
+					break
+				}
+			}
+
+			if allProcessed {
+				req.Cache.Delete(cacheKey)
+			}
+
+			data, err := convertInvoiceData(subtypeID, sync, invoices)
+			if err != nil {
+				return nil, err
+			}
+
+			return result{data, more}, nil
+		}
+
+		client, err := NewClient(req.RealmID, req.Token)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create new client: %w", err)
+		}
+
+		var query string
+
+		if sync == fullSync {
+			query = fmt.Sprintf("SELECT * FROM Invoice STARTPOSITION %d MAXRESULTS %d", req.StartPosition, QueryPageSize)
+		} else {
+			query = fmt.Sprintf("SELECT * FROM Invoice WHERE MetaData.LastUpdatedTime >= '%s' STARTPOSITION %d MAXRESULTS %d", req.LastSynced, req.StartPosition, QueryPageSize)
+		}
+
+		var resp struct {
+			QueryResponse struct {
+				Invoices      []Invoice `json:"Invoice"`
+				StartPosition int
+				MaxResults    int
+			}
+		}
+
+		if err := client.query(query, &resp); err != nil {
+			return nil, err
+		}
+
+		invoices := resp.QueryResponse.Invoices
+		more := len(invoices) == QueryPageSize
+		processedTypes := map[string]bool{
+			"invoice":      false,
+			"invoice_line": false,
+		}
+
+		entry := &CacheEntry[Invoice]{
+			Data:           invoices,
+			ProcessedTypes: processedTypes,
+			More:           more,
+		}
+
+		entry.ProcessedTypes[subtypeID] = true
+
+		req.Cache.Set(cacheKey, entry, cache.DefaultExpiration)
+
+		data, err = convertInvoiceData(subtypeID, fullSync, resp.QueryResponse.Invoices)
+		if err != nil {
+			return nil, err
+		}
+
+		return result{data, more}, nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+
+	return res.(result).data, res.(result).more, nil
 }
 
-func getInvoices(subTypeID string, req sync.RequestParameters) ([]map[string]any, bool, error) {
-	if subTypeID == "invoice" {
-
-		return nil, false, nil
-	}
-	if subTypeID == "invoice_line" {
-		return nil, false, nil
-	}
-	return nil, false, fmt.Errorf("invalid subtype: %s", subTypeID)
+func init() {
+	InvoiceType.Register()
+	InvoiceLineType.Register()
 }
 
 // Invoice represents a QuickBooks Invoice object.
@@ -466,12 +813,19 @@ type Invoice struct {
 	BillEmailCC                  EmailAddress  `json:"BillEmailCc,omitempty"`
 	BillEmailBCC                 EmailAddress  `json:"BillEmailBcc,omitempty"`
 	DeliveryInfo                 *DeliveryInfo `json:",omitempty"`
+	TaxExemptionRef              ReferenceType `json:",omitempty"`
 	Balance                      json.Number   `json:",omitempty"`
 	TxnSource                    string        `json:",omitempty"`
 	AllowOnlineCreditCardPayment bool          `json:",omitempty"`
 	AllowOnlineACHPayment        bool          `json:",omitempty"`
 	Deposit                      json.Number   `json:",omitempty"`
 	DepositToAccountRef          ReferenceType `json:",omitempty"`
+}
+
+type MarkupInfo struct {
+	PriceLevelRef          ReferenceType `json:",omitempty"`
+	Percent                json.Number   `json:",omitempty"`
+	MarkUpIncomeAccountRef ReferenceType `json:",omitempty"`
 }
 
 type DeliveryInfo struct {
@@ -509,6 +863,7 @@ type Line struct {
 	DetailType                    string
 	AccountBasedExpenseLineDetail AccountBasedExpenseLineDetail `json:",omitempty"`
 	SalesItemLineDetail           SalesItemLineDetail           `json:",omitempty"`
+	GroupLineDetail               GroupLineDetail               `json:",omitempty"`
 	DiscountLineDetail            DiscountLineDetail            `json:",omitempty"`
 	TaxLineDetail                 TaxLineDetail                 `json:",omitempty"`
 }
@@ -525,10 +880,10 @@ type TaxLineDetail struct {
 
 // SalesItemLineDetail ...
 type SalesItemLineDetail struct {
-	ItemRef   ReferenceType `json:",omitempty"`
-	ClassRef  ReferenceType `json:",omitempty"`
-	UnitPrice json.Number   `json:",omitempty"`
-	// MarkupInfo
+	ItemRef         ReferenceType `json:",omitempty"`
+	ClassRef        ReferenceType `json:",omitempty"`
+	UnitPrice       json.Number   `json:",omitempty"`
+	MarkupInfo      MarkupInfo    `json:",omitempty"`
 	Qty             float32       `json:",omitempty"`
 	ItemAccountRef  ReferenceType `json:",omitempty"`
 	TaxCodeRef      ReferenceType `json:",omitempty"`
@@ -536,6 +891,13 @@ type SalesItemLineDetail struct {
 	TaxInclusiveAmt json.Number   `json:",omitempty"`
 	DiscountRate    json.Number   `json:",omitempty"`
 	DiscountAmt     json.Number   `json:",omitempty"`
+}
+
+// GroupLineDetail ...
+type GroupLineDetail struct {
+	Quantity     float32       `json:",omitempty"`
+	GroupItemRef ReferenceType `json:",omitempty"`
+	Line         []Line        `json:",omitempty"`
 }
 
 // DiscountLineDetail ...
@@ -597,8 +959,8 @@ func (c *Client) FindInvoices() ([]Invoice, error) {
 
 	invoices := make([]Invoice, 0, resp.QueryResponse.TotalCount)
 
-	for i := 0; i < resp.QueryResponse.TotalCount; i += queryPageSize {
-		query := "SELECT * FROM Invoice ORDERBY Id STARTPOSITION " + strconv.Itoa(i+1) + " MAXRESULTS " + strconv.Itoa(queryPageSize)
+	for i := 0; i < resp.QueryResponse.TotalCount; i += QueryPageSize {
+		query := "SELECT * FROM Invoice ORDERBY Id STARTPOSITION " + strconv.Itoa(i+1) + " MAXRESULTS " + strconv.Itoa(QueryPageSize)
 
 		if err := c.query(query, &resp); err != nil {
 			return nil, err

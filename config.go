@@ -2,8 +2,6 @@ package main
 
 import (
 	"net/http"
-
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/internal/utils"
 )
 
 type Authentication struct {
@@ -79,6 +77,6 @@ var config = AppConfig{
 	},
 }
 
-func ConfigHandler(w http.ResponseWriter, r *http.Request) {
-	utils.RespondWithJSON(w, http.StatusOK, config)
+func AppConfigHandler(w http.ResponseWriter, r *http.Request) {
+	RespondWithJSON(w, http.StatusOK, config)
 }

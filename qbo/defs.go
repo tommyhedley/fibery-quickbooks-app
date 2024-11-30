@@ -3,7 +3,13 @@
 
 package qbo
 
-import "time"
+import (
+	"sync"
+	"time"
+
+	"github.com/patrickmn/go-cache"
+	"golang.org/x/sync/singleflight"
+)
 
 type CustomField struct {
 	DefinitionId string `json:"DefinitionId,omitempty"`
@@ -23,16 +29,16 @@ func (d *Date) UnmarshalJSON(b []byte) (err error) {
 		b = b[1 : len(b)-1]
 	}
 
-	d.Time, err = time.Parse(format, string(b))
+	d.Time, err = time.Parse(qboDateFormat, string(b))
 	if err != nil {
-		d.Time, err = time.Parse(secondFormat, string(b))
+		d.Time, err = time.Parse(qboDayFormat, string(b))
 	}
 
 	return err
 }
 
 func (d Date) String() string {
-	return d.Format(format)
+	return d.Format(qboDateFormat)
 }
 
 // EmailAddress represents a QuickBooks email address.
@@ -44,19 +50,18 @@ type EmailAddress struct {
 type EndpointUrl string
 
 const (
-	// DiscoveryProductionEndpoint is for live apps.
-	DiscoveryProductionEndpoint EndpointUrl = "https://developer.api.intuit.com/.well-known/openid_configuration"
-	// DiscoverySandboxEndpoint is for testing.
-	DiscoverySandboxEndpoint EndpointUrl = "https://developer.api.intuit.com/.well-known/openid_sandbox_configuration"
-	// ProductionEndpoint is for live apps.
-	ProductionEndpoint EndpointUrl = "https://quickbooks.api.intuit.com"
-	// SandboxEndpoint is for testing.
-	SandboxEndpoint EndpointUrl = "https://sandbox-quickbooks.api.intuit.com"
-
-	format        = "2006-01-02T15:04:05-07:00"
-	queryPageSize = 1000
-	secondFormat  = "2006-01-02"
+	QueryPageSize    = 1000
+	qboDateFormat    = "2006-01-02T15:04:05-07:00"
+	qboDayFormat     = "2006-01-02"
+	fiberyDateFormat = "2020-01-22T01:02:23.977Z"
 )
+
+type CacheEntry[t any] struct {
+	Data           []t
+	ProcessedTypes map[string]bool
+	More           bool
+	mu             sync.Mutex
+}
 
 func (u EndpointUrl) String() string {
 	return string(u)
@@ -106,4 +111,119 @@ type TelephoneNumber struct {
 // WebSiteAddress represents a Quickbooks Website
 type WebSiteAddress struct {
 	URI string `json:",omitempty"`
+}
+
+// Response & Request Format For Fibery Account Info
+type FiberyAccountInfo struct {
+	Name    string `json:"name,omitempty"`
+	RealmID string `json:"realmId,omitempty"`
+	BearerToken
+}
+
+// Fibery Schema Definitions
+type FieldType string
+
+const (
+	ID        FieldType = "id"
+	Text      FieldType = "text"
+	Number    FieldType = "number"
+	DateType  FieldType = "date"
+	TextArray FieldType = "array[text]"
+)
+
+type FieldSubtype string
+
+const (
+	URL          FieldSubtype = "url"
+	Integer      FieldSubtype = "integer"
+	Email        FieldSubtype = "email"
+	Boolean      FieldSubtype = "boolean"
+	HTML         FieldSubtype = "html"
+	MD           FieldSubtype = "md"
+	Files        FieldSubtype = "files"
+	Daterange    FieldSubtype = "date-range"
+	Title        FieldSubtype = "title"
+	SingleSelect FieldSubtype = "single-select"
+	MultiSelect  FieldSubtype = "multi-select"
+	Day          FieldSubtype = "day"
+)
+
+type CardinalityType string
+
+const (
+	OTO CardinalityType = "one-to-one"
+	OTM CardinalityType = "one-to-many"
+	MTO CardinalityType = "many-to-one"
+	MTM CardinalityType = "many-to-many"
+)
+
+type Relation struct {
+	Cardinality   CardinalityType `json:"cardinality"`
+	Name          string          `json:"name"`
+	TargetName    string          `json:"targetName"`
+	TargetType    string          `json:"targetType"`
+	TargetFieldID string          `json:"targetFieldId"`
+}
+
+type Field struct {
+	Ignore      bool             `json:"ignore,omitempty"`
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	ReadOnly    bool             `json:"readonly,omitempty"`
+	Type        FieldType        `json:"type,omitempty"`
+	SubType     FieldSubtype     `json:"subType,omitempty"`
+	Format      map[string]any   `json:"format,omitempty"`
+	Options     []map[string]any `json:"options,omitempty"`
+	Relation    *Relation        `json:"relation,omitempty"`
+}
+
+// Data Request Definitions & Parameters
+type SyncType string
+
+const (
+	deltaSync SyncType = "delta"
+	fullSync  SyncType = "full"
+)
+
+type TypeArray struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type RequestParameters struct {
+	Cache         *cache.Cache
+	Group         *singleflight.Group
+	Token         *BearerToken
+	StartPosition int
+	OperationID   string
+	RealmID       string
+	LastSynced    string
+	Filter        map[string]any
+}
+
+type DataRequest func(RequestParameters) (data []map[string]any, morePages bool, err error)
+
+type DataType struct {
+	ID     string
+	Name   string
+	Schema map[string]Field
+	DataRequest
+}
+
+var Types = []TypeArray{}
+var Schema = make(map[string]map[string]Field)
+var DataRequests = make(map[string]*DataRequest)
+
+func (dt *DataType) Register() {
+	Types = append(Types, TypeArray{
+		ID:   dt.ID,
+		Name: dt.Name,
+	})
+	Schema[dt.ID] = dt.Schema
+	DataRequests[dt.ID] = &dt.DataRequest
+}
+
+func GetRequestFunctions(id string) (*DataRequest, bool) {
+	dr, exists := DataRequests[id]
+	return dr, exists
 }

@@ -18,13 +18,13 @@ import (
 )
 
 type BearerToken struct {
-	RefreshToken           string `json:"refresh_token"`
-	AccessToken            string `json:"access_token"`
-	TokenType              string `json:"token_type"`
-	IdToken                string `json:"id_token"`
-	ExpiresIn              int64  `json:"expires_in"`
-	ExpiresOn              string `json:"expires_on,omitempty"`
-	XRefreshTokenExpiresIn int64  `json:"x_refresh_token_expires_in"`
+	RefreshToken           string      `json:"refresh_token"`
+	AccessToken            string      `json:"access_token"`
+	TokenType              string      `json:"token_type"`
+	IdToken                string      `json:"id_token"`
+	ExpiresIn              json.Number `json:"expires_in"`
+	ExpiresOn              string      `json:"expires_on,omitempty"`
+	XRefreshTokenExpiresIn json.Number `json:"x_refresh_token_expires_in"`
 }
 
 // RefreshToken
@@ -172,7 +172,12 @@ func getBearerTokenResponse(body []byte) (*BearerToken, error) {
 		return nil, errors.New(string(body))
 	}
 
-	token.ExpiresOn = time.Now().UTC().Add(time.Duration(token.ExpiresIn) * time.Second).Format(time.RFC3339)
+	expiresIn, err := token.ExpiresIn.Int64()
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse expires_in to int64: %w", err)
+	}
+
+	token.ExpiresOn = time.Now().UTC().Add(time.Duration(expiresIn) * time.Second).Format(time.RFC3339)
 
 	return &token, nil
 }

@@ -11,8 +11,25 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"time"
 )
+
+type RequestError struct {
+	StatusCode int
+	Err        error
+	TryLater   bool
+}
+
+func (e *RequestError) Error() string {
+	return e.Err.Error()
+}
+
+func NewRequestError(statusCode int, err error, tryLater bool) *RequestError {
+	return &RequestError{
+		StatusCode: statusCode,
+		TryLater:   tryLater,
+		Err:        err,
+	}
+}
 
 // Client is your handle to the QuickBooks API.
 type Client struct {
@@ -30,8 +47,6 @@ type Client struct {
 	minorVersion string
 	// The account Id you're connecting to.
 	realmId string
-	// Flag set if the limit of 500req/s has been hit (source: https://developer.intuit.com/app/developer/qbo/docs/learn/rest-api-features#limits-and-throttles)
-	throttled bool
 }
 
 // NewClient initializes a new QuickBooks client for interacting with their Online API
@@ -70,7 +85,6 @@ func NewClient(realmId string, token *BearerToken) (c *Client, err error) {
 		discoveryAPI: DiscoveryAPIData,
 		minorVersion: minorVersion,
 		realmId:      realmId,
-		throttled:    false,
 	}
 
 	if token != nil {
@@ -105,11 +119,6 @@ func (c *Client) FindAuthorizationUrl(scope string, state string, redirectUri st
 }
 
 func (c *Client) req(method string, endpoint string, payloadData interface{}, responseObject interface{}, queryParameters map[string]string) error {
-	// TODO: possibly just wait until c.throttled is false, and continue the request?
-	if c.throttled {
-		return errors.New("waiting for rate limit")
-	}
-
 	endpointUrl := *c.endpoint
 	endpointUrl.Path += "/v3/company/" + c.realmId + "/" + endpoint
 	urlValues := url.Values{}
@@ -153,11 +162,10 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 	case http.StatusOK:
 		break
 	case http.StatusTooManyRequests:
-		c.throttled = true
-		go func(c *Client) {
-			time.Sleep(1 * time.Minute)
-			c.throttled = false
-		}(c)
+		return RequestLimit{
+			Message:      errors.New("rate limit exceeded"),
+			ResetSeconds: 60,
+		}
 	default:
 		return parseFailure(resp)
 	}
@@ -177,6 +185,12 @@ func (c *Client) get(endpoint string, responseObject interface{}, queryParameter
 
 func (c *Client) post(endpoint string, payloadData interface{}, responseObject interface{}, queryParameters map[string]string) error {
 	return c.req("POST", endpoint, payloadData, responseObject, queryParameters)
+}
+
+type QueryResponse[T any] struct {
+	Items         []T
+	StartPosition int
+	MaxResults    int
 }
 
 // query makes the specified QBO `query` and unmarshals the result into `responseObject`
