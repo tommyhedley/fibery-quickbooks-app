@@ -142,7 +142,7 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 			return fmt.Errorf("failed to marshal payload: %v", err)
 		}
 	}
-	slog.Info("Requesting %s %s", method, endpointUrl.String())
+	slog.Info(fmt.Sprintf("Requesting %s %s", method, endpointUrl.String()))
 	req, err := http.NewRequest(method, endpointUrl.String(), bytes.NewBuffer(marshalledJson))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)

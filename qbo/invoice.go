@@ -20,6 +20,14 @@ var InvoiceType = DataType{
 			Name: "id",
 			Type: ID,
 		},
+		"qbo_id": {
+			Name: "QBO ID",
+			Type: Text,
+		},
+		"name": {
+			Name: "Name",
+			Type: Text,
+		},
 		"customer_id": {
 			Name: "Customer ID",
 			Type: Text,
@@ -206,9 +214,8 @@ var InvoiceType = DataType{
 			},
 		},
 		"statement_memo": {
-			Name:    "Statement Message",
-			Type:    Text,
-			SubType: Title,
+			Name: "Statement Message",
+			Type: Text,
 		},
 		"customer_memo": {
 			Name: "Invoice Message",
@@ -380,6 +387,21 @@ var InvoiceLineType = DataType{
 			Name: "id",
 			Type: ID,
 		},
+		"qbo_id": {
+			Name: "QBO ID",
+			Type: Text,
+		},
+		"invoice_id": {
+			Name: "Invoice ID",
+			Type: Text,
+			Relation: &Relation{
+				Cardinality:   MTO,
+				Name:          "Invoice",
+				TargetName:    "Invoice Lines",
+				TargetType:    "invoice",
+				TargetFieldID: "id",
+			},
+		},
 		"description": {
 			Name:    "Description",
 			Type:    Text,
@@ -506,6 +528,7 @@ var InvoiceLineType = DataType{
 }
 
 func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]any, morePages bool, err error) {
+	// need to reconfigure so that singleflight is used to limit invoice requests, not for invoice conversion
 	convertInvoiceData := func(subTypeID string, sync SyncType, invoices []Invoice) ([]map[string]any, error) {
 		switch subTypeID {
 		case "invoice":
@@ -532,24 +555,47 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 			}
 			var data []map[string]any
 			for _, invoice := range invoices {
-				discountLine := make([]Line, 1)
-				subtotalLine := make([]Line, 1)
+				var discountLine *Line
+				var subtotalLine *Line
 				for _, line := range invoice.Line {
 					if line.DetailType == "DiscountLineDetail" {
-						discountLine = append(discountLine, line)
+						if discountLine != nil {
+							return nil, fmt.Errorf("invoice %s has more than one discount line", invoice.Id)
+						}
+						discountLine = &line
 					}
-					if line.DetailType == "SubtotalLineDetail" {
-						subtotalLine = append(subtotalLine, line)
+					if line.DetailType == "SubTotalLineDetail" {
+						if subtotalLine != nil {
+							return nil, fmt.Errorf("invoice %s has more than one subtotal line", invoice.Id)
+						}
+						subtotalLine = &line
 					}
 				}
-				if len(discountLine) > 1 {
-					return nil, fmt.Errorf("invoice %s has more than one discount line", invoice.Id)
+
+				var discountTypeValue string
+				var discountPercent float32
+				var discountAmount json.Number
+
+				if discountLine != nil {
+					discountTypeValue = discountType[discountLine.DiscountLineDetail.PercentBased]
+					discountPercent = discountLine.DiscountLineDetail.DiscountPercent
+					discountAmount = discountLine.Amount
 				}
-				if len(subtotalLine) > 1 {
-					return nil, fmt.Errorf("invoice %s has more than one subtotal line", invoice.Id)
+
+				var subtotalAmount json.Number
+				if subtotalLine != nil {
+					subtotalAmount = subtotalLine.Amount
 				}
+
+				var emailSendTime string
+				if invoice.DeliveryInfo != nil && !invoice.DeliveryInfo.DeliveryTime.IsZero() {
+					emailSendTime = invoice.DeliveryInfo.DeliveryTime.Format(fiberyDateFormat)
+				}
+
 				data = append(data, map[string]any{
 					"id":                   invoice.Id,
+					"qbo_id":               invoice.Id,
+					"name":                 invoice.DocNumber + " - " + invoice.CustomerRef.Name,
 					"customer_id":          invoice.CustomerRef.Value,
 					"sync_token":           invoice.SyncToken,
 					"shipping_line_1":      invoice.ShipAddr.Line1,
@@ -579,7 +625,7 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 					"email_cc":             invoice.BillEmailCC.Address,
 					"email_bcc":            invoice.BillEmailBCC.Address,
 					"email_status":         emailStatus[invoice.EmailStatus],
-					"email_send_time":      invoice.DeliveryInfo.DeliveryTime.Format(fiberyDateFormat),
+					"email_send_time":      emailSendTime,
 					"date":                 invoice.TxnDate.Format(fiberyDateFormat),
 					"due_date":             invoice.DueDate.Format(fiberyDateFormat),
 					"class_id":             invoice.ClassRef.Value,
@@ -594,11 +640,11 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 					"tax_exemption_id":     invoice.TaxExemptionRef.Value,
 					"deposit_account_id":   invoice.DepositToAccountRef.Value,
 					"deposit_field":        invoice.Deposit,
-					"discount_type":        discountType[discountLine[0].DiscountLineDetail.PercentBased],
-					"discount_percent":     discountLine[0].DiscountLineDetail.DiscountPercent,
-					"discount_amount":      discountLine[0].Amount,
+					"discount_type":        discountTypeValue,
+					"discount_percent":     discountPercent,
+					"discount_amount":      discountAmount,
 					"tax":                  invoice.TxnTaxDetail.TotalTax,
-					"subtotal":             subtotalLine[0].Amount,
+					"subtotal":             subtotalAmount,
 					"total":                invoice.TotalAmt,
 					"balance":              invoice.Balance,
 					"created_qbo":          invoice.MetaData.CreateTime.Format(fiberyDateFormat),
@@ -619,7 +665,9 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 				for _, line := range invoice.Line {
 					if line.DetailType == "GroupLineDetail" {
 						data = append(data, map[string]any{
-							"id":           line.Id,
+							"id":           fmt.Sprintf("%s:%s", invoice.Id, line.Id),
+							"qbo_id":       line.Id,
+							"invoice_id":   invoice.Id,
 							"description":  line.Description,
 							"line_type":    lineTypes[line.DetailType],
 							"quantity":     line.GroupLineDetail.Quantity,
@@ -629,7 +677,9 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 						})
 						for _, groupLine := range line.GroupLineDetail.Line {
 							data = append(data, map[string]any{
-								"id":             groupLine.Id,
+								"id":             fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id),
+								"qbo_id":         groupLine.Id,
+								"invoice_id":     invoice.Id,
 								"description":    groupLine.Description,
 								"line_type":      lineTypes[groupLine.DetailType],
 								"quantity":       groupLine.SalesItemLineDetail.Qty,
@@ -645,9 +695,11 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 								"__syncAction":   sync,
 							})
 						}
-					} else {
+					} else if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
 						data = append(data, map[string]any{
-							"id":             line.Id,
+							"id":             fmt.Sprintf("%s:%s", invoice.Id, line.Id),
+							"qbo_id":         line.Id,
+							"invoice_id":     invoice.Id,
 							"description":    line.Description,
 							"type":           lineTypes[line.DetailType],
 							"quantity":       line.SalesItemLineDetail.Qty,
@@ -670,8 +722,9 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 		}
 	}
 
-	groupKey := fmt.Sprintf("%s:%s", req.OperationID, subtypeID)
+	groupKey := fmt.Sprintf("%s:%s", req.OperationID, "invoice")
 	cacheKey := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
+
 	sync := fullSync
 	if req.LastSynced != "" {
 		sync = deltaSync
