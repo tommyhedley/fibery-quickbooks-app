@@ -63,6 +63,15 @@ type CacheEntry[t any] struct {
 	mu             sync.Mutex
 }
 
+func allSubtypesProcessed(processedTypes map[string]bool) bool {
+	for _, processed := range processedTypes {
+		if !processed {
+			return false
+		}
+	}
+	return true
+}
+
 func (u EndpointUrl) String() string {
 	return string(u)
 }

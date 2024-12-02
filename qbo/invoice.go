@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/patrickmn/go-cache"
@@ -730,13 +731,41 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 		sync = deltaSync
 	}
 
+	if cacheEntryInterface, exists := req.Cache.Get(cacheKey); exists {
+		slog.Info(fmt.Sprintf("Cache hit for %s", cacheKey))
+		cacheEntry := cacheEntryInterface.(*CacheEntry[Invoice])
+
+		cacheEntry.mu.Lock()
+		defer cacheEntry.mu.Unlock()
+
+		invoices := cacheEntry.Data
+		more := cacheEntry.More
+
+		cacheEntry.ProcessedTypes[subtypeID] = true
+		req.Cache.Set(cacheKey, cacheEntry, cache.DefaultExpiration)
+
+		// If all subtypes have been processed, remove the cache entry
+		if allSubtypesProcessed(cacheEntry.ProcessedTypes) {
+			req.Cache.Delete(cacheKey)
+			slog.Info(fmt.Sprintf("Deleted cache entry for %s", cacheKey))
+		}
+
+		data, err := convertInvoiceData(subtypeID, sync, invoices)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return data, more, nil
+	}
+
 	type result struct {
-		data []map[string]any
+		data []Invoice
 		more bool
 	}
 
 	res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
 		if cacheEntryInterface, exists := req.Cache.Get(cacheKey); exists {
+			slog.Info(fmt.Sprintf("Cache hit for %s", cacheKey))
 			cacheEntry := cacheEntryInterface.(*CacheEntry[Invoice])
 
 			cacheEntry.mu.Lock()
@@ -749,24 +778,12 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 
 			req.Cache.Set(cacheKey, cacheEntry, cache.DefaultExpiration)
 
-			allProcessed := true
-			for _, processed := range cacheEntry.ProcessedTypes {
-				if !processed {
-					allProcessed = false
-					break
-				}
-			}
-
-			if allProcessed {
+			if allSubtypesProcessed(cacheEntry.ProcessedTypes) {
 				req.Cache.Delete(cacheKey)
+				slog.Info(fmt.Sprintf("Deleted cache entry for %s", cacheKey))
 			}
 
-			data, err := convertInvoiceData(subtypeID, sync, invoices)
-			if err != nil {
-				return nil, err
-			}
-
-			return result{data, more}, nil
+			return result{invoices, more}, nil
 		}
 
 		client, err := NewClient(req.RealmID, req.Token)
@@ -810,19 +827,20 @@ func getInvoiceData(subtypeID string, req RequestParameters) (data []map[string]
 		entry.ProcessedTypes[subtypeID] = true
 
 		req.Cache.Set(cacheKey, entry, cache.DefaultExpiration)
+		slog.Info(fmt.Sprintf("Created cache entry for %s", cacheKey))
 
-		data, err = convertInvoiceData(subtypeID, fullSync, resp.QueryResponse.Invoices)
-		if err != nil {
-			return nil, err
-		}
-
-		return result{data, more}, nil
+		return result{invoices, more}, nil
 	})
 	if err != nil {
 		return nil, false, err
 	}
 
-	return res.(result).data, res.(result).more, nil
+	data, err = convertInvoiceData(subtypeID, sync, res.(result).data)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return data, res.(result).more, nil
 }
 
 func init() {
