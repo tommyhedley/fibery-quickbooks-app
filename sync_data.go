@@ -90,6 +90,11 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			return
 		}
 
+		sync := DeltaSync
+		if params.LastSyncronized == "" {
+			sync = FullSync
+		}
+
 		resp := responseBody{
 			Items: items,
 			Pagination: pagination{
@@ -98,7 +103,7 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 					StartPosition: startPosition + qbo.QueryPageSize,
 				},
 			},
-			SynchronizationType: FullSync,
+			SynchronizationType: sync,
 		}
 		RespondWithJSON(w, http.StatusOK, resp)
 	}

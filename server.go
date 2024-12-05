@@ -130,7 +130,7 @@ func addRoutes(mux *http.ServeMux, c *cache.Cache, group *singleflight.Group) {
 	mux.Handle("POST /api/v1/automations/sync_action/{type}", ActionAuth(http.HandlerFunc(ActionHandler)))
 
 	mux.HandleFunc("POST /api/v1/synchronizer/webhooks", RegisterHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/verify", VerifyHandler)
+	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/pre-process", PreProcessHandler)
 	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/transform", TransformHandler)
 	mux.HandleFunc("DELETE /api/v1/synchronizer/webhooks", DeleteHandler)
 }
@@ -141,6 +141,7 @@ func NewServer(c *cache.Cache, group *singleflight.Group) http.Handler {
 	var handler http.Handler = mux
 
 	handler = loggingMiddleware()(handler)
-	handler = gzipMiddleware(handler)
+	// remove gzip middleware for now until fibery issue resolved
+	// handler = gzipMiddleware(handler)
 	return handler
 }

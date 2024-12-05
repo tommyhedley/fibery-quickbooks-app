@@ -194,6 +194,13 @@ const (
 	fullSync  SyncType = "full"
 )
 
+type SyncAction string
+
+const (
+	SET    SyncAction = "SET"
+	REMOVE SyncAction = "REMOVE"
+)
+
 type TypeArray struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
