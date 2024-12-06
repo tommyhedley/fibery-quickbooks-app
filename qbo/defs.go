@@ -190,8 +190,8 @@ type Field struct {
 type SyncType string
 
 const (
-	deltaSync SyncType = "delta"
-	fullSync  SyncType = "full"
+	DeltaSync SyncType = "delta"
+	FullSync  SyncType = "full"
 )
 
 type SyncAction string
@@ -213,7 +213,7 @@ type RequestParameters struct {
 	StartPosition int
 	OperationID   string
 	RealmID       string
-	LastSynced    string
+	LastSynced    time.Time
 	Filter        map[string]any
 }
 
@@ -242,4 +242,10 @@ func (dt *DataType) Register() {
 func GetRequestFunctions(id string) (*DataRequest, bool) {
 	dr, exists := DataRequests[id]
 	return dr, exists
+}
+
+type FiberyType interface {
+	FullSync() ([]map[string]any, error)
+	DeltaSync() ([]map[string]any, error)
+	Webhook() ([]map[string]any, error)
 }
