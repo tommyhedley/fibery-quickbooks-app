@@ -1,27 +1,37 @@
 package qbo
 
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
 type ChangeDataCapture struct {
 	CDCResponse []struct {
 		QueryResponse []struct {
-			Customer []struct {
-				ID string `json:"Id"`
-			} `json:"Customer,omitempty"`
-			StartPosition int `json:"startPosition"`
-			MaxResults    int `json:"maxResults"`
-			TotalCount    int `json:"totalCount,omitempty"`
-			Estimate      []struct {
-				ID       string `json:"Id"`
-				Status   string `json:"status,omitempty"`
-				Domain   string `json:"domain,omitempty"`
-				MetaData struct {
-					LastUpdatedTime string `json:"LastUpdatedTime"`
-				} `json:"MetaData,omitempty"`
-			} `json:"Estimate,omitempty"`
+			Customer      []Customer `json:",omitempty"`
+			Invoice       []Invoice  `json:",omitempty"`
+			Purchase      []Purchase `json:",omitempty"`
+			StartPosition int        `json:"startPosition"`
+			MaxResults    int        `json:"maxResults"`
+			TotalCount    int        `json:"totalCount,omitempty"`
 		} `json:"QueryResponse"`
 	} `json:"CDCResponse"`
 	Time string `json:"time"`
 }
 
-func (c *Client) ChangeDataCapture() (*ChangeDataCapture, error) {
-	return &ChangeDataCapture{}, nil
+func (c *Client) ChangeDataCapture(entities []string, changedSince time.Time) (*ChangeDataCapture, error) {
+	var res ChangeDataCapture
+
+	queryParams := map[string]string{
+		"entities":     strings.Join(entities, ","),
+		"changedSince": changedSince.Format(qboDateFormat),
+	}
+
+	err := c.req("GET", "/cdc", nil, res, queryParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make cdc request: %w", err)
+	}
+
+	return &res, nil
 }

@@ -1,0 +1,346 @@
+{
+    "CDCResponse": [
+        {
+            "QueryResponse": [
+                {
+                    "Estimate": [
+                        {
+                            "domain": "QBO",
+                            "sparse": false,
+                            "Id": "48",
+                            "SyncToken": "0",
+                            "MetaData": {
+                                "CreateTime": "2024-10-25T11:42:38-07:00",
+                                "LastUpdatedTime": "2024-12-04T09:14:55-08:00"
+                            },
+                            "CustomField": [],
+                            "DocNumber": "1001",
+                            "TxnDate": "2024-10-23",
+                            "CurrencyRef": {
+                                "value": "USD",
+                                "name": "United States Dollar"
+                            },
+                            "TxnStatus": "Converted",
+                            "LinkedTxn": [
+                                {
+                                    "TxnId": "49",
+                                    "TxnType": "Invoice"
+                                }
+                            ],
+                            "Line": [
+                                {
+                                    "Id": "1",
+                                    "LineNum": 1,
+                                    "Description": "Custom Design",
+                                    "Amount": 300,
+                                    "DetailType": "SalesItemLineDetail",
+                                    "SalesItemLineDetail": {
+                                        "ItemRef": {
+                                            "value": "4",
+                                            "name": "Design:Design"
+                                        },
+                                        "UnitPrice": 75,
+                                        "Qty": 4,
+                                        "ItemAccountRef": {
+                                            "value": "82",
+                                            "name": "Design income"
+                                        },
+                                        "TaxCodeRef": {
+                                            "value": "NON"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Id": "2",
+                                    "LineNum": 2,
+                                    "Description": "Installation of landscape design",
+                                    "Amount": 250,
+                                    "DetailType": "SalesItemLineDetail",
+                                    "SalesItemLineDetail": {
+                                        "ItemRef": {
+                                            "value": "7",
+                                            "name": "Landscaping:Installation"
+                                        },
+                                        "UnitPrice": 50,
+                                        "Qty": 5,
+                                        "ItemAccountRef": {
+                                            "value": "52",
+                                            "name": "Landscaping Services:Labor:Installation"
+                                        },
+                                        "TaxCodeRef": {
+                                            "value": "NON"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Id": "3",
+                                    "LineNum": 3,
+                                    "Description": "Rock Fountain",
+                                    "Amount": 275,
+                                    "DetailType": "SalesItemLineDetail",
+                                    "SalesItemLineDetail": {
+                                        "ItemRef": {
+                                            "value": "5",
+                                            "name": "Design:Fountains:Rock Fountain"
+                                        },
+                                        "UnitPrice": 275,
+                                        "Qty": 1,
+                                        "ItemAccountRef": {
+                                            "value": "48",
+                                            "name": "Landscaping Services:Job Materials:Fountains and Garden Lighting"
+                                        },
+                                        "TaxCodeRef": {
+                                            "value": "NON"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Id": "4",
+                                    "LineNum": 4,
+                                    "Description": "Garden Rocks",
+                                    "Amount": 180,
+                                    "DetailType": "SalesItemLineDetail",
+                                    "SalesItemLineDetail": {
+                                        "ItemRef": {
+                                            "value": "13",
+                                            "name": "Design:Rocks"
+                                        },
+                                        "UnitPrice": 22.5,
+                                        "Qty": 8,
+                                        "ItemAccountRef": {
+                                            "value": "48",
+                                            "name": "Landscaping Services:Job Materials:Fountains and Garden Lighting"
+                                        },
+                                        "TaxCodeRef": {
+                                            "value": "NON"
+                                        }
+                                    }
+                                },
+                                {
+                                    "Amount": 1005,
+                                    "DetailType": "SubTotalLineDetail",
+                                    "SubTotalLineDetail": {}
+                                }
+                            ],
+                            "TxnTaxDetail": {
+                                "TotalTax": 0
+                            },
+                            "CustomerRef": {
+                                "value": "18",
+                                "name": "Paulsen Medical Supplies"
+                            },
+                            "CustomerMemo": {
+                                "value": "Thank you for your business and have a great day!"
+                            },
+                            "BillAddr": {
+                                "Id": "67",
+                                "Line1": "Kathy Paulsen",
+                                "Line2": "Paulsen Medical Supplies",
+                                "Line3": "900 Main St.",
+                                "Line4": "Middlefield, CA  94303",
+                                "Lat": "37.4530553",
+                                "Long": "-122.1178261"
+                            },
+                            "ShipAddr": {
+                                "Id": "19",
+                                "Line1": "38921 S. Boise Ave",
+                                "City": "Middlefield",
+                                "CountrySubDivisionCode": "CA",
+                                "PostalCode": "94304",
+                                "Lat": "37.3989376",
+                                "Long": "-122.1443935"
+                            },
+                            "FreeFormAddress": true,
+                            "TotalAmt": 1005,
+                            "ApplyTaxAfterDiscount": false,
+                            "PrintStatus": "NeedToPrint",
+                            "EmailStatus": "NeedToSend",
+                            "BillEmail": {
+                                "Address": "Medical@intuit.com"
+                            },
+                            "DeliveryInfo": {
+                                "DeliveryType": "Email"
+                            }
+                        }
+                    ],
+                    "startPosition": 1,
+                    "maxResults": 1
+                },
+                {
+                    "Customer": [
+                        {
+                            "Taxable": false,
+                            "BillAddr": {
+                                "Id": "27",
+                                "Line1": "78 First St.",
+                                "City": "Monlo Park",
+                                "CountrySubDivisionCode": "CA",
+                                "PostalCode": "94304",
+                                "Lat": "37.4585825",
+                                "Long": "-122.1352789"
+                            },
+                            "ShipAddr": {
+                                "Id": "27",
+                                "Line1": "78 First St.",
+                                "City": "Monlo Park",
+                                "CountrySubDivisionCode": "CA",
+                                "PostalCode": "94304",
+                                "Lat": "37.4585825",
+                                "Long": "-122.1352789"
+                            },
+                            "Job": false,
+                            "BillWithParent": false,
+                            "Balance": 414.72,
+                            "BalanceWithJobs": 414.72,
+                            "CurrencyRef": {
+                                "value": "USD",
+                                "name": "United States Dollar"
+                            },
+                            "PreferredDeliveryMethod": "Print",
+                            "IsProject": false,
+                            "ClientEntityId": "0",
+                            "domain": "QBO",
+                            "sparse": false,
+                            "Id": "26",
+                            "SyncToken": "1",
+                            "MetaData": {
+                                "CreateTime": "2024-10-19T17:25:08-07:00",
+                                "LastUpdatedTime": "2024-11-30T14:05:41-08:00"
+                            },
+                            "GivenName": "Travis",
+                            "FamilyName": "Waldron",
+                            "FullyQualifiedName": "Travis Waldron",
+                            "DisplayName": "Travis Waldron",
+                            "PrintOnCheckName": "Travis Waldron",
+                            "Active": true,
+                            "V4IDPseudonym": "00209801f267f8896c458e8d06c83a0e64de29",
+                            "PrimaryPhone": {
+                                "FreeFormNumber": "(650) 557-9977"
+                            },
+                            "PrimaryEmailAddr": {
+                                "Address": "Travis@Waldron.com"
+                            },
+                            "DefaultTaxCodeRef": {
+                                "value": "2"
+                            }
+                        },
+                        {
+                            "Taxable": false,
+                            "BillAddr": {
+                                "Id": "12",
+                                "Line1": "12 Willow Rd.",
+                                "City": "Menlo Park",
+                                "CountrySubDivisionCode": "CA",
+                                "PostalCode": "94305",
+                                "Lat": "37.4495308",
+                                "Long": "-122.1726923"
+                            },
+                            "ShipAddr": {
+                                "Id": "12",
+                                "Line1": "12 Willow Rd.",
+                                "City": "Menlo Park",
+                                "CountrySubDivisionCode": "CA",
+                                "PostalCode": "94305",
+                                "Lat": "37.4495308",
+                                "Long": "-122.1726923"
+                            },
+                            "Job": false,
+                            "BillWithParent": false,
+                            "Balance": 56.7,
+                            "BalanceWithJobs": 56.7,
+                            "CurrencyRef": {
+                                "value": "USD",
+                                "name": "United States Dollar"
+                            },
+                            "PreferredDeliveryMethod": "Print",
+                            "IsProject": false,
+                            "ClientEntityId": "0",
+                            "domain": "QBO",
+                            "sparse": false,
+                            "Id": "12",
+                            "SyncToken": "1",
+                            "MetaData": {
+                                "CreateTime": "2024-10-19T17:05:09-07:00",
+                                "LastUpdatedTime": "2024-12-02T17:43:23-08:00"
+                            },
+                            "GivenName": "Jeff",
+                            "FamilyName": "Chin",
+                            "FullyQualifiedName": "Jeff's Jalopies",
+                            "CompanyName": "Jeff's Jalopies",
+                            "DisplayName": "Jeff's Jalopies",
+                            "PrintOnCheckName": "Jeff's Jalopies",
+                            "Active": true,
+                            "V4IDPseudonym": "00209822d456bd396a4dda89bd98c1372204bb",
+                            "PrimaryPhone": {
+                                "FreeFormNumber": "(650) 555-8989"
+                            },
+                            "PrimaryEmailAddr": {
+                                "Address": "Jalopies@intuit.com"
+                            },
+                            "DefaultTaxCodeRef": {
+                                "value": "2"
+                            }
+                        },
+                        {
+                            "Taxable": true,
+                            "BillAddr": {
+                                "Id": "6",
+                                "Line1": "25 Court St.",
+                                "City": "Tucson",
+                                "CountrySubDivisionCode": "AZ",
+                                "PostalCode": "85719",
+                                "Lat": "32.2841116",
+                                "Long": "-110.9744298"
+                            },
+                            "ShipAddr": {
+                                "Id": "6",
+                                "Line1": "25 Court St.",
+                                "City": "Tucson",
+                                "CountrySubDivisionCode": "AZ",
+                                "PostalCode": "85719",
+                                "Lat": "32.2841116",
+                                "Long": "-110.9744298"
+                            },
+                            "Job": false,
+                            "BillWithParent": false,
+                            "Balance": 140,
+                            "BalanceWithJobs": 140,
+                            "CurrencyRef": {
+                                "value": "USD",
+                                "name": "United States Dollar"
+                            },
+                            "PreferredDeliveryMethod": "Print",
+                            "IsProject": false,
+                            "ClientEntityId": "0",
+                            "domain": "QBO",
+                            "sparse": false,
+                            "Id": "5",
+                            "SyncToken": "1",
+                            "MetaData": {
+                                "CreateTime": "2024-10-19T16:54:59-07:00",
+                                "LastUpdatedTime": "2024-12-05T14:27:05-08:00"
+                            },
+                            "GivenName": "Peter",
+                            "FamilyName": "Dukes",
+                            "FullyQualifiedName": "Dukes Basketball Camp",
+                            "CompanyName": "Dukes Basketball Camp",
+                            "DisplayName": "Dukes Basketball Camp",
+                            "PrintOnCheckName": "Dukes Basketball Camp",
+                            "Active": true,
+                            "V4IDPseudonym": "002098a335afb960ab484799f004c1f2a695b1",
+                            "PrimaryPhone": {
+                                "FreeFormNumber": "(520) 420-5638"
+                            },
+                            "PrimaryEmailAddr": {
+                                "Address": "Dukes_bball@intuit.com"
+                            }
+                        }
+                    ],
+                    "startPosition": 1,
+                    "maxResults": 3
+                }
+            ]
+        }
+    ],
+    "time": "2024-12-11T14:48:06.330-08:00"
+}

@@ -9,10 +9,15 @@ type AccountPurchaseLine struct {
 type ItemPurchaseLine struct {
 }
 
-var PurchaseType = DataType{
-	ID:   "purchase",
-	Name: "Expense",
-	Schema: map[string]Field{
+func (Purchase) TypeInfo() TypeArray {
+	return TypeArray{
+		ID:   "purchase",
+		Name: "Expense",
+	}
+}
+
+func (Purchase) Schema() map[string]Field {
+	return map[string]Field{
 		"id": {
 			Name: "id",
 			Type: ID,
@@ -117,16 +122,34 @@ var PurchaseType = DataType{
 				"precision":            2,
 			},
 		},
-	},
-	DataRequest: func(params RequestParameters) ([]map[string]any, bool, error) {
-		return nil, false, nil
-	},
+	}
 }
 
-var PurchaseAccountLineType = DataType{
-	ID:   "purchase_account_line",
-	Name: "Purchase Account Line",
-	Schema: map[string]Field{
+func (P Purchase) TransformData(params ...any) (any, error) {
+	return nil, nil
+}
+
+func (Purchase) FullSync(*FullSyncRequest) ([]map[string]any, bool, error) {
+	return nil, false, nil
+}
+
+func (Purchase) DeltaSync(*DeltaSyncRequest) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (Purchase) Webhook(*WebhookRequest) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (AccountPurchaseLine) TypeInfo() TypeArray {
+	return TypeArray{
+		ID:   "purchase_account_line",
+		Name: "Purchase Account Line",
+	}
+}
+
+func (AccountPurchaseLine) Schema() map[string]Field {
+	return map[string]Field{
 		"id": {
 			Name: "id",
 			Type: ID,
@@ -234,16 +257,54 @@ var PurchaseAccountLineType = DataType{
 				"precision": 2,
 			},
 		},
-	},
+	}
 }
 
-var PurchaseItemLineType = DataType{
-	ID:   "purchase_item_line",
-	Name: "Purchase Item Line",
+func (Apl AccountPurchaseLine) TransformData(params ...any) (any, error) {
+	return nil, nil
+}
+
+func (AccountPurchaseLine) FullSync(*FullSyncRequest) ([]map[string]any, bool, error) {
+	return nil, false, nil
+}
+
+func (AccountPurchaseLine) DeltaSync(*DeltaSyncRequest) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (AccountPurchaseLine) Webhook(*WebhookRequest) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (ItemPurchaseLine) TypeInfo() TypeArray {
+	return TypeArray{
+		ID:   "purchase_item_line",
+		Name: "Purchase Item Line",
+	}
+}
+
+func (ItemPurchaseLine) Schema() map[string]Field {
+	return map[string]Field{}
+}
+
+func (Ipl ItemPurchaseLine) TransformData(params ...any) (any, error) {
+	return nil, nil
+}
+
+func (ItemPurchaseLine) FullSync(*FullSyncRequest) ([]map[string]any, bool, error) {
+	return nil, false, nil
+}
+
+func (ItemPurchaseLine) DeltaSync(*DeltaSyncRequest) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (ItemPurchaseLine) Webhook(*WebhookRequest) ([]map[string]any, error) {
+	return nil, nil
 }
 
 func init() {
-	PurchaseType.Register()
-	PurchaseAccountLineType.Register()
-	PurchaseItemLineType.Register()
+	RegisterType(Purchase{})
+	RegisterType(AccountPurchaseLine{})
+	RegisterType(ItemPurchaseLine{})
 }

@@ -34,7 +34,7 @@ func SyncConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := syncConfig{
-		Types:   qbo.Types,
+		Types:   qbo.TypeInfo,
 		Filters: []Filter{},
 		Webhooks: syncWebhook{
 			Enabled: true,

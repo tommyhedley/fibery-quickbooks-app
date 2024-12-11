@@ -81,7 +81,7 @@ type MemoRef struct {
 	Value string `json:"value,omitempty"`
 }
 
-// MetaData is a timestamp of genesis and last change of a Quickbooks object
+// MetaData is a timestamp of genesis and last change of a Quickbooks object.
 type MetaData struct {
 	CreateTime      Date `json:",omitempty"`
 	LastUpdatedTime Date `json:",omitempty"`
@@ -187,6 +187,48 @@ type Field struct {
 }
 
 // Data Request Definitions & Parameters
+
+type FullSyncRequest struct {
+	Cache         *cache.Cache
+	Group         *singleflight.Group
+	Token         *BearerToken
+	StartPosition int
+	OperationID   string
+	RealmID       string
+	Filter        map[string]any
+}
+
+type DeltaSyncRequest struct {
+	Cache       *cache.Cache
+	Group       *singleflight.Group
+	Token       *BearerToken
+	OperationID string
+	RealmID     string
+	Types       []string
+	LastSynced  time.Time
+	Filter      map[string]any
+}
+
+type WebhookRequest struct {
+}
+
+type FiberyType interface {
+	// TypeInfo returns a TypeArray containing the FiberyType ID and Name for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
+	TypeInfo() TypeArray
+	// Schema returns a map of FiberyType fields for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
+	Schema() map[string]Field
+	// TransformData transforms the data from the QuickBooks API into the format required by the Fibery /api/v1/synchronizer/data endpoint.
+	TransformData(params ...any) (any, error)
+	// FullSync performs a full sync of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
+	// This function supports pagination and will return a boolean indicating if there is more data to be fetched.
+	FullSync(*FullSyncRequest) ([]map[string]any, bool, error)
+	// DeltaSync performs a delta sync using the ChangeDataCapture of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
+	// Since CDC does not support pagination, we return an error and suggest a full sync if CDC amount is greater than allowed (1000).
+	DeltaSync(*DeltaSyncRequest) ([]map[string]any, error)
+	// Webhook performs a request for the notifcation items of the given data type from the QuickBooks API into the Fibery /api/v1/synchronizer/webhooks/transformer endpoint.
+	Webhook(*WebhookRequest) ([]map[string]any, error)
+}
+
 type SyncType string
 
 const (
@@ -206,46 +248,12 @@ type TypeArray struct {
 	Name string `json:"name"`
 }
 
-type RequestParameters struct {
-	Cache         *cache.Cache
-	Group         *singleflight.Group
-	Token         *BearerToken
-	StartPosition int
-	OperationID   string
-	RealmID       string
-	LastSynced    time.Time
-	Filter        map[string]any
-}
-
-type DataRequest func(RequestParameters) (data []map[string]any, morePages bool, err error)
-
-type DataType struct {
-	ID     string
-	Name   string
-	Schema map[string]Field
-	DataRequest
-}
-
-var Types = []TypeArray{}
+var Types = map[string]FiberyType{}
+var TypeInfo = []TypeArray{}
 var Schema = make(map[string]map[string]Field)
-var DataRequests = make(map[string]*DataRequest)
 
-func (dt *DataType) Register() {
-	Types = append(Types, TypeArray{
-		ID:   dt.ID,
-		Name: dt.Name,
-	})
-	Schema[dt.ID] = dt.Schema
-	DataRequests[dt.ID] = &dt.DataRequest
-}
-
-func GetRequestFunctions(id string) (*DataRequest, bool) {
-	dr, exists := DataRequests[id]
-	return dr, exists
-}
-
-type FiberyType interface {
-	FullSync() ([]map[string]any, error)
-	DeltaSync() ([]map[string]any, error)
-	Webhook() ([]map[string]any, error)
+func RegisterType(t FiberyType) {
+	Types[t.TypeInfo().ID] = t
+	TypeInfo = append(TypeInfo, t.TypeInfo())
+	Schema[t.TypeInfo().ID] = t.Schema()
 }
