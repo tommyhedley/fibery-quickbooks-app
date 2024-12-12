@@ -82,13 +82,20 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 
 		if syncType == qbo.DeltaSync {
 			// CDC Request
+			CDCRequestTypes := []string{}
+			for _, t := range params.Types {
+				if qbo.BaseTypes[t] {
+					CDCRequestTypes = append(CDCRequestTypes, t)
+				}
+			}
+
 			req := qbo.DeltaSyncRequest{
 				Cache:       c,
 				Group:       group,
 				Token:       &params.Account.BearerToken,
 				OperationID: params.OperationID,
 				RealmID:     params.Account.RealmID,
-				Types:       params.Types,
+				Types:       CDCRequestTypes,
 				LastSynced:  lastSyncTime,
 				Filter:      params.Filter,
 			}
@@ -101,7 +108,7 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 
 			items, err = datatype.DeltaSync(&req)
 			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve full sync data"))
+				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve delta sync data: %w", err))
 				return
 			}
 		} else {
@@ -124,7 +131,7 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 
 			items, more, err = datatype.FullSync(&req)
 			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve full sync data"))
+				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve full sync data: %w", err))
 				return
 			}
 		}

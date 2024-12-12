@@ -244,16 +244,19 @@ const (
 )
 
 type TypeArray struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	BaseType bool   `json:"-"`
 }
 
 var Types = map[string]FiberyType{}
 var TypeInfo = []TypeArray{}
+var BaseTypes = map[string]bool{}
 var Schema = make(map[string]map[string]Field)
 
 func RegisterType(t FiberyType) {
 	Types[t.TypeInfo().ID] = t
 	TypeInfo = append(TypeInfo, t.TypeInfo())
+	BaseTypes[t.TypeInfo().ID] = t.TypeInfo().BaseType
 	Schema[t.TypeInfo().ID] = t.Schema()
 }

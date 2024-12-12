@@ -144,6 +144,12 @@ type DiscountLineDetail struct {
 	DiscountPercent float32 `json:",omitempty"`
 }
 
+type CDCInvoiceResponse struct {
+	Invoice
+	Domain string `json:"domain,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
 // CreateInvoice creates the given Invoice on the QuickBooks server, returning
 // the resulting Invoice object.
 func (c *Client) CreateInvoice(invoice *Invoice) (*Invoice, error) {
@@ -336,8 +342,9 @@ func (c *Client) VoidInvoice(invoice Invoice) error {
 
 func (Invoice) TypeInfo() TypeArray {
 	return TypeArray{
-		ID:   "invoice",
-		Name: "Invoice",
+		ID:       "Invoice",
+		Name:     "Invoice",
+		BaseType: true,
 	}
 }
 
@@ -358,7 +365,7 @@ func (Invoice) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Customer",
 				TargetName:    "Invoices",
-				TargetType:    "customer",
+				TargetType:    "Customer",
 				TargetFieldID: "id",
 			},
 		},
@@ -508,7 +515,7 @@ func (Invoice) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Class",
 				TargetName:    "Invoices",
-				TargetType:    "class",
+				TargetType:    "Class",
 				TargetFieldID: "id",
 			},
 		},
@@ -533,7 +540,7 @@ func (Invoice) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Term",
 				TargetName:    "Invoices",
-				TargetType:    "term",
+				TargetType:    "Term",
 				TargetFieldID: "id",
 			},
 		},
@@ -562,7 +569,7 @@ func (Invoice) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Tax Code",
 				TargetName:    "Invoices",
-				TargetType:    "tax_code",
+				TargetType:    "TaxCode",
 				TargetFieldID: "id",
 			},
 		},
@@ -588,7 +595,7 @@ func (Invoice) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Tax Exemption",
 				TargetName:    "Invoices",
-				TargetType:    "tax_exemption",
+				TargetType:    "TaxExemption",
 				TargetFieldID: "id",
 			},
 		},
@@ -599,7 +606,7 @@ func (Invoice) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Deposit Account",
 				TargetName:    "Invoice Deposits",
-				TargetType:    "account",
+				TargetType:    "Account",
 				TargetFieldID: "id",
 			},
 		},
@@ -823,10 +830,6 @@ func (I Invoice) TransformData(...any) (any, error) {
 
 func (Invoice) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error) {
 	key := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
-	type result struct {
-		invoices []Invoice
-		more     bool
-	}
 	res, err, _ := req.Group.Do(key, func() (interface{}, error) {
 		client, err := NewClient(req.RealmID, req.Token)
 		if err != nil {
@@ -838,16 +841,15 @@ func (Invoice) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error) {
 			return nil, fmt.Errorf("unable to find invoices: %w", err)
 		}
 
-		more := len(invoices) == QueryPageSize
-
-		return result{invoices, more}, nil
+		return invoices, nil
 	})
 	if err != nil {
 		return nil, false, fmt.Errorf("fullsync singleflight error: %w", err)
 	}
 
+	invoices := res.([]Invoice)
 	items := []map[string]any{}
-	for _, invoice := range res.(result).invoices {
+	for _, invoice := range invoices {
 		res, err := invoice.TransformData()
 		if err != nil {
 			return nil, false, fmt.Errorf("unable to invoice transform data: %w", err)
@@ -855,16 +857,11 @@ func (Invoice) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error) {
 		item := res.(map[string]any)
 		items = append(items, item)
 	}
-	return items, res.(result).more, nil
+	return items, len(invoices) >= QueryPageSize, nil
 }
 
 func (Invoice) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 	key := req.OperationID
-
-	type result struct {
-		cdc *ChangeDataCapture
-	}
-
 	res, err, _ := req.Group.Do(key, func() (interface{}, error) {
 		client, err := NewClient(req.RealmID, req.Token)
 		if err != nil {
@@ -876,30 +873,31 @@ func (Invoice) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 			return nil, fmt.Errorf("unable to get change data capture: %w", err)
 		}
 
-		var totalResponses int
-		for _, response := range cdc.CDCResponse[0].QueryResponse {
-			totalResponses += response.MaxResults
-		}
-
-		if totalResponses >= 1000 {
-			return nil, fmt.Errorf("delta sync response returns too many entities, please use full sync")
-		}
-
-		return result{cdc}, nil
+		return cdc, nil
 	})
+	cdc := res.(*ChangeDataCapture)
 	if err != nil {
 		return nil, fmt.Errorf("deltasync singleflight error: %w", err)
 	}
 	items := []map[string]any{}
-	for _, response := range res.(result).cdc.CDCResponse[0].QueryResponse {
-		if response.Invoice != nil {
-			for _, invoice := range response.Invoice {
-				res, err := invoice.TransformData()
-				if err != nil {
-					return nil, fmt.Errorf("unable to invoice transform data: %w", err)
+	for _, cdcResponse := range cdc.CDCResponse {
+		for _, queryResponse := range cdcResponse.QueryResponse {
+			if queryResponse.Invoice != nil {
+				for _, invoice := range queryResponse.Invoice {
+					if invoice.Status == "Deleted" {
+						items = append(items, map[string]any{
+							"id":           invoice.Id,
+							"__syncAction": REMOVE,
+						})
+					} else {
+						res, err := invoice.TransformData()
+						if err != nil {
+							return nil, fmt.Errorf("unable to invoice transform data: %w", err)
+						}
+						item := res.(map[string]any)
+						items = append(items, item)
+					}
 				}
-				item := res.(map[string]any)
-				items = append(items, item)
 			}
 		}
 	}
@@ -914,8 +912,9 @@ func (Invoice) Webhook(req *WebhookRequest) ([]map[string]any, error) {
 
 func (InvoiceLine) TypeInfo() TypeArray {
 	return TypeArray{
-		ID:   "invoice_line",
-		Name: "Invoice Line",
+		ID:       "Invoice_line",
+		Name:     "Invoice Line",
+		BaseType: false,
 	}
 }
 
@@ -936,7 +935,7 @@ func (InvoiceLine) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Invoice",
 				TargetName:    "Invoice Lines",
-				TargetType:    "invoice",
+				TargetType:    "Invoice",
 				TargetFieldID: "id",
 			},
 		},
@@ -1005,7 +1004,7 @@ func (InvoiceLine) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Group",
 				TargetName:    "Lines",
-				TargetType:    "invoice_line",
+				TargetType:    "Invoice_line",
 				TargetFieldID: "id",
 			},
 		},
@@ -1016,7 +1015,7 @@ func (InvoiceLine) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Item",
 				TargetName:    "Invoice Lines",
-				TargetType:    "item",
+				TargetType:    "Item",
 				TargetFieldID: "id",
 			},
 		},
@@ -1027,7 +1026,7 @@ func (InvoiceLine) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Class",
 				TargetName:    "Expense Account Line(s)",
-				TargetType:    "class",
+				TargetType:    "Class",
 				TargetFieldID: "id",
 			},
 		},
@@ -1038,7 +1037,7 @@ func (InvoiceLine) Schema() map[string]Field {
 				Cardinality:   MTO,
 				Name:          "Tax Code",
 				TargetName:    "Invoice Lines",
-				TargetType:    "tax_code",
+				TargetType:    "TaxCode",
 				TargetFieldID: "id",
 			},
 		},
@@ -1127,10 +1126,6 @@ func (Il InvoiceLine) TransformData(params ...any) (any, error) {
 
 func (InvoiceLine) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error) {
 	key := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
-	type result struct {
-		invoices []Invoice
-		more     bool
-	}
 	res, err, _ := req.Group.Do(key, func() (interface{}, error) {
 		client, err := NewClient(req.RealmID, req.Token)
 		if err != nil {
@@ -1142,16 +1137,15 @@ func (InvoiceLine) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error
 			return nil, fmt.Errorf("unable to find invoices: %w", err)
 		}
 
-		more := len(invoices) == QueryPageSize
-
-		return result{invoices, more}, nil
+		return invoices, nil
 	})
 	if err != nil {
 		return nil, false, fmt.Errorf("fullsync singleflight error: %w", err)
 	}
 
+	invoices := res.([]Invoice)
 	items := []map[string]any{}
-	for _, invoice := range res.(result).invoices {
+	for _, invoice := range invoices {
 		for _, line := range invoice.Line {
 			res, err := line.TransformData(&invoice)
 			if err != nil {
@@ -1161,16 +1155,11 @@ func (InvoiceLine) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error
 			items = append(items, item...)
 		}
 	}
-	return items, res.(result).more, nil
+	return items, len(invoices) >= QueryPageSize, nil
 }
 
 func (InvoiceLine) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 	key := req.OperationID
-
-	type result struct {
-		cdc *ChangeDataCapture
-	}
-
 	res, err, _ := req.Group.Do(key, func() (interface{}, error) {
 		client, err := NewClient(req.RealmID, req.Token)
 		if err != nil {
@@ -1182,31 +1171,43 @@ func (InvoiceLine) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 			return nil, fmt.Errorf("unable to get change data capture: %w", err)
 		}
 
-		var totalResponses int
-		for _, response := range cdc.CDCResponse[0].QueryResponse {
-			totalResponses += response.MaxResults
-		}
-
-		if totalResponses >= 1000 {
-			return nil, fmt.Errorf("delta sync response returns too many entities, please use full sync")
-		}
-
-		return result{cdc}, nil
+		return *cdc, nil
 	})
+	cdc := res.(*ChangeDataCapture)
+	fmt.Println(cdc)
 	if err != nil {
 		return nil, fmt.Errorf("deltasync singleflight error: %w", err)
 	}
 	items := []map[string]any{}
-	for _, response := range res.(result).cdc.CDCResponse[0].QueryResponse {
-		if response.Invoice != nil {
-			for _, invoice := range response.Invoice {
-				for _, line := range invoice.Line {
-					res, err := line.TransformData(&invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice transform data: %w", err)
+	for _, cdcResponse := range cdc.CDCResponse {
+		for _, queryResponse := range cdcResponse.QueryResponse {
+			if queryResponse.Invoice != nil {
+				for _, invoice := range queryResponse.Invoice {
+					if invoice.Status == "Deleted" {
+						for _, line := range invoice.Line {
+							if line.DetailType == "GroupLineDetail" {
+								for _, groupLine := range line.GroupLineDetail.Line {
+									items = append(items, map[string]any{
+										"id":           groupLine.Id,
+										"__syncAction": REMOVE,
+									})
+								}
+							}
+							items = append(items, map[string]any{
+								"id":           line.Id,
+								"__syncAction": REMOVE,
+							})
+						}
+					} else {
+						for _, line := range invoice.Line {
+							res, err := line.TransformData(&invoice)
+							if err != nil {
+								return nil, fmt.Errorf("unable to invoice transform data: %w", err)
+							}
+							item := res.([]map[string]any)
+							items = append(items, item...)
+						}
 					}
-					item := res.([]map[string]any)
-					items = append(items, item...)
 				}
 			}
 		}
