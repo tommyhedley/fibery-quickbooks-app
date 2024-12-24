@@ -28,10 +28,9 @@ func (c *Client) ChangeDataCapture(entities []string, changedSince time.Time) (*
 		"changedSince": changedSince.Format(qboDateFormat),
 	}
 
-	err := c.req("GET", "/cdc", nil, res, queryParams)
+	err := c.req("GET", "/cdc", nil, &res, queryParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make cdc request: %w", err)
 	}
-
 	return &res, nil
 }

@@ -890,7 +890,7 @@ func (Invoice) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 							"__syncAction": REMOVE,
 						})
 					} else {
-						res, err := invoice.TransformData()
+						res, err := invoice.Invoice.TransformData()
 						if err != nil {
 							return nil, fmt.Errorf("unable to invoice transform data: %w", err)
 						}
@@ -927,6 +927,11 @@ func (InvoiceLine) Schema() map[string]Field {
 		"qbo_id": {
 			Name: "QBO ID",
 			Type: Text,
+		},
+		"invoice_sync_token": {
+			Name:     "Invoice Sync Token",
+			Type:     Text,
+			ReadOnly: true,
 		},
 		"invoice_id": {
 			Name: "Invoice ID",
@@ -1072,53 +1077,56 @@ func (Il InvoiceLine) TransformData(params ...any) (any, error) {
 	var data []map[string]any
 	if Il.DetailType == "GroupLineDetail" {
 		data = append(data, map[string]any{
-			"id":           fmt.Sprintf("%s:%s", I.Id, Il.Id),
-			"qbo_id":       Il.Id,
-			"invoice_id":   I.Id,
-			"description":  Il.Description,
-			"line_type":    lineTypes[Il.DetailType],
-			"quantity":     Il.GroupLineDetail.Quantity,
-			"line_num":     Il.LineNum,
-			"item_id":      Il.GroupLineDetail.GroupItemRef.Value,
-			"__syncAction": SET,
+			"id":                 fmt.Sprintf("%s:%s", I.Id, Il.Id),
+			"qbo_id":             Il.Id,
+			"invoice_sync_token": I.SyncToken,
+			"invoice_id":         I.Id,
+			"description":        Il.Description,
+			"line_type":          lineTypes[Il.DetailType],
+			"quantity":           Il.GroupLineDetail.Quantity,
+			"line_num":           Il.LineNum,
+			"item_id":            Il.GroupLineDetail.GroupItemRef.Value,
+			"__syncAction":       SET,
 		})
 		for _, groupLine := range Il.GroupLineDetail.Line {
 			data = append(data, map[string]any{
-				"id":             fmt.Sprintf("%s:%s:%s", I.Id, Il.Id, groupLine.Id),
-				"qbo_id":         groupLine.Id,
-				"invoice_id":     I.Id,
-				"description":    groupLine.Description,
-				"line_type":      lineTypes[groupLine.DetailType],
-				"quantity":       groupLine.SalesItemLineDetail.Qty,
-				"unit_price":     groupLine.SalesItemLineDetail.UnitPrice,
-				"amount":         groupLine.Amount,
-				"line_num":       groupLine.LineNum,
-				"group_line_id":  Il.Id,
-				"item_id":        groupLine.SalesItemLineDetail.ItemRef.Value,
-				"class_id":       groupLine.SalesItemLineDetail.ClassRef.Value,
-				"tax_code_id":    groupLine.SalesItemLineDetail.TaxCodeRef.Value,
-				"markup_percent": groupLine.SalesItemLineDetail.MarkupInfo.Percent,
-				"service_date":   groupLine.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
-				"__syncAction":   SET,
+				"id":                 fmt.Sprintf("%s:%s:%s", I.Id, Il.Id, groupLine.Id),
+				"qbo_id":             groupLine.Id,
+				"invoice_sync_token": I.SyncToken,
+				"invoice_id":         I.Id,
+				"description":        groupLine.Description,
+				"line_type":          lineTypes[groupLine.DetailType],
+				"quantity":           groupLine.SalesItemLineDetail.Qty,
+				"unit_price":         groupLine.SalesItemLineDetail.UnitPrice,
+				"amount":             groupLine.Amount,
+				"line_num":           groupLine.LineNum,
+				"group_line_id":      Il.Id,
+				"item_id":            groupLine.SalesItemLineDetail.ItemRef.Value,
+				"class_id":           groupLine.SalesItemLineDetail.ClassRef.Value,
+				"tax_code_id":        groupLine.SalesItemLineDetail.TaxCodeRef.Value,
+				"markup_percent":     groupLine.SalesItemLineDetail.MarkupInfo.Percent,
+				"service_date":       groupLine.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
+				"__syncAction":       SET,
 			})
 		}
 	} else if Il.DetailType == "DescriptionOnly" || Il.DetailType == "SalesItemLineDetail" {
 		data = append(data, map[string]any{
-			"id":             fmt.Sprintf("%s:%s", I.Id, Il.Id),
-			"qbo_id":         Il.Id,
-			"invoice_id":     I.Id,
-			"description":    Il.Description,
-			"type":           lineTypes[Il.DetailType],
-			"quantity":       Il.SalesItemLineDetail.Qty,
-			"unit_price":     Il.SalesItemLineDetail.UnitPrice,
-			"amount":         Il.Amount,
-			"line_num":       Il.LineNum,
-			"item_id":        Il.SalesItemLineDetail.ItemRef.Value,
-			"class_id":       Il.SalesItemLineDetail.ClassRef.Value,
-			"tax_code_id":    Il.SalesItemLineDetail.TaxCodeRef.Value,
-			"markup_percent": Il.SalesItemLineDetail.MarkupInfo.Percent,
-			"service_date":   Il.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
-			"__syncAction":   SET,
+			"id":                 fmt.Sprintf("%s:%s", I.Id, Il.Id),
+			"qbo_id":             Il.Id,
+			"invoice_sync_token": I.SyncToken,
+			"invoice_id":         I.Id,
+			"description":        Il.Description,
+			"type":               lineTypes[Il.DetailType],
+			"quantity":           Il.SalesItemLineDetail.Qty,
+			"unit_price":         Il.SalesItemLineDetail.UnitPrice,
+			"amount":             Il.Amount,
+			"line_num":           Il.LineNum,
+			"item_id":            Il.SalesItemLineDetail.ItemRef.Value,
+			"class_id":           Il.SalesItemLineDetail.ClassRef.Value,
+			"tax_code_id":        Il.SalesItemLineDetail.TaxCodeRef.Value,
+			"markup_percent":     Il.SalesItemLineDetail.MarkupInfo.Percent,
+			"service_date":       Il.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
+			"__syncAction":       SET,
 		})
 	}
 	return data, nil
@@ -1170,11 +1178,9 @@ func (InvoiceLine) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to get change data capture: %w", err)
 		}
-
-		return *cdc, nil
+		return cdc, nil
 	})
 	cdc := res.(*ChangeDataCapture)
-	fmt.Println(cdc)
 	if err != nil {
 		return nil, fmt.Errorf("deltasync singleflight error: %w", err)
 	}
@@ -1200,7 +1206,7 @@ func (InvoiceLine) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
 						}
 					} else {
 						for _, line := range invoice.Line {
-							res, err := line.TransformData(&invoice)
+							res, err := line.TransformData(&invoice.Invoice)
 							if err != nil {
 								return nil, fmt.Errorf("unable to invoice transform data: %w", err)
 							}
