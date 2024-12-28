@@ -304,7 +304,5 @@ func (ItemPurchaseLine) Webhook(*WebhookRequest) ([]map[string]any, error) {
 }
 
 func init() {
-	RegisterType(Purchase{})
-	RegisterType(AccountPurchaseLine{})
-	RegisterType(ItemPurchaseLine{})
+
 }

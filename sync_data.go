@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
@@ -32,20 +31,6 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			return
 		}
 
-		var syncType qbo.SyncType
-		var lastSyncTime time.Time
-
-		if params.LastSyncronizedAt == "" {
-			syncType = qbo.FullSync
-		} else {
-			syncType = qbo.DeltaSync
-			lastSyncTime, err = time.Parse(time.RFC3339, params.LastSyncronizedAt)
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to parse lastSyncronizedAt: %w", err))
-				return
-			}
-		}
-
 		startPosition := params.Pagination.StartPosition
 
 		if startPosition == 0 {
@@ -62,75 +47,30 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			return
 		}
 
-		var items []map[string]any
-		var more bool
-
-		if syncType == qbo.DeltaSync {
-			// CDC Request
-			CDCRequestTypes := []string{}
-			for _, t := range params.Types {
-				if qbo.BaseTypes[t] {
-					CDCRequestTypes = append(CDCRequestTypes, t)
-				}
-			}
-
-			req := qbo.DeltaSyncRequest{
-				Cache:       c,
-				Group:       group,
-				Token:       &params.Account.BearerToken,
-				OperationID: params.OperationID,
-				RealmID:     params.Account.RealmID,
-				Types:       CDCRequestTypes,
-				LastSynced:  lastSyncTime,
-				Filter:      params.Filter,
-			}
-
-			datatype := qbo.Types[params.RequestedType]
-			if datatype == nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type was not found: %s", params.RequestedType))
-				return
-			}
-
-			items, err = datatype.DeltaSync(&req)
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve delta sync data: %w", err))
-				return
-			}
-		} else {
-			// Full Sync Request
-			req := qbo.FullSyncRequest{
-				Cache:         c,
-				Group:         group,
-				Token:         &params.Account.BearerToken,
-				StartPosition: startPosition,
-				OperationID:   params.OperationID,
-				RealmID:       params.Account.RealmID,
-				Filter:        params.Filter,
-			}
-
-			datatype := qbo.Types[params.RequestedType]
-			if datatype == nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type was not found: %s", params.RequestedType))
-				return
-			}
-
-			items, more, err = datatype.FullSync(&req)
-			if err != nil {
-				RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve full sync data: %w", err))
-				return
-			}
+		req := qbo.DataRequest{
+			Cache:         c,
+			Group:         group,
+			Token:         &params.Account.BearerToken,
+			StartPosition: startPosition,
+			OperationID:   params.OperationID,
+			RealmID:       params.Account.RealmID,
+			LastSynced:    params.LastSyncronizedAt,
+			Types:         params.Types,
+			Filter:        params.Filter,
 		}
 
-		resp := responseBody{
-			Items: items,
-			Pagination: pagination{
-				HasNext: more,
-				NextPageConfig: nextPageConfig{
-					StartPosition: startPosition + qbo.QueryPageSize,
-				},
-			},
-			SynchronizationType: syncType,
+		datatype := qbo.Types[params.RequestedType]
+		if datatype == nil {
+			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type was not found: %s", params.RequestedType))
+			return
 		}
-		RespondWithJSON(w, http.StatusOK, resp)
+
+		res, err := datatype.GetData(&req)
+		if err != nil {
+			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to retrieve data: %w", err))
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, res)
 	}
 }
