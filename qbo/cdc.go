@@ -20,7 +20,7 @@ type ChangeDataCapture struct {
 	Time string `json:"time"`
 }
 
-func (c *Client) ChangeDataCapture(entities []string, changedSince time.Time) (*ChangeDataCapture, error) {
+func (c *Client) ChangeDataCapture(entities []string, changedSince time.Time) (ChangeDataCapture, error) {
 	var res ChangeDataCapture
 
 	queryParams := map[string]string{
@@ -30,7 +30,7 @@ func (c *Client) ChangeDataCapture(entities []string, changedSince time.Time) (*
 
 	err := c.req("GET", "/cdc", nil, &res, queryParams)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make cdc request: %w", err)
+		return ChangeDataCapture{}, fmt.Errorf("failed to make cdc request: %w", err)
 	}
-	return &res, nil
+	return res, nil
 }

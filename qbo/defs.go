@@ -4,7 +4,6 @@
 package qbo
 
 import (
-	"sync"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -55,22 +54,6 @@ const (
 	qboDayFormat     = "2006-01-02"
 	fiberyDateFormat = "2020-01-22T01:02:23.977Z"
 )
-
-type CacheEntry[t any] struct {
-	Data           []t
-	ProcessedTypes map[string]bool
-	More           bool
-	mu             sync.Mutex
-}
-
-func allSubtypesProcessed(processedTypes map[string]bool) bool {
-	for _, processed := range processedTypes {
-		if !processed {
-			return false
-		}
-	}
-	return true
-}
 
 func (u EndpointUrl) String() string {
 	return string(u)
@@ -186,7 +169,32 @@ type Field struct {
 	Relation    *Relation        `json:"relation,omitempty"`
 }
 
-// Data Request Definitions & Parameters
+// Data Type & Handler Definitions
+type SyncType string
+
+const (
+	DeltaSync SyncType = "delta"
+	FullSync  SyncType = "full"
+)
+
+type SyncAction string
+
+const (
+	SET    SyncAction = "SET"
+	REMOVE SyncAction = "REMOVE"
+)
+
+type DataRequest struct {
+	Cache         *cache.Cache
+	Group         *singleflight.Group
+	Token         *BearerToken
+	StartPosition int
+	OperationID   string
+	RealmID       string
+	LastSynced    string
+	Types         []string
+	Filter        map[string]any
+}
 
 type FullSyncRequest struct {
 	Cache         *cache.Cache
@@ -212,6 +220,33 @@ type DeltaSyncRequest struct {
 type WebhookRequest struct {
 }
 
+type NextPageConfig struct {
+	StartPosition int `json:"startPosition"`
+}
+
+type Pagination struct {
+	HasNext        bool           `json:"hasNext"`
+	NextPageConfig NextPageConfig `json:"nextPageConfig"`
+}
+
+type DataHandlerResponse struct {
+	Items               []map[string]any `json:"items"`
+	Pagination          Pagination       `json:"pagination"`
+	SynchronizationType SyncType         `json:"synchronizationType"`
+}
+
+type DataResponse[t any] struct {
+	More bool
+	Data t
+}
+
+type IDCacheEntry struct {
+	OperationID string
+	ItemIDs     map[string]map[string]bool
+}
+
+const IDCacheLifetime = 4 * time.Hour
+
 type FiberyType interface {
 	// TypeInfo returns a TypeArray containing the FiberyType ID and Name for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
 	TypeInfo() TypeArray
@@ -219,6 +254,8 @@ type FiberyType interface {
 	Schema() map[string]Field
 	// TransformData transforms the data from the QuickBooks API into the format required by the Fibery /api/v1/synchronizer/data endpoint.
 	TransformData(params ...any) (any, error)
+	// DataHandler gathers data by page for a given type and sync method from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
+	GetData(*DataRequest) (DataHandlerResponse, error)
 	// FullSync performs a full sync of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
 	// This function supports pagination and will return a boolean indicating if there is more data to be fetched.
 	FullSync(*FullSyncRequest) ([]map[string]any, bool, error)
@@ -228,20 +265,6 @@ type FiberyType interface {
 	// Webhook performs a request for the notifcation items of the given data type from the QuickBooks API into the Fibery /api/v1/synchronizer/webhooks/transformer endpoint.
 	Webhook(*WebhookRequest) ([]map[string]any, error)
 }
-
-type SyncType string
-
-const (
-	DeltaSync SyncType = "delta"
-	FullSync  SyncType = "full"
-)
-
-type SyncAction string
-
-const (
-	SET    SyncAction = "SET"
-	REMOVE SyncAction = "REMOVE"
-)
 
 type TypeArray struct {
 	ID       string `json:"id"`

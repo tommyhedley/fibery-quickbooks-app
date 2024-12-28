@@ -13,15 +13,6 @@ import (
 
 func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		type nextPageConfig struct {
-			StartPosition int `json:"startPosition"`
-		}
-
-		type pagination struct {
-			HasNext        bool           `json:"hasNext"`
-			NextPageConfig nextPageConfig `json:"nextPageConfig"`
-		}
-
 		type requestBody struct {
 			RequestedType     string                               `json:"requestedType"`
 			OperationID       string                               `json:"operationId"`
@@ -29,14 +20,8 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			Filter            map[string]any                       `json:"filter"`
 			Account           qbo.FiberyAccountInfo                `json:"account"`
 			LastSyncronizedAt string                               `json:"lastSynchronizedAt"`
-			Pagination        nextPageConfig                       `json:"pagination"`
+			Pagination        qbo.NextPageConfig                   `json:"pagination"`
 			Schema            map[string]map[string]map[string]any `json:"schema"`
-		}
-
-		type responseBody struct {
-			Items               []map[string]any `json:"items"`
-			Pagination          pagination       `json:"pagination"`
-			SynchronizationType qbo.SyncType     `json:"synchronizationType"`
 		}
 
 		decoder := json.NewDecoder(r.Body)

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 // Invoice represents a QuickBooks Invoice object.
@@ -828,6 +829,164 @@ func (I Invoice) TransformData(...any) (any, error) {
 	return data, nil
 }
 
+func (Invoice) GetData(req *DataRequest) (DataHandlerResponse, error) {
+	cacheKey := fmt.Sprintf("%s:%s", req.RealmID, "invoice")
+	existingIDCache, cacheExists := req.Cache.Get(cacheKey)
+	var syncType SyncType = DeltaSync
+
+	if req.LastSynced == "" || !cacheExists {
+		syncType = FullSync
+	}
+
+	if syncType == FullSync {
+		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
+		syncType = FullSync
+		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
+			client, err := NewClient(req.RealmID, req.Token)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create new client: %w", err)
+			}
+
+			invoices, err := client.FindInvoicesByPage(req.StartPosition)
+			if err != nil {
+				return nil, fmt.Errorf("unable to find invoices: %w", err)
+			}
+
+			IDMap := map[string][]string{}
+
+			for _, invoice := range invoices {
+				lineIDs := make([]string, len(invoice.Line))
+				for _, line := range invoice.Line {
+					if line.DetailType == "GroupLineDetail" {
+						for _, groupLine := range line.GroupLineDetail.Line {
+							lineIDs = append(lineIDs, fmt.Sprintf("%s:%s", line.Id, groupLine.Id))
+						}
+					}
+					lineIDs = append(lineIDs, line.Id)
+				}
+				IDMap[invoice.Id] = lineIDs
+			}
+
+			if !cacheExists {
+				IDEntry := IDCacheEntry{
+					OperationID: req.OperationID,
+					ItemIDs:     IDMap,
+				}
+				err = req.Cache.Add(cacheKey, IDEntry, IDCacheLifetime)
+				if err != nil {
+					return nil, fmt.Errorf("unable to add cache entry: %w", err)
+				}
+			} else {
+				existingEntry := existingIDCache.(IDCacheEntry)
+				if existingEntry.OperationID == req.OperationID {
+					for invoiceID, lineArr := range IDMap {
+						existingEntry.ItemIDs[invoiceID] = append(existingEntry.ItemIDs[invoiceID], lineArr...)
+					}
+					req.Cache.Set(cacheKey, existingEntry, IDCacheLifetime)
+				} else {
+					IDEntry := IDCacheEntry{
+						OperationID: req.OperationID,
+						ItemIDs:     IDMap,
+					}
+					req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
+				}
+			}
+
+			return DataResponse[[]Invoice]{
+				Data: invoices,
+				More: len(invoices) >= QueryPageSize,
+			}, nil
+		})
+
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to query invoices from qbo: %w", err)
+		}
+
+		invoices := res.(DataResponse[[]Invoice]).Data
+		items := []map[string]any{}
+		for _, invoice := range invoices {
+			res, err := invoice.TransformData()
+			if err != nil {
+				return DataHandlerResponse{}, fmt.Errorf("unable to invoice transform data: %w", err)
+			}
+			item := res.(map[string]any)
+			items = append(items, item)
+		}
+		return DataHandlerResponse{
+			Items: items,
+			Pagination: Pagination{
+				HasNext: res.(DataResponse[[]Invoice]).More,
+				NextPageConfig: NextPageConfig{
+					StartPosition: req.StartPosition + QueryPageSize,
+				},
+			},
+			SynchronizationType: FullSync,
+		}, nil
+	} else {
+		groupKey := req.OperationID
+		syncType = DeltaSync
+		lastSyncedTime, err := time.Parse(qboDateFormat, req.LastSynced)
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to parse last synced time: %w", err)
+		}
+
+		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
+			client, err := NewClient(req.RealmID, req.Token)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create new client: %w", err)
+			}
+
+			cdc, err := client.ChangeDataCapture(req.Types, lastSyncedTime)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get change data capture: %w", err)
+			}
+
+			return DataResponse[ChangeDataCapture]{
+				Data: cdc,
+				More: false,
+			}, nil
+		})
+
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to cdc query from qbo: %w", err)
+		}
+
+		cdc := res.(DataResponse[ChangeDataCapture]).Data
+		items := []map[string]any{}
+		for _, cdcResponse := range cdc.CDCResponse {
+			for _, queryResponse := range cdcResponse.QueryResponse {
+				if queryResponse.Invoice != nil {
+					for _, invoice := range queryResponse.Invoice {
+						if invoice.Status == "Deleted" {
+							items = append(items, map[string]any{
+								"id":           invoice.Id,
+								"__syncAction": REMOVE,
+							})
+						} else {
+							res, err := invoice.Invoice.TransformData()
+							if err != nil {
+								return DataHandlerResponse{}, fmt.Errorf("unable to invoice transform data: %w", err)
+							}
+							item := res.(map[string]any)
+							items = append(items, item)
+						}
+					}
+				}
+			}
+		}
+		return DataHandlerResponse{
+			Items: items,
+			Pagination: Pagination{
+				HasNext: false,
+				NextPageConfig: NextPageConfig{
+					StartPosition: 0,
+				},
+			},
+			SynchronizationType: DeltaSync,
+		}, nil
+	}
+}
+
 func (Invoice) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error) {
 	key := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
 	res, err, _ := req.Group.Do(key, func() (interface{}, error) {
@@ -1130,6 +1289,180 @@ func (Il InvoiceLine) TransformData(params ...any) (any, error) {
 		})
 	}
 	return data, nil
+}
+
+func (InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
+	cacheKey := fmt.Sprintf("%s:%s", req.RealmID, "invoice")
+	existingIDCache, cacheExists := req.Cache.Get(cacheKey)
+	var syncType SyncType = DeltaSync
+
+	if req.LastSynced == "" || !cacheExists {
+		syncType = FullSync
+	}
+
+	if syncType == FullSync {
+		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
+		syncType = FullSync
+		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
+			client, err := NewClient(req.RealmID, req.Token)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create new client: %w", err)
+			}
+
+			invoices, err := client.FindInvoicesByPage(req.StartPosition)
+			if err != nil {
+				return nil, fmt.Errorf("unable to find invoices: %w", err)
+			}
+
+			IDMap := map[string][]string{}
+
+			for _, invoice := range invoices {
+				lineIDs := make([]string, len(invoice.Line))
+				for _, line := range invoice.Line {
+					if line.DetailType == "GroupLineDetail" {
+						for _, groupLine := range line.GroupLineDetail.Line {
+							lineIDs = append(lineIDs, fmt.Sprintf("%s:%s", line.Id, groupLine.Id))
+						}
+					}
+					lineIDs = append(lineIDs, line.Id)
+				}
+				IDMap[invoice.Id] = lineIDs
+			}
+
+			if !cacheExists {
+				IDEntry := IDCacheEntry{
+					OperationID: req.OperationID,
+					ItemIDs:     IDMap,
+				}
+				err = req.Cache.Add(cacheKey, IDEntry, IDCacheLifetime)
+				if err != nil {
+					return nil, fmt.Errorf("unable to add cache entry: %w", err)
+				}
+			} else {
+				existingEntry := existingIDCache.(IDCacheEntry)
+				if existingEntry.OperationID == req.OperationID {
+					for invoiceID, lineArr := range IDMap {
+						existingEntry.ItemIDs[invoiceID] = append(existingEntry.ItemIDs[invoiceID], lineArr...)
+					}
+					req.Cache.Set(cacheKey, existingEntry, IDCacheLifetime)
+				} else {
+					IDEntry := IDCacheEntry{
+						OperationID: req.OperationID,
+						ItemIDs:     IDMap,
+					}
+					req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
+				}
+			}
+
+			return DataResponse[[]Invoice]{
+				Data: invoices,
+				More: len(invoices) >= QueryPageSize,
+			}, nil
+		})
+
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to query invoices from qbo: %w", err)
+		}
+
+		invoices := res.(DataResponse[[]Invoice]).Data
+		items := []map[string]any{}
+		for _, invoice := range invoices {
+			for _, line := range invoice.Line {
+				res, err := line.TransformData(&invoice)
+				if err != nil {
+					return DataHandlerResponse{}, fmt.Errorf("unable to invoice transform data: %w", err)
+				}
+				item := res.([]map[string]any)
+				items = append(items, item...)
+			}
+		}
+		return DataHandlerResponse{
+			Items: items,
+			Pagination: Pagination{
+				HasNext: res.(DataResponse[[]Invoice]).More,
+				NextPageConfig: NextPageConfig{
+					StartPosition: req.StartPosition + QueryPageSize,
+				},
+			},
+			SynchronizationType: FullSync,
+		}, nil
+	} else {
+		groupKey := req.OperationID
+		syncType = DeltaSync
+		lastSyncedTime, err := time.Parse(qboDateFormat, req.LastSynced)
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to parse last synced time: %w", err)
+		}
+
+		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
+			client, err := NewClient(req.RealmID, req.Token)
+			if err != nil {
+				return nil, fmt.Errorf("unable to create new client: %w", err)
+			}
+
+			cdc, err := client.ChangeDataCapture(req.Types, lastSyncedTime)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get change data capture: %w", err)
+			}
+
+			return DataResponse[ChangeDataCapture]{
+				Data: cdc,
+				More: false,
+			}, nil
+		})
+
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to cdc query from qbo: %w", err)
+		}
+
+		cdc := res.(DataResponse[ChangeDataCapture]).Data
+		IDCache := existingIDCache.(IDCacheEntry)
+		items := []map[string]any{}
+		for _, cdcResponse := range cdc.CDCResponse {
+			for _, queryResponse := range cdcResponse.QueryResponse {
+				if queryResponse.Invoice != nil {
+					for _, invoice := range queryResponse.Invoice {
+						if invoice.Status == "Deleted" {
+							for _, line := range invoice.Line {
+								if line.DetailType == "GroupLineDetail" {
+									for _, groupLine := range line.GroupLineDetail.Line {
+										items = append(items, map[string]any{
+											"id":           groupLine.Id,
+											"__syncAction": REMOVE,
+										})
+									}
+								}
+								items = append(items, map[string]any{
+									"id":           line.Id,
+									"__syncAction": REMOVE,
+								})
+							}
+						} else {
+
+							for _, line := range invoice.Line {
+								res, err := line.TransformData(&invoice.Invoice)
+								if err != nil {
+									return DataHandlerResponse{}, fmt.Errorf("unable to invoice transform data: %w", err)
+								}
+								item := res.([]map[string]any)
+								items = append(items, item...)
+							}
+						}
+					}
+				}
+			}
+		}
+		return DataHandlerResponse{
+			Items: items,
+			Pagination: Pagination{
+				HasNext: false,
+				NextPageConfig: NextPageConfig{
+					StartPosition: 0,
+				},
+			},
+			SynchronizationType: DeltaSync,
+		}, nil
+	}
 }
 
 func (InvoiceLine) FullSync(req *FullSyncRequest) ([]map[string]any, bool, error) {

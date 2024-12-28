@@ -14,16 +14,12 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-type Test struct {
-	Name string
-}
-
 func main() {
 	port := os.Getenv("PORT")
 	loggerLevel := os.Getenv("LOGGER_LEVEL")
 	loggerStyle := os.Getenv("LOGGER_STYLE")
 
-	c := cache.New(5*time.Minute, 10*time.Minute)
+	c := cache.New(12*time.Hour, 12*time.Hour)
 	var group singleflight.Group
 
 	SlogConfig := newSlogConfig(loggerLevel, loggerStyle)
