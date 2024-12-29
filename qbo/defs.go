@@ -196,30 +196,6 @@ type DataRequest struct {
 	Filter        map[string]any
 }
 
-type FullSyncRequest struct {
-	Cache         *cache.Cache
-	Group         *singleflight.Group
-	Token         *BearerToken
-	StartPosition int
-	OperationID   string
-	RealmID       string
-	Filter        map[string]any
-}
-
-type DeltaSyncRequest struct {
-	Cache       *cache.Cache
-	Group       *singleflight.Group
-	Token       *BearerToken
-	OperationID string
-	RealmID     string
-	Types       []string
-	LastSynced  time.Time
-	Filter      map[string]any
-}
-
-type WebhookRequest struct {
-}
-
 type NextPageConfig struct {
 	StartPosition int `json:"startPosition"`
 }
@@ -258,12 +234,12 @@ type FiberyType interface {
 	GetData(*DataRequest) (DataHandlerResponse, error)
 	// FullSync performs a full sync of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
 	// This function supports pagination and will return a boolean indicating if there is more data to be fetched.
-	FullSync(*FullSyncRequest) ([]map[string]any, bool, error)
+	FullSync(*DataRequest) (DataResponse[any], error)
 	// DeltaSync performs a delta sync using the ChangeDataCapture of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
 	// Since CDC does not support pagination, we return an error and suggest a full sync if CDC amount is greater than allowed (1000).
-	DeltaSync(*DeltaSyncRequest) ([]map[string]any, error)
+	DeltaSync(*DataRequest) (DataResponse[any], error)
 	// Webhook performs a request for the notifcation items of the given data type from the QuickBooks API into the Fibery /api/v1/synchronizer/webhooks/transformer endpoint.
-	Webhook(*WebhookRequest) ([]map[string]any, error)
+	Webhook(*DataRequest) (DataResponse[any], error)
 }
 
 type TypeArray struct {
