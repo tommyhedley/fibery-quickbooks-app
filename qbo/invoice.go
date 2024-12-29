@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -1268,8 +1269,11 @@ func (Il InvoiceLine) TransformDataDS(data ChangeDataCapture, idCache *IDCacheEn
 }
 
 func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
+	var cacheMutex sync.Mutex
 	cacheKey := fmt.Sprintf("%s:%s", req.RealmID, "invoice")
+	cacheMutex.Lock()
 	existingIDCache, cacheExists := req.Cache.Get(cacheKey)
+	cacheMutex.Unlock()
 
 	if req.LastSynced == "" || !cacheExists {
 		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
@@ -1295,6 +1299,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 			}
 		}
 
+		cacheMutex.Lock()
 		if !cacheExists {
 			IDEntry := IDCacheEntry{
 				OperationID: req.OperationID,
@@ -1302,6 +1307,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 			}
 			err = req.Cache.Add(cacheKey, IDEntry, IDCacheLifetime)
 			if err != nil {
+				cacheMutex.Unlock()
 				return DataHandlerResponse{}, fmt.Errorf("unable to add cache entry: %w", err)
 			}
 		} else {
@@ -1324,6 +1330,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 				req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
 			}
 		}
+		cacheMutex.Unlock()
 
 		items, err := Il.TransformDataFS(res.(DataResponse[[]Invoice]))
 		if err != nil {
@@ -1355,11 +1362,13 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 			return DataHandlerResponse{}, fmt.Errorf("unable to transform data: %w", err)
 		}
 
+		cacheMutex.Lock()
 		IDEntry := IDCacheEntry{
 			OperationID: req.OperationID,
 			ItemIDs:     existingIDCache.(*IDCacheEntry).ItemIDs,
 		}
 		req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
+		cacheMutex.Unlock()
 
 		return DataHandlerResponse{
 			Items: items,

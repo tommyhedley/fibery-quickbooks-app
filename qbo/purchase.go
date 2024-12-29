@@ -125,22 +125,6 @@ func (Purchase) Schema() map[string]Field {
 	}
 }
 
-func (P Purchase) TransformData(params ...any) (any, error) {
-	return nil, nil
-}
-
-func (Purchase) FullSync(*FullSyncRequest) ([]map[string]any, bool, error) {
-	return nil, false, nil
-}
-
-func (Purchase) DeltaSync(*DeltaSyncRequest) ([]map[string]any, error) {
-	return nil, nil
-}
-
-func (Purchase) Webhook(*WebhookRequest) ([]map[string]any, error) {
-	return nil, nil
-}
-
 func (AccountPurchaseLine) TypeInfo() TypeArray {
 	return TypeArray{
 		ID:   "purchase_account_line",
@@ -260,22 +244,6 @@ func (AccountPurchaseLine) Schema() map[string]Field {
 	}
 }
 
-func (Apl AccountPurchaseLine) TransformData(params ...any) (any, error) {
-	return nil, nil
-}
-
-func (AccountPurchaseLine) FullSync(*FullSyncRequest) ([]map[string]any, bool, error) {
-	return nil, false, nil
-}
-
-func (AccountPurchaseLine) DeltaSync(*DeltaSyncRequest) ([]map[string]any, error) {
-	return nil, nil
-}
-
-func (AccountPurchaseLine) Webhook(*WebhookRequest) ([]map[string]any, error) {
-	return nil, nil
-}
-
 func (ItemPurchaseLine) TypeInfo() TypeArray {
 	return TypeArray{
 		ID:   "purchase_item_line",
@@ -285,22 +253,6 @@ func (ItemPurchaseLine) TypeInfo() TypeArray {
 
 func (ItemPurchaseLine) Schema() map[string]Field {
 	return map[string]Field{}
-}
-
-func (Ipl ItemPurchaseLine) TransformData(params ...any) (any, error) {
-	return nil, nil
-}
-
-func (ItemPurchaseLine) FullSync(*FullSyncRequest) ([]map[string]any, bool, error) {
-	return nil, false, nil
-}
-
-func (ItemPurchaseLine) DeltaSync(*DeltaSyncRequest) ([]map[string]any, error) {
-	return nil, nil
-}
-
-func (ItemPurchaseLine) Webhook(*WebhookRequest) ([]map[string]any, error) {
-	return nil, nil
 }
 
 func init() {
