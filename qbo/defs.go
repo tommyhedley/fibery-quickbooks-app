@@ -223,39 +223,55 @@ type IDCacheEntry struct {
 
 const IDCacheLifetime = 4 * time.Hour
 
+// FiberyType represents any datatype that can be turned into a Fibery type/database.
 type FiberyType interface {
 	// TypeInfo returns a TypeArray containing the FiberyType ID and Name for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
+	// Returned ID value should match the datatype's name in the QuickBooks API.
 	TypeInfo() TypeArray
 	// Schema returns a map of FiberyType fields for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
 	Schema() map[string]Field
-	// TransformData transforms the data from the QuickBooks API into the format required by the Fibery /api/v1/synchronizer/data endpoint.
-	TransformData(params ...any) (any, error)
-	// DataHandler gathers data by page for a given type and sync method from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
+	// GetData handles data retreiaval for the given type and determines what type of sync is required.
 	GetData(*DataRequest) (DataHandlerResponse, error)
 	// FullSync performs a full sync of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
-	// This function supports pagination and will return a boolean indicating if there is more data to be fetched.
-	FullSync(*DataRequest) (DataResponse[any], error)
+	FullSync(*DataRequest) (DataResponse[FiberyType], error)
 	// DeltaSync performs a delta sync using the ChangeDataCapture of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
 	// Since CDC does not support pagination, we return an error and suggest a full sync if CDC amount is greater than allowed (1000).
-	DeltaSync(*DataRequest) (DataResponse[any], error)
-	// Webhook performs a request for the notifcation items of the given data type from the QuickBooks API into the Fibery /api/v1/synchronizer/webhooks/transformer endpoint.
-	Webhook(*DataRequest) (DataResponse[any], error)
+	DeltaSync(*DataRequest) (DataResponse[FiberyType], error)
+}
+
+// FiberyPrimaryType represents Fibery types or databases that correspond to QuickBooks objects.
+// Since they are queryable using the Quickbooks API, they have simpler data transformation requirements.
+type FiberyPrimaryType interface {
+	FiberyType
+	TransformItem() (map[string]any, error)
+	TransformDataFS(params any) (DataHandlerResponse, error)
+	TransformDataDS(params any) (DataHandlerResponse, error)
+}
+
+// FiberySubType represents Fibery types or databases that correspond to objects that are part of Quickbooks objects but not directly queryable.
+// Invoice => InvoiceLine where InvoiceLine is a FiberySubtype of Invoice. This type may requuire caching to properly handle Delta and Webhook syncs.
+type FiberySubtype interface {
+	FiberyType
+	TransformItem(parent FiberyPrimaryType) (map[string]any, error)
+	TransformDataFS(data DataResponse[FiberyType]) (DataHandlerResponse, error)
+	TransformDataDS(data ChangeDataCapture) (DataHandlerResponse, error)
 }
 
 type TypeArray struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	BaseType bool   `json:"-"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 var Types = map[string]FiberyType{}
 var TypeInfo = []TypeArray{}
-var BaseTypes = map[string]bool{}
 var Schema = make(map[string]map[string]Field)
+var BaseTypes = map[string]bool{}
 
 func RegisterType(t FiberyType) {
 	Types[t.TypeInfo().ID] = t
 	TypeInfo = append(TypeInfo, t.TypeInfo())
-	BaseTypes[t.TypeInfo().ID] = t.TypeInfo().BaseType
 	Schema[t.TypeInfo().ID] = t.Schema()
+	if _, ok := t.(FiberyPrimaryType); ok {
+		BaseTypes[t.TypeInfo().ID] = true
+	}
 }
