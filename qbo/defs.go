@@ -239,9 +239,9 @@ type FiberyType interface {
 type QBOPrimaryType interface {
 	FiberyType
 	TransformItem() (map[string]any, error)
-	TransformDataFS(data DataResponse[[]FiberyType]) ([]map[string]any, error)
+	TransformDataFS(data DataResponse[[]any]) ([]map[string]any, error)
 	TransformDataDS(data ChangeDataCapture) ([]map[string]any, error)
-	FullSync(*DataRequest) (DataResponse[FiberyType], error)
+	FullSync(*DataRequest) (DataResponse[[]any], error)
 	DeltaSync(*DataRequest) (ChangeDataCapture, error)
 }
 
@@ -250,9 +250,9 @@ type QBOPrimaryType interface {
 type QBOSubtype interface {
 	FiberyType
 	TransformItem(parent QBOPrimaryType) (map[string]any, error)
-	TransformDataFS(data DataResponse[[]FiberyType]) ([]map[string]any, error)
+	TransformDataFS(data DataResponse[[]any]) ([]map[string]any, error)
 	TransformDataDS(data ChangeDataCapture, idCache IDCacheEntry) ([]map[string]any, error)
-	FullSync(*DataRequest) (DataResponse[FiberyType], error)
+	FullSync(*DataRequest) (DataResponse[[]any], error)
 	DeltaSync(*DataRequest) (ChangeDataCapture, error)
 }
 
@@ -266,7 +266,7 @@ var TypeInfo = []TypeArray{}
 var Schema = make(map[string]map[string]Field)
 var BaseTypes = map[string]bool{}
 
-func RegisterType(t FiberyType) {
+func RegisterType(t QBOPrimaryType) {
 	Types[t.TypeInfo().ID] = t
 	TypeInfo = append(TypeInfo, t.TypeInfo())
 	Schema[t.TypeInfo().ID] = t.Schema()

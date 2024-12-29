@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/patrickmn/go-cache"
@@ -64,6 +65,8 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type was not found: %s", params.RequestedType))
 			return
 		}
+
+		slog.Info(fmt.Sprintf("Getting data for %s", params.RequestedType))
 
 		res, err := datatype.GetData(&req)
 		if err != nil {
