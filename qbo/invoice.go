@@ -136,7 +136,7 @@ type SalesItemLineDetail struct {
 type GroupLineDetail struct {
 	Quantity     float32       `json:",omitempty"`
 	GroupItemRef ReferenceType `json:",omitempty"`
-	Line         []Line        `json:",omitempty"`
+	Line         []InvoiceLine `json:",omitempty"`
 }
 
 // DiscountLineDetail ...
@@ -1122,16 +1122,15 @@ func (InvoiceLine) Schema() map[string]Field {
 	}
 }
 
-func (Il InvoiceLine) TransformItem(parent FiberyType) ([]map[string]any, error) {
+func (Il InvoiceLine) TransformItem(I Invoice) (map[string]any, error) {
 	var lineTypes = map[string]string{
 		"SalesItemLineDetail": "Sales Item Line",
 		"GroupLineDetail":     "Group Line",
 		"DescriptionOnly":     "Description Line",
 	}
 
-	var data []map[string]any
 	if Il.DetailType == "GroupLineDetail" {
-		data = append(data, map[string]any{
+		return map[string]any{
 			"id":                 fmt.Sprintf("%s:%s", I.Id, Il.Id),
 			"qbo_id":             Il.Id,
 			"invoice_sync_token": I.SyncToken,
@@ -1142,30 +1141,9 @@ func (Il InvoiceLine) TransformItem(parent FiberyType) ([]map[string]any, error)
 			"line_num":           Il.LineNum,
 			"item_id":            Il.GroupLineDetail.GroupItemRef.Value,
 			"__syncAction":       SET,
-		})
-		for _, groupLine := range Il.GroupLineDetail.Line {
-			data = append(data, map[string]any{
-				"id":                 fmt.Sprintf("%s:%s:%s", I.Id, Il.Id, groupLine.Id),
-				"qbo_id":             groupLine.Id,
-				"invoice_sync_token": I.SyncToken,
-				"invoice_id":         I.Id,
-				"description":        groupLine.Description,
-				"line_type":          lineTypes[groupLine.DetailType],
-				"quantity":           groupLine.SalesItemLineDetail.Qty,
-				"unit_price":         groupLine.SalesItemLineDetail.UnitPrice,
-				"amount":             groupLine.Amount,
-				"line_num":           groupLine.LineNum,
-				"group_line_id":      Il.Id,
-				"item_id":            groupLine.SalesItemLineDetail.ItemRef.Value,
-				"class_id":           groupLine.SalesItemLineDetail.ClassRef.Value,
-				"tax_code_id":        groupLine.SalesItemLineDetail.TaxCodeRef.Value,
-				"markup_percent":     groupLine.SalesItemLineDetail.MarkupInfo.Percent,
-				"service_date":       groupLine.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
-				"__syncAction":       SET,
-			})
-		}
+		}, nil
 	} else if Il.DetailType == "DescriptionOnly" || Il.DetailType == "SalesItemLineDetail" {
-		data = append(data, map[string]any{
+		return map[string]any{
 			"id":                 fmt.Sprintf("%s:%s", I.Id, Il.Id),
 			"qbo_id":             Il.Id,
 			"invoice_sync_token": I.SyncToken,
@@ -1182,9 +1160,9 @@ func (Il InvoiceLine) TransformItem(parent FiberyType) ([]map[string]any, error)
 			"markup_percent":     Il.SalesItemLineDetail.MarkupInfo.Percent,
 			"service_date":       Il.SalesItemLineDetail.ServiceDate.Format(fiberyDateFormat),
 			"__syncAction":       SET,
-		})
+		}, nil
 	}
-	return data, nil
+	return nil, nil
 }
 
 func (Il InvoiceLine) TransformDataFS(data DataResponse[[]Invoice]) ([]map[string]any, error) {
@@ -1192,112 +1170,166 @@ func (Il InvoiceLine) TransformDataFS(data DataResponse[[]Invoice]) ([]map[strin
 	items := []map[string]any{}
 	for _, invoice := range invoices {
 		for _, line := range invoice.Line {
-			if line.DetailType == "GroupLineDetail" {
-
-			} else {
-
-			}
-			res, err := line.TransformData(&invoice)
+			item, err := line.TransformItem(invoice)
 			if err != nil {
-				return DataHandlerResponse{}, fmt.Errorf("unable to invoice transform data: %w", err)
+				return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
 			}
-			item := res.([]map[string]any)
-			items = append(items, item...)
+			items = append(items, item)
+			if line.DetailType == "GroupLineDetail" {
+				for _, groupLine := range line.GroupLineDetail.Line {
+					item, err := groupLine.TransformItem(invoice)
+					if err != nil {
+						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+					}
+					item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
+					item["group_line_id"] = line.Id
+					items = append(items, item)
+				}
+			}
 		}
 	}
+	return items, nil
 }
 
-func (InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
+func (Il InvoiceLine) TransformDataDS(data ChangeDataCapture, idCache *IDCacheEntry) ([]map[string]any, error) {
+	items := []map[string]any{}
+	for _, cdcResponse := range data.CDCResponse {
+		for _, queryResponse := range cdcResponse.QueryResponse {
+			if queryResponse.Invoice != nil {
+				for _, invoice := range queryResponse.Invoice {
+
+					// map lines in cdc response
+					newLineIDs := map[string]bool{}
+					for _, line := range invoice.Line {
+						if line.DetailType == "GroupLineDetail" {
+							for _, groupLine := range line.GroupLineDetail.Line {
+								newLineIDs[fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)] = true
+							}
+						}
+						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" || line.DetailType == "GroupLineDetail" {
+							newLineIDs[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
+						}
+					}
+
+					// handle lines on deleted invoices
+					if invoice.Status == "Deleted" {
+						cachedLines := idCache.ItemIDs[invoice.Id]
+						for lineID := range cachedLines {
+							items = append(items, map[string]any{
+								"id":           lineID,
+								"__syncAction": REMOVE,
+							})
+						}
+						delete(idCache.ItemIDs, invoice.Id)
+						continue
+					}
+
+					// transform line data on added or updated invoices
+					for _, line := range invoice.Line {
+						item, err := line.TransformItem(invoice.Invoice)
+						if err != nil {
+							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+						}
+						items = append(items, item)
+						if line.DetailType == "GroupLineDetail" {
+							for _, groupLine := range line.GroupLineDetail.Line {
+								item, err := groupLine.TransformItem(invoice.Invoice)
+								if err != nil {
+									return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+								}
+								item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
+								item["group_line_id"] = line.Id
+								items = append(items, item)
+							}
+						}
+					}
+
+					// check for lines in cache but not in cdc response
+					if _, ok := idCache.ItemIDs[invoice.Id]; !ok {
+						idCache.ItemIDs[invoice.Id] = map[string]bool{}
+					}
+					cachedLines := idCache.ItemIDs[invoice.Id]
+					for cachedLineID := range cachedLines {
+						if !newLineIDs[cachedLineID] {
+							items = append(items, map[string]any{
+								"id":           cachedLineID,
+								"__syncAction": REMOVE,
+							})
+						}
+					}
+
+					// update cache with new line ids
+					idCache.ItemIDs[invoice.Id] = newLineIDs
+				}
+			}
+		}
+	}
+	return items, nil
+}
+
+func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 	cacheKey := fmt.Sprintf("%s:%s", req.RealmID, "invoice")
 	existingIDCache, cacheExists := req.Cache.Get(cacheKey)
-	var syncType SyncType = DeltaSync
 
 	if req.LastSynced == "" || !cacheExists {
-		syncType = FullSync
-	}
-
-	if syncType == FullSync {
 		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationID, "invoice", req.StartPosition)
-		syncType = FullSync
 		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
-			client, err := NewClient(req.RealmID, req.Token)
-			if err != nil {
-				return nil, fmt.Errorf("unable to create new client: %w", err)
-			}
-
-			invoices, err := client.FindInvoicesByPage(req.StartPosition)
-			if err != nil {
-				return nil, fmt.Errorf("unable to find invoices: %w", err)
-			}
-
-			IDMap := map[string]map[string]bool{}
-
-			for _, invoice := range invoices {
-				IDMap[invoice.Id] = map[string]bool{}
-				for _, line := range invoice.Line {
-					if line.DetailType == "GroupLineDetail" {
-						for _, groupLine := range line.GroupLineDetail.Line {
-							IDMap[invoice.Id][fmt.Sprintf("%s:%s", line.Id, groupLine.Id)] = true
-						}
-					}
-					IDMap[invoice.Id][line.Id] = true
-				}
-			}
-
-			if !cacheExists {
-				IDEntry := IDCacheEntry{
-					OperationID: req.OperationID,
-					ItemIDs:     IDMap,
-				}
-				err = req.Cache.Add(cacheKey, IDEntry, IDCacheLifetime)
-				if err != nil {
-					return nil, fmt.Errorf("unable to add cache entry: %w", err)
-				}
-			} else {
-				existingEntry := existingIDCache.(IDCacheEntry)
-				if existingEntry.OperationID == req.OperationID {
-					for invoiceID, linesMap := range IDMap {
-						if _, ok := existingEntry.ItemIDs[invoiceID]; !ok {
-							existingEntry.ItemIDs[invoiceID] = map[string]bool{}
-						}
-						for lineID := range linesMap {
-							existingEntry.ItemIDs[invoiceID][lineID] = true
-						}
-					}
-					req.Cache.Set(cacheKey, existingEntry, IDCacheLifetime)
-					existingIDCache = existingEntry
-				} else {
-					IDEntry := IDCacheEntry{
-						OperationID: req.OperationID,
-						ItemIDs:     IDMap,
-					}
-					req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
-					existingIDCache = IDEntry
-				}
-			}
-
-			return DataResponse[[]Invoice]{
-				Data: invoices,
-				More: len(invoices) >= QueryPageSize,
-			}, nil
+			return Il.FullSync(req)
 		})
 
 		if err != nil {
 			return DataHandlerResponse{}, fmt.Errorf("unable to query invoices from qbo: %w", err)
 		}
 
-		invoices := res.(DataResponse[[]Invoice]).Data
-		items := []map[string]any{}
-		for _, invoice := range invoices {
+		IDMap := map[string]map[string]bool{}
+
+		for _, invoice := range res.(DataResponse[[]Invoice]).Data {
+			IDMap[invoice.Id] = map[string]bool{}
 			for _, line := range invoice.Line {
-				res, err := line.TransformData(&invoice)
-				if err != nil {
-					return DataHandlerResponse{}, fmt.Errorf("unable to invoice transform data: %w", err)
+				if line.DetailType == "GroupLineDetail" {
+					for _, groupLine := range line.GroupLineDetail.Line {
+						IDMap[invoice.Id][fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)] = true
+					}
 				}
-				item := res.([]map[string]any)
-				items = append(items, item...)
+				IDMap[invoice.Id][fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
 			}
 		}
+
+		if !cacheExists {
+			IDEntry := IDCacheEntry{
+				OperationID: req.OperationID,
+				ItemIDs:     IDMap,
+			}
+			err = req.Cache.Add(cacheKey, IDEntry, IDCacheLifetime)
+			if err != nil {
+				return DataHandlerResponse{}, fmt.Errorf("unable to add cache entry: %w", err)
+			}
+		} else {
+			existingEntry := existingIDCache.(IDCacheEntry)
+			if existingEntry.OperationID == req.OperationID {
+				for invoiceID, linesMap := range IDMap {
+					if _, ok := existingEntry.ItemIDs[invoiceID]; !ok {
+						existingEntry.ItemIDs[invoiceID] = map[string]bool{}
+					}
+					for lineID := range linesMap {
+						existingEntry.ItemIDs[invoiceID][lineID] = true
+					}
+				}
+				req.Cache.Set(cacheKey, existingEntry, IDCacheLifetime)
+			} else {
+				IDEntry := IDCacheEntry{
+					OperationID: req.OperationID,
+					ItemIDs:     IDMap,
+				}
+				req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
+			}
+		}
+
+		items, err := Il.TransformDataFS(res.(DataResponse[[]Invoice]))
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to transform data: %w", err)
+		}
+
 		return DataHandlerResponse{
 			Items: items,
 			Pagination: Pagination{
@@ -1310,106 +1342,24 @@ func (InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 		}, nil
 	} else {
 		groupKey := req.OperationID
-		syncType = DeltaSync
-		lastSyncedTime, err := time.Parse(time.RFC3339, req.LastSynced)
-		if err != nil {
-			return DataHandlerResponse{}, fmt.Errorf("unable to parse last synced time: %w", err)
-		}
-
 		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
-			client, err := NewClient(req.RealmID, req.Token)
-			if err != nil {
-				return nil, fmt.Errorf("unable to create new client: %w", err)
-			}
-
-			cdcTypes := []string{}
-			for _, t := range req.Types {
-				if BaseTypes[t] {
-					cdcTypes = append(cdcTypes, t)
-				}
-			}
-
-			cdc, err := client.ChangeDataCapture(cdcTypes, lastSyncedTime)
-			if err != nil {
-				return nil, fmt.Errorf("unable to get change data capture: %w", err)
-			}
-
-			return DataResponse[ChangeDataCapture]{
-				Data: cdc,
-				More: false,
-			}, nil
+			return Il.DeltaSync(req)
 		})
 
 		if err != nil {
 			return DataHandlerResponse{}, fmt.Errorf("unable to cdc query from qbo: %w", err)
 		}
 
-		cdc := res.(DataResponse[ChangeDataCapture]).Data
-		IDCache := existingIDCache.(IDCacheEntry)
-		items := []map[string]any{}
-		for _, cdcResponse := range cdc.CDCResponse {
-			for _, queryResponse := range cdcResponse.QueryResponse {
-				if queryResponse.Invoice != nil {
-					for _, invoice := range queryResponse.Invoice {
-						var newLineIDs = map[string]bool{}
-						for _, line := range invoice.Line {
-							// Populate newLineIDs from the CDC
-							if line.DetailType == "GroupLineDetail" {
-								for _, groupLine := range line.GroupLineDetail.Line {
-									newLineIDs[groupLine.Id] = true
-								}
-							}
-							newLineIDs[line.Id] = true
-						}
-						// If the invoice is "Deleted", remove lines
-						if invoice.Status == "Deleted" {
-							// All lines in the cache are removed
-							oldLines := IDCache.ItemIDs[invoice.Id]
-							for oldLineID := range oldLines {
-								items = append(items, map[string]any{
-									"id":           oldLineID,
-									"__syncAction": REMOVE,
-								})
-							}
-							delete(IDCache.ItemIDs, invoice.Id)
-							continue
-						}
-
-						// Otherwise, transform updated lines
-						for _, line := range invoice.Line {
-							transformed, tErr := line.TransformData(&invoice.Invoice)
-							if tErr != nil {
-								return DataHandlerResponse{}, fmt.Errorf("unable to transform line %s: %w", line.Id, tErr)
-							}
-							item := transformed.([]map[string]any)
-							items = append(items, item...)
-						}
-
-						// 2) Check for lines that exist in cache but not in newLineIDs => removed lines
-						if _, ok := IDCache.ItemIDs[invoice.Id]; !ok {
-							IDCache.ItemIDs[invoice.Id] = map[string]bool{}
-						}
-						oldLineMap := IDCache.ItemIDs[invoice.Id]
-						for oldLineID := range oldLineMap {
-							if !newLineIDs[oldLineID] {
-								items = append(items, map[string]any{
-									"id":           oldLineID,
-									"__syncAction": REMOVE,
-								})
-							}
-						}
-
-						// 3) Update the cache to reflect the new lines
-						if _, ok := IDCache.ItemIDs[invoice.Id]; !ok {
-							IDCache.ItemIDs[invoice.Id] = map[string]bool{}
-						}
-						for lineID := range newLineIDs {
-							IDCache.ItemIDs[invoice.Id][lineID] = true
-						}
-					}
-				}
-			}
+		items, err := Il.TransformDataDS(res.(ChangeDataCapture), existingIDCache.(*IDCacheEntry))
+		if err != nil {
+			return DataHandlerResponse{}, fmt.Errorf("unable to transform data: %w", err)
 		}
+
+		IDEntry := IDCacheEntry{
+			OperationID: req.OperationID,
+			ItemIDs:     existingIDCache.(*IDCacheEntry).ItemIDs,
+		}
+		req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
 
 		return DataHandlerResponse{
 			Items: items,
@@ -1433,59 +1383,13 @@ func (InvoiceLine) FullSync(req *DataRequest) (DataResponse[[]Invoice], error) {
 	return res, nil
 }
 
-func (InvoiceLine) DeltaSync(req *DeltaSyncRequest) ([]map[string]any, error) {
-	key := req.OperationID
-	res, err, _ := req.Group.Do(key, func() (interface{}, error) {
-		client, err := NewClient(req.RealmID, req.Token)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create new client: %w", err)
-		}
-
-		cdc, err := client.ChangeDataCapture(req.Types, req.LastSynced)
-		if err != nil {
-			return nil, fmt.Errorf("unable to get change data capture: %w", err)
-		}
-		return cdc, nil
-	})
-	cdc := res.(*ChangeDataCapture)
+func (InvoiceLine) DeltaSync(req *DataRequest) (ChangeDataCapture, error) {
+	var i Invoice
+	res, err := i.DeltaSync(req)
 	if err != nil {
-		return nil, fmt.Errorf("deltasync singleflight error: %w", err)
+		return ChangeDataCapture{}, fmt.Errorf("unable to deltasync invoices: %w", err)
 	}
-	items := []map[string]any{}
-	for _, cdcResponse := range cdc.CDCResponse {
-		for _, queryResponse := range cdcResponse.QueryResponse {
-			if queryResponse.Invoice != nil {
-				for _, invoice := range queryResponse.Invoice {
-					if invoice.Status == "Deleted" {
-						for _, line := range invoice.Line {
-							if line.DetailType == "GroupLineDetail" {
-								for _, groupLine := range line.GroupLineDetail.Line {
-									items = append(items, map[string]any{
-										"id":           groupLine.Id,
-										"__syncAction": REMOVE,
-									})
-								}
-							}
-							items = append(items, map[string]any{
-								"id":           line.Id,
-								"__syncAction": REMOVE,
-							})
-						}
-					} else {
-						for _, line := range invoice.Line {
-							res, err := line.TransformData(&invoice.Invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to invoice transform data: %w", err)
-							}
-							item := res.([]map[string]any)
-							items = append(items, item...)
-						}
-					}
-				}
-			}
-		}
-	}
-	return items, nil
+	return res, nil
 }
 
 func init() {

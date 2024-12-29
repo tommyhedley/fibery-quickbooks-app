@@ -232,29 +232,28 @@ type FiberyType interface {
 	Schema() map[string]Field
 	// GetData handles data retreiaval for the given type and determines what type of sync is required.
 	GetData(*DataRequest) (DataHandlerResponse, error)
-	// FullSync performs a full sync of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
-	FullSync(*DataRequest) (DataResponse[FiberyType], error)
-	// DeltaSync performs a delta sync using the ChangeDataCapture of the given type data from the QuickBooks API into the Fibery /api/v1/synchronizer/data endpoint.
-	// Since CDC does not support pagination, we return an error and suggest a full sync if CDC amount is greater than allowed (1000).
-	DeltaSync(*DataRequest) (DataResponse[FiberyType], error)
 }
 
-// FiberyPrimaryType represents Fibery types or databases that correspond to QuickBooks objects.
+// QBOPrimaryType represents Fibery types or databases that correspond to QuickBooks objects.
 // Since they are queryable using the Quickbooks API, they have simpler data transformation requirements.
-type FiberyPrimaryType interface {
+type QBOPrimaryType interface {
 	FiberyType
 	TransformItem() (map[string]any, error)
-	TransformDataFS(params any) (DataHandlerResponse, error)
-	TransformDataDS(params any) (DataHandlerResponse, error)
+	TransformDataFS(data DataResponse[[]FiberyType]) ([]map[string]any, error)
+	TransformDataDS(data ChangeDataCapture) ([]map[string]any, error)
+	FullSync(*DataRequest) (DataResponse[FiberyType], error)
+	DeltaSync(*DataRequest) (ChangeDataCapture, error)
 }
 
-// FiberySubType represents Fibery types or databases that correspond to objects that are part of Quickbooks objects but not directly queryable.
+// QBOSubtype represents Fibery types or databases that correspond to objects that are part of Quickbooks objects but not directly queryable.
 // Invoice => InvoiceLine where InvoiceLine is a FiberySubtype of Invoice. This type may requuire caching to properly handle Delta and Webhook syncs.
-type FiberySubtype interface {
+type QBOSubtype interface {
 	FiberyType
-	TransformItem(parent FiberyPrimaryType) (map[string]any, error)
-	TransformDataFS(data DataResponse[FiberyType]) (DataHandlerResponse, error)
-	TransformDataDS(data ChangeDataCapture) (DataHandlerResponse, error)
+	TransformItem(parent QBOPrimaryType) (map[string]any, error)
+	TransformDataFS(data DataResponse[[]FiberyType]) ([]map[string]any, error)
+	TransformDataDS(data ChangeDataCapture, idCache IDCacheEntry) ([]map[string]any, error)
+	FullSync(*DataRequest) (DataResponse[FiberyType], error)
+	DeltaSync(*DataRequest) (ChangeDataCapture, error)
 }
 
 type TypeArray struct {
@@ -271,7 +270,7 @@ func RegisterType(t FiberyType) {
 	Types[t.TypeInfo().ID] = t
 	TypeInfo = append(TypeInfo, t.TypeInfo())
 	Schema[t.TypeInfo().ID] = t.Schema()
-	if _, ok := t.(FiberyPrimaryType); ok {
+	if _, ok := t.(QBOPrimaryType); ok {
 		BaseTypes[t.TypeInfo().ID] = true
 	}
 }
