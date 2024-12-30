@@ -1158,11 +1158,13 @@ func (Il InvoiceLine) transformFullData(data DataResponse) ([]map[string]any, er
 	items := []map[string]any{}
 	for _, invoice := range invoices {
 		for _, line := range invoice.Line {
-			item, err := line.transformItem(invoice)
-			if err != nil {
-				return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+			if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
+				item, err := line.transformItem(invoice)
+				if err != nil {
+					return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+				}
+				items = append(items, item)
 			}
-			items = append(items, item)
 			if line.DetailType == "GroupLineDetail" {
 				for _, groupLine := range line.GroupLineDetail.Line {
 					item, err := groupLine.transformItem(invoice)
@@ -1173,6 +1175,11 @@ func (Il InvoiceLine) transformFullData(data DataResponse) ([]map[string]any, er
 					item["group_line_id"] = line.Id
 					items = append(items, item)
 				}
+				item, err := line.transformItem(invoice)
+				if err != nil {
+					return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+				}
+				items = append(items, item)
 			}
 		}
 	}
@@ -1193,15 +1200,19 @@ func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache
 							for _, groupLine := range line.GroupLineDetail.Line {
 								newLineIDs[fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)] = true
 							}
+							newLineIDs[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
 						}
-						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" || line.DetailType == "GroupLineDetail" {
+						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
 							newLineIDs[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
 						}
 					}
 
+					fmt.Printf("newLineIDs: %s\n", FormatJSON(newLineIDs))
+
 					// handle lines on deleted invoices
 					if invoice.Status == "Deleted" {
 						cachedLines := idCache.IDs[invoice.Id]
+						fmt.Printf("cachedLines: %s\n", FormatJSON(cachedLines))
 						for lineID := range cachedLines {
 							items = append(items, map[string]any{
 								"id":           lineID,
@@ -1209,16 +1220,23 @@ func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache
 							})
 						}
 						delete(idCache.IDs, invoice.Id)
+						if _, ok := idCache.IDs[invoice.Id]; !ok {
+							fmt.Printf("cache entry for invoice %s deleted\n", invoice.Id)
+						}
 						continue
 					}
 
+					fmt.Printf("items after delete: %s\n", FormatJSON(items))
+
 					// transform line data on added or updated invoices
 					for _, line := range invoice.Line {
-						item, err := line.transformItem(invoice.Invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
+							item, err := line.transformItem(invoice.Invoice)
+							if err != nil {
+								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+							}
+							items = append(items, item)
 						}
-						items = append(items, item)
 						if line.DetailType == "GroupLineDetail" {
 							for _, groupLine := range line.GroupLineDetail.Line {
 								item, err := groupLine.transformItem(invoice.Invoice)
@@ -1229,25 +1247,36 @@ func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache
 								item["group_line_id"] = line.Id
 								items = append(items, item)
 							}
+							item, err := line.transformItem(invoice.Invoice)
+							if err != nil {
+								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+							}
+							items = append(items, item)
 						}
 					}
 
+					fmt.Printf("items after transform: %s\n", FormatJSON(items))
+
 					// check for lines in cache but not in cdc response
-					if _, ok := idCache.IDs[invoice.Id]; !ok {
-						idCache.IDs[invoice.Id] = map[string]bool{}
-					}
-					cachedLines := idCache.IDs[invoice.Id]
-					for cachedLineID := range cachedLines {
-						if !newLineIDs[cachedLineID] {
-							items = append(items, map[string]any{
-								"id":           cachedLineID,
-								"__syncAction": REMOVE,
-							})
+					if _, ok := idCache.IDs[invoice.Id]; ok {
+						cachedLines := idCache.IDs[invoice.Id]
+						fmt.Printf("cachedLines: %s\n", FormatJSON(cachedLines))
+						for cachedLineID := range cachedLines {
+							if !newLineIDs[cachedLineID] {
+								items = append(items, map[string]any{
+									"id":           cachedLineID,
+									"__syncAction": REMOVE,
+								})
+							}
 						}
 					}
+
+					fmt.Printf("items after remove: %s\n", FormatJSON(items))
 
 					// update cache with new line ids
 					idCache.IDs[invoice.Id] = newLineIDs
+
+					fmt.Printf("cache after transform: %s\n", FormatJSON(idCache.IDs[invoice.Id]))
 				}
 			}
 		}
@@ -1259,7 +1288,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 	var cacheMutex sync.Mutex
 	cacheKey := fmt.Sprintf("%s:%s", req.RealmID, "invoice")
 	cacheMutex.Lock()
-	existingIDCache, cacheExists := req.Cache.Get(cacheKey)
+	cacheInterface, cacheExists := req.Cache.Get(cacheKey)
 	cacheMutex.Unlock()
 
 	if req.LastSynced == "" || !cacheExists {
@@ -1281,8 +1310,11 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 					for _, groupLine := range line.GroupLineDetail.Line {
 						IDMap[invoice.Id][fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)] = true
 					}
+					IDMap[invoice.Id][fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
 				}
-				IDMap[invoice.Id][fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
+				if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
+					IDMap[invoice.Id][fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
+				}
 			}
 		}
 
@@ -1298,17 +1330,17 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 				return DataHandlerResponse{}, fmt.Errorf("unable to add cache entry: %w", err)
 			}
 		} else {
-			existingEntry := existingIDCache.(DependentDataIDCache)
-			if existingEntry.OperationID == req.OperationID {
+			existingIDCache := cacheInterface.(DependentDataIDCache)
+			if existingIDCache.OperationID == req.OperationID {
 				for invoiceID, linesMap := range IDMap {
-					if _, ok := existingEntry.IDs[invoiceID]; !ok {
-						existingEntry.IDs[invoiceID] = map[string]bool{}
+					if _, ok := existingIDCache.IDs[invoiceID]; !ok {
+						existingIDCache.IDs[invoiceID] = map[string]bool{}
 					}
 					for lineID := range linesMap {
-						existingEntry.IDs[invoiceID][lineID] = true
+						existingIDCache.IDs[invoiceID][lineID] = true
 					}
 				}
-				req.Cache.Set(cacheKey, existingEntry, IDCacheLifetime)
+				req.Cache.Set(cacheKey, existingIDCache, IDCacheLifetime)
 			} else {
 				IDEntry := DependentDataIDCache{
 					OperationID: req.OperationID,
@@ -1336,6 +1368,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 		}, nil
 	} else {
 		groupKey := req.OperationID
+		existingIDCache := cacheInterface.(DependentDataIDCache)
 		res, err, _ := req.Group.Do(groupKey, func() (interface{}, error) {
 			return getChangeDataCapture(req)
 		})
@@ -1344,7 +1377,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 			return DataHandlerResponse{}, fmt.Errorf("unable to cdc query from qbo: %w", err)
 		}
 
-		items, err := Il.transformChangeDataCapture(res.(ChangeDataCapture), existingIDCache.(*DependentDataIDCache))
+		items, err := Il.transformChangeDataCapture(res.(ChangeDataCapture), &existingIDCache)
 		if err != nil {
 			return DataHandlerResponse{}, fmt.Errorf("unable to transform data: %w", err)
 		}
@@ -1352,7 +1385,7 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 		cacheMutex.Lock()
 		IDEntry := DependentDataIDCache{
 			OperationID: req.OperationID,
-			IDs:         existingIDCache.(*DependentDataIDCache).IDs,
+			IDs:         existingIDCache.IDs,
 		}
 		req.Cache.Set(cacheKey, IDEntry, IDCacheLifetime)
 		cacheMutex.Unlock()

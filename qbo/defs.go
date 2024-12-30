@@ -4,6 +4,8 @@
 package qbo
 
 import (
+	"encoding/json"
+	"log"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -256,4 +258,15 @@ var Types = map[string]DataType{}
 
 func RegisterType(t DataType) {
 	Types[t.ID()] = t
+}
+
+// temp
+
+func FormatJSON(data interface{}) string {
+	prettyJSON, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Println("Failed to generate json", err)
+		return ""
+	}
+	return string(prettyJSON)
 }

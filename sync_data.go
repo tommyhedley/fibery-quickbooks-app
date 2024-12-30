@@ -76,6 +76,8 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			return
 		}
 
+		fmt.Printf("DataHandler response for datatype: %s \n%s\n", params.RequestedType, qbo.FormatJSON(res))
+
 		RespondWithJSON(w, http.StatusOK, res)
 	}
 }
