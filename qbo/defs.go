@@ -185,15 +185,17 @@ const (
 )
 
 type DataRequest struct {
-	Cache         *cache.Cache
-	Group         *singleflight.Group
-	Token         *BearerToken
-	StartPosition int
-	OperationID   string
-	RealmID       string
-	LastSynced    string
-	Types         []string
-	Filter        map[string]any
+	StartPosition  int
+	OperationID    string
+	RealmID        string
+	LastSynced     string
+	RequestedType  string
+	RequestedTypes []string
+	CDCTypes       []string
+	Filter         map[string]any
+	Cache          *cache.Cache
+	Group          *singleflight.Group
+	Token          *BearerToken
 }
 
 type NextPageConfig struct {
@@ -211,66 +213,47 @@ type DataHandlerResponse struct {
 	SynchronizationType SyncType         `json:"synchronizationType"`
 }
 
-type DataResponse[t any] struct {
+type DataResponse struct {
+	Data any
 	More bool
-	Data t
 }
 
-type IDCacheEntry struct {
+type DependentDataIDCache struct {
 	OperationID string
-	ItemIDs     map[string]map[string]bool
+	IDs         map[string]map[string]bool
 }
 
 const IDCacheLifetime = 4 * time.Hour
 
-// FiberyType represents any datatype that can be turned into a Fibery type/database.
-type FiberyType interface {
-	// TypeInfo returns a TypeArray containing the FiberyType ID and Name for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
-	// Returned ID value should match the datatype's name in the QuickBooks API.
-	TypeInfo() TypeArray
-	// Schema returns a map of FiberyType fields for implemented type as required by the Fibery /api/v1/synchronizer/config endpoint.
+type DataType interface {
+	ID() string
+	Name() string
 	Schema() map[string]Field
-	// GetData handles data retreiaval for the given type and determines what type of sync is required.
-	GetData(*DataRequest) (DataHandlerResponse, error)
+	GetData(req *DataRequest) (DataHandlerResponse, error)
+	getFullData(req *DataRequest) (DataResponse, error)
+	transformFullData(data DataResponse) ([]map[string]any, error)
 }
 
-// QBOPrimaryType represents Fibery types or databases that correspond to QuickBooks objects.
-// Since they are queryable using the Quickbooks API, they have simpler data transformation requirements.
-type QBOPrimaryType interface {
-	FiberyType
-	TransformItem() (map[string]any, error)
-	TransformDataFS(data DataResponse[[]any]) ([]map[string]any, error)
-	TransformDataDS(data ChangeDataCapture) ([]map[string]any, error)
-	FullSync(*DataRequest) (DataResponse[[]any], error)
-	DeltaSync(*DataRequest) (ChangeDataCapture, error)
+type CDCDataType interface {
+	DataType
+	transformItem() (map[string]any, error)
+	transformChangeDataCapture(cdc ChangeDataCapture) ([]map[string]any, error)
 }
 
-// QBOSubtype represents Fibery types or databases that correspond to objects that are part of Quickbooks objects but not directly queryable.
-// Invoice => InvoiceLine where InvoiceLine is a FiberySubtype of Invoice. This type may requuire caching to properly handle Delta and Webhook syncs.
-type QBOSubtype interface {
-	FiberyType
-	TransformItem(parent QBOPrimaryType) (map[string]any, error)
-	TransformDataFS(data DataResponse[[]any]) ([]map[string]any, error)
-	TransformDataDS(data ChangeDataCapture, idCache IDCacheEntry) ([]map[string]any, error)
-	FullSync(*DataRequest) (DataResponse[[]any], error)
-	DeltaSync(*DataRequest) (ChangeDataCapture, error)
+type NoCDCDataType interface {
+	DataType
+	transformItem() (map[string]any, error)
 }
 
-type TypeArray struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type DependentDataType interface {
+	DataType
+	ParentID() string
+	transformItem(parent any) (map[string]any, error)
+	transformChangeDataCapture(cdc ChangeDataCapture, idCache *DependentDataIDCache) ([]map[string]any, error)
 }
 
-var Types = map[string]FiberyType{}
-var TypeInfo = []TypeArray{}
-var Schema = make(map[string]map[string]Field)
-var BaseTypes = map[string]bool{}
+var Types = map[string]DataType{}
 
-func RegisterType(t QBOPrimaryType) {
-	Types[t.TypeInfo().ID] = t
-	TypeInfo = append(TypeInfo, t.TypeInfo())
-	Schema[t.TypeInfo().ID] = t.Schema()
-	if _, ok := t.(QBOPrimaryType); ok {
-		BaseTypes[t.TypeInfo().ID] = true
-	}
+func RegisterType(t DataType) {
+	Types[t.ID()] = t
 }

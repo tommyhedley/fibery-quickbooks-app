@@ -22,19 +22,33 @@ func SyncConfigHandler(w http.ResponseWriter, r *http.Request) {
 		Account qbo.FiberyAccountInfo `json:"account"`
 	}
 
+	type configTypes struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+
 	type syncWebhook struct {
 		Enabled bool   `json:"enabled,omitempty"`
 		Type    string `json:"type,omitempty"`
 	}
 
 	type syncConfig struct {
-		Types    []qbo.TypeArray `json:"types"`
-		Filters  []Filter        `json:"filters"`
-		Webhooks syncWebhook     `json:"webhooks,omitempty"`
+		Types    []configTypes `json:"types"`
+		Filters  []Filter      `json:"filters"`
+		Webhooks syncWebhook   `json:"webhooks,omitempty"`
+	}
+
+	availableTypes := []configTypes{}
+
+	for _, t := range qbo.Types {
+		availableTypes = append(availableTypes, configTypes{
+			ID:   t.ID(),
+			Name: t.Name(),
+		})
 	}
 
 	config := syncConfig{
-		Types:   qbo.TypeInfo,
+		Types:   availableTypes,
 		Filters: []Filter{},
 		Webhooks: syncWebhook{
 			Enabled: false,
