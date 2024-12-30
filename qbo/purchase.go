@@ -9,13 +9,6 @@ type AccountPurchaseLine struct {
 type ItemPurchaseLine struct {
 }
 
-func (Purchase) TypeInfo() TypeArray {
-	return TypeArray{
-		ID:   "purchase",
-		Name: "Expense",
-	}
-}
-
 func (Purchase) Schema() map[string]Field {
 	return map[string]Field{
 		"id": {
@@ -122,13 +115,6 @@ func (Purchase) Schema() map[string]Field {
 				"precision":            2,
 			},
 		},
-	}
-}
-
-func (AccountPurchaseLine) TypeInfo() TypeArray {
-	return TypeArray{
-		ID:   "purchase_account_line",
-		Name: "Purchase Account Line",
 	}
 }
 
@@ -244,17 +230,6 @@ func (AccountPurchaseLine) Schema() map[string]Field {
 	}
 }
 
-func (ItemPurchaseLine) TypeInfo() TypeArray {
-	return TypeArray{
-		ID:   "purchase_item_line",
-		Name: "Purchase Item Line",
-	}
-}
-
 func (ItemPurchaseLine) Schema() map[string]Field {
 	return map[string]Field{}
-}
-
-func init() {
-
 }
