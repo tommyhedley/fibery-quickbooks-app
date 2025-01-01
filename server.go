@@ -101,6 +101,10 @@ func gzipMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if r.URL.Path == "/api/v1/synchronizer/webhooks/pre-process" {
+			next.ServeHTTP(w, r)
+			return
+		}
 
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Vary", "Accept-Encoding")
@@ -142,6 +146,6 @@ func NewServer(c *cache.Cache, group *singleflight.Group) http.Handler {
 
 	handler = loggingMiddleware()(handler)
 	// remove gzip middleware for now until fibery issue resolved
-	// handler = gzipMiddleware(handler)
+	handler = gzipMiddleware(handler)
 	return handler
 }

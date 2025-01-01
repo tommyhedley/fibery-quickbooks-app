@@ -227,36 +227,43 @@ type DependentDataIDCache struct {
 
 const IDCacheLifetime = 4 * time.Hour
 
-type DataType interface {
+// FiberyDataType defines all of the functions needed to be a type in Fibery
+type FiberyDataType interface {
 	ID() string
 	Name() string
 	Schema() map[string]Field
 	GetData(req *DataRequest) (DataHandlerResponse, error)
+}
+
+// QuickbooksDataType defines the available base functions of all the Quickbooks data types for the integration
+type QuickbooksDataType interface {
+	FiberyDataType
+	transformItem() (map[string]any, error)
 	getFullData(req *DataRequest) (DataResponse, error)
 	transformFullData(data DataResponse) ([]map[string]any, error)
 }
 
 type CDCDataType interface {
-	DataType
-	transformItem() (map[string]any, error)
+	QuickbooksDataType
 	transformChangeDataCapture(cdc ChangeDataCapture) ([]map[string]any, error)
 }
 
-type NoCDCDataType interface {
-	DataType
-	transformItem() (map[string]any, error)
+type WebhookDataType interface {
+	QuickbooksDataType
+	transformWebhookData(batch []map[string]any) ([]map[string]any, error)
 }
 
 type DependentDataType interface {
-	DataType
+	FiberyDataType
 	ParentID() string
 	transformItem(parent any) (map[string]any, error)
 	transformChangeDataCapture(cdc ChangeDataCapture, idCache *DependentDataIDCache) ([]map[string]any, error)
+	transformWebhookData(batch []map[string]any, idCache *DependentDataIDCache) ([]map[string]any, error)
 }
 
-var Types = map[string]DataType{}
+var Types = map[string]FiberyDataType{}
 
-func RegisterType(t DataType) {
+func RegisterType(t FiberyDataType) {
 	Types[t.ID()] = t
 }
 

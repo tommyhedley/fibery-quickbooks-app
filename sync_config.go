@@ -51,7 +51,7 @@ func SyncConfigHandler(w http.ResponseWriter, r *http.Request) {
 		Types:   availableTypes,
 		Filters: []Filter{},
 		Webhooks: syncWebhook{
-			Enabled: false,
+			Enabled: true,
 			Type:    "ui",
 		},
 	}
