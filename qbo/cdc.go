@@ -6,23 +6,15 @@ import (
 	"time"
 )
 
-type CDCData struct {
-	QuickbooksDataType
-	Domain string `json:"domain,omitempty"`
-	Status string `json:"status,omitempty"`
-}
-
-type data struct {
-	[]CDCData
-}
-
 type ChangeDataCapture struct {
 	CDCResponse []struct {
 		QueryResponse []struct {
-			[]CDCData `json:",omitempty"`
-			StartPosition      int `json:"startPosition"`
-			MaxResults         int `json:"maxResults"`
-			TotalCount         int `json:"totalCount,omitempty"`
+			Customer      []Customer           `json:",omitempty"`
+			Invoice       []CDCInvoiceResponse `json:",omitempty"`
+			Purchase      []Purchase           `json:",omitempty"`
+			StartPosition int                  `json:"startPosition"`
+			MaxResults    int                  `json:"maxResults"`
+			TotalCount    int                  `json:"totalCount,omitempty"`
 		} `json:"QueryResponse"`
 	} `json:"CDCResponse"`
 	Time string `json:"time"`

@@ -187,12 +187,6 @@ func (c *Client) post(endpoint string, payloadData interface{}, responseObject i
 	return c.req("POST", endpoint, payloadData, responseObject, queryParameters)
 }
 
-type QueryResponse[T any] struct {
-	Items         []T
-	StartPosition int
-	MaxResults    int
-}
-
 // query makes the specified QBO `query` and unmarshals the result into `responseObject`
 func (c *Client) query(query string, responseObject interface{}) error {
 	return c.get("query", responseObject, map[string]string{"query": query})

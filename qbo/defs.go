@@ -114,6 +114,12 @@ type FiberyAccountInfo struct {
 	BearerToken
 }
 
+type QueryResponse struct {
+	QuickbooksDataType
+	StartPosition int `json:"startPosition"`
+	MaxResults    int `json:"maxResults"`
+}
+
 // Fibery Schema Definitions
 type FieldType string
 
