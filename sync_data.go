@@ -95,9 +95,9 @@ func reqTypesToCDCTypes(requestedTypes []string) []string {
 				}
 			}
 			if depType, ok := qbo.Types[dataType].(qbo.DependentDataType); ok {
-				if _, exists := typeSet[depType.ParentID()]; !exists {
-					typeSet[depType.ParentID()] = struct{}{}
-					CDCTypes = append(CDCTypes, depType.ParentID())
+				if _, exists := typeSet[depType.Parent()]; !exists {
+					typeSet[depType.Parent()] = struct{}{}
+					CDCTypes = append(CDCTypes, depType.Parent())
 				}
 			}
 		}

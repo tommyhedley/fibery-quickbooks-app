@@ -29,14 +29,14 @@ type BatchItemResponse struct {
 	QueryResponse
 }
 
-func (c *Client) BatcRequest(items []BatchItemRequest) ([]BatchItemResponse, error) {
+func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
 
 	var allResponses []BatchItemResponse
 
-	// each batchitemrequest is limited to 30 items
+	// each BatchRequest is limited to 30 items
 	chunkSize := 30
 	for start := 0; start < len(items); start += chunkSize {
 		end := start + chunkSize

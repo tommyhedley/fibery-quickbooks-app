@@ -247,6 +247,7 @@ type QuickbooksDataType interface {
 	transformItem() (map[string]any, error)
 	getFullData(req *DataRequest) (DataResponse, error)
 	transformFullData(data DataResponse) ([]map[string]any, error)
+	Children() map[string][]DependentDataType
 }
 
 type CDCDataType interface {
@@ -261,10 +262,9 @@ type WebhookDataType interface {
 
 type DependentDataType interface {
 	FiberyDataType
-	ParentID() string
+	Parent() string
 	transformItem(parent any) (map[string]any, error)
 	transformChangeDataCapture(cdc ChangeDataCapture, idCache *DependentDataIDCache) ([]map[string]any, error)
-	transformWebhookData(batch []map[string]any, idCache *DependentDataIDCache) ([]map[string]any, error)
 }
 
 var Types = map[string]FiberyDataType{}
@@ -282,4 +282,20 @@ func FormatJSON(data interface{}) string {
 		return ""
 	}
 	return string(prettyJSON)
+}
+
+func TestQuickbooksDataType(t QuickbooksDataType) {
+	return
+}
+
+func TestCDCDataType(t CDCDataType) {
+	return
+}
+
+func TestWebhookDataType(t WebhookDataType) {
+	return
+}
+
+func TestDependentDataType(t DependentDataType) {
+	return
 }

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -168,18 +169,41 @@ func TransformHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, e := range event.DataChangeEvent.Entities {
-			switch e.Operation {
-			case "Create", "Update", "Emailed", "Void":
-				queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
-				// If needed, skip old timestamps here
-			case "Delete", "Merge":
-				deleteEntities[e.Name] = append(deleteEntities[e.Name], e.ID)
+			if _, ok := qbo.Types[e.Name]; ok {
+				switch e.Operation {
+				case "Create", "Update", "Emailed", "Void":
+					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
+					// If needed, skip old timestamps here
+				case "Delete", "Merge":
+					deleteEntities[e.Name] = append(deleteEntities[e.Name], e.ID)
+				}
 			}
 		}
 	}
 
 	result := responseBody{
 		Data: map[string][]map[string]any{},
+	}
+
+	batchRequest := []qbo.BatchItemRequest{}
+
+	for typ, ids := range queryEntities {
+		req := qbo.BatchItemRequest{
+			BID:   typ,
+			Query: fmt.Sprintf("SELECT * FROM %s WHERE Id IN ('%s')", typ, strings.Join(ids, "','")),
+		}
+		batchRequest = append(batchRequest, req)
+	}
+
+	client, err := qbo.NewClient(params.Account.RealmID, &params.Account.BearerToken)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
+		return
+	}
+
+	batchResponse, err := client.BatchRequest(batchRequest)
+
+	for _, item := range batchResponse {
 	}
 
 	// Handle creates/updates in parallel (one goroutine per type)

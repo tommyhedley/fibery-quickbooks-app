@@ -708,6 +708,16 @@ func (Invoice) Schema() map[string]Field {
 	}
 }
 
+func (I Invoice) Children() map[string][]DependentDataType {
+	children := make(map[string][]DependentDataType)
+	lines := make([]DependentDataType, 0, len(I.Line))
+	for i := range I.Line {
+		lines = append(lines, I.Line[i])
+	}
+	children["Invoice_line"] = lines
+	return children
+}
+
 func (Invoice) getFullData(req *DataRequest) (DataResponse, error) {
 	client, err := NewClient(req.RealmID, req.Token)
 	if err != nil {
@@ -948,10 +958,6 @@ func (InvoiceLine) Name() string {
 	return "Invoice Line"
 }
 
-func (InvoiceLine) ParentID() string {
-	return "Invoice"
-}
-
 func (InvoiceLine) Schema() map[string]Field {
 	return map[string]Field{
 		"id": {
@@ -1098,6 +1104,10 @@ func (InvoiceLine) Schema() map[string]Field {
 			Name: "Sync Action",
 		},
 	}
+}
+
+func (InvoiceLine) Parent() string {
+	return "Invoice"
 }
 
 func (InvoiceLine) getFullData(req *DataRequest) (DataResponse, error) {
@@ -1406,4 +1416,6 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 func init() {
 	RegisterType(Invoice{})
 	RegisterType(InvoiceLine{})
+	TestDependentDataType(InvoiceLine{})
+	TestQuickbooksDataType(Invoice{})
 }
