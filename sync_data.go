@@ -62,7 +62,7 @@ func DataHandler(c *cache.Cache, group *singleflight.Group) http.HandlerFunc {
 			Token:          &params.Account.BearerToken,
 		}
 
-		datatype := qbo.Types[params.RequestedType]
+		datatype := qbo.FiberyTypes[params.RequestedType]()
 		if datatype == nil {
 			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type was not found: %s", params.RequestedType))
 			return
@@ -87,14 +87,14 @@ func reqTypesToCDCTypes(requestedTypes []string) []string {
 	var CDCTypes []string
 
 	for _, dataType := range requestedTypes {
-		if _, ok := qbo.Types[dataType]; ok {
-			if cdcType, ok := qbo.Types[dataType].(qbo.CDCDataType); ok {
+		if _, ok := qbo.FiberyTypes[dataType]; ok {
+			if cdcType, ok := qbo.FiberyTypes[dataType]().(qbo.CDCDataType); ok {
 				if _, exists := typeSet[cdcType.ID()]; !exists {
 					typeSet[cdcType.ID()] = struct{}{}
 					CDCTypes = append(CDCTypes, cdcType.ID())
 				}
 			}
-			if depType, ok := qbo.Types[dataType].(qbo.DependentDataType); ok {
+			if depType, ok := qbo.FiberyTypes[dataType]().(qbo.DependentDataType); ok {
 				if _, exists := typeSet[depType.Parent()]; !exists {
 					typeSet[depType.Parent()] = struct{}{}
 					CDCTypes = append(CDCTypes, depType.Parent())

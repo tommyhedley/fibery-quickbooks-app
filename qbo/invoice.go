@@ -54,6 +54,8 @@ type Invoice struct {
 	AllowOnlineACHPayment        bool          `json:",omitempty"`
 	Deposit                      json.Number   `json:",omitempty"`
 	DepositToAccountRef          ReferenceType `json:",omitempty"`
+	Domain                       string        `json:"domain,omitempty"`
+	Status                       string        `json:"status,omitempty"`
 }
 
 // InvoiceLine is a Line struct specifically for Invoices.
@@ -143,12 +145,6 @@ type GroupLineDetail struct {
 type DiscountLineDetail struct {
 	PercentBased    bool
 	DiscountPercent float32 `json:",omitempty"`
-}
-
-type CDCInvoiceResponse struct {
-	Invoice
-	Domain string `json:"domain,omitempty"`
-	Status string `json:"status,omitempty"`
 }
 
 // CreateInvoice creates the given Invoice on the QuickBooks server, returning
@@ -708,13 +704,16 @@ func (Invoice) Schema() map[string]Field {
 	}
 }
 
-func (I Invoice) Children() map[string][]DependentDataType {
+func (I Invoice) Dependents() map[string][]DependentDataType {
 	children := make(map[string][]DependentDataType)
-	lines := make([]DependentDataType, 0, len(I.Line))
-	for i := range I.Line {
-		lines = append(lines, I.Line[i])
+	lineCount := len(I.Line)
+	if lineCount > 0 {
+		lines := make([]DependentDataType, 0, lineCount)
+		for i := range I.Line {
+			lines = append(lines, I.Line[i])
+		}
+		children[lines[0].ID()] = lines
 	}
-	children["Invoice_line"] = lines
 	return children
 }
 
@@ -735,7 +734,7 @@ func (Invoice) getFullData(req *DataRequest) (DataResponse, error) {
 	}, nil
 }
 
-func (I Invoice) transformItem() (map[string]any, error) {
+func (I Invoice) TransformItem() (map[string]any, error) {
 	var emailStatus = map[string]string{
 		"NotSet":     "",
 		"NeedToSend": "Need To Send",
@@ -860,7 +859,7 @@ func (I Invoice) transformFullData(data DataResponse) ([]map[string]any, error) 
 	invoices := data.Data.([]Invoice)
 	items := []map[string]any{}
 	for _, invoice := range invoices {
-		item, err := invoice.transformItem()
+		item, err := invoice.TransformItem()
 		if err != nil {
 			return nil, fmt.Errorf("unable to invoice transform data: %w", err)
 		}
@@ -872,16 +871,20 @@ func (I Invoice) transformFullData(data DataResponse) ([]map[string]any, error) 
 func (I Invoice) transformChangeDataCapture(data ChangeDataCapture) ([]map[string]any, error) {
 	items := []map[string]any{}
 	for _, cdcResponse := range data.CDCResponse {
-		for _, queryResponse := range cdcResponse.QueryResponse {
-			if queryResponse.Invoice != nil {
-				for _, invoice := range queryResponse.Invoice {
+		for _, queryResponse := range cdcResponse.CDCQueryResponse {
+			if queryResponse.QueryResponse.Items != nil {
+				for _, item := range queryResponse.QueryResponse.Items {
+					invoice, ok := item.(Invoice)
+					if !ok {
+						break
+					}
 					if invoice.Status == "Deleted" {
 						items = append(items, map[string]any{
 							"id":           invoice.Id,
 							"__syncAction": REMOVE,
 						})
 					} else {
-						item, err := invoice.Invoice.transformItem()
+						item, err := invoice.TransformItem()
 						if err != nil {
 							return nil, fmt.Errorf("unable to invoice transform data: %w", err)
 						}
@@ -946,6 +949,26 @@ func (I Invoice) GetData(req *DataRequest) (DataHandlerResponse, error) {
 			SynchronizationType: DeltaSync,
 		}, nil
 	}
+}
+
+func (I Invoice) TransformItemAndDependents() (map[string][]map[string]any, error) {
+	res := make(map[string][]map[string]any)
+	invoiceData, err := I.TransformItem()
+	if err != nil {
+		return nil, fmt.Errorf("unable to transform invoice item: %w", err)
+	}
+	res[I.ID()] = []map[string]any{invoiceData}
+	dependents := I.Dependents()
+	for typ, deps := range dependents {
+		for _, dep := range deps {
+			depData, err := dep.transformItem(I)
+			if err != nil {
+				return nil, fmt.Errorf("unable to transform %s item: %w", typ, err)
+			}
+			res[typ] = append(res[typ], depData)
+		}
+	}
+	return res, nil
 }
 
 // InvoiceLine FiberyType Implementation
@@ -1199,9 +1222,13 @@ func (Il InvoiceLine) transformFullData(data DataResponse) ([]map[string]any, er
 func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache *DependentDataIDCache) ([]map[string]any, error) {
 	items := []map[string]any{}
 	for _, cdcResponse := range data.CDCResponse {
-		for _, queryResponse := range cdcResponse.QueryResponse {
-			if queryResponse.Invoice != nil {
-				for _, invoice := range queryResponse.Invoice {
+		for _, queryResponse := range cdcResponse.CDCQueryResponse {
+			if queryResponse.QueryResponse.Items != nil {
+				for _, item := range queryResponse.QueryResponse.Items {
+					invoice, ok := item.(Invoice)
+					if !ok {
+						break
+					}
 
 					// map lines in cdc response
 					newLineIDs := map[string]bool{}
@@ -1241,7 +1268,7 @@ func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache
 					// transform line data on added or updated invoices
 					for _, line := range invoice.Line {
 						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-							item, err := line.transformItem(invoice.Invoice)
+							item, err := line.transformItem(invoice)
 							if err != nil {
 								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
 							}
@@ -1249,7 +1276,7 @@ func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache
 						}
 						if line.DetailType == "GroupLineDetail" {
 							for _, groupLine := range line.GroupLineDetail.Line {
-								item, err := groupLine.transformItem(invoice.Invoice)
+								item, err := groupLine.transformItem(invoice)
 								if err != nil {
 									return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
 								}
@@ -1257,7 +1284,7 @@ func (Il InvoiceLine) transformChangeDataCapture(data ChangeDataCapture, idCache
 								item["group_line_id"] = line.Id
 								items = append(items, item)
 							}
-							item, err := line.transformItem(invoice.Invoice)
+							item, err := line.transformItem(invoice)
 							if err != nil {
 								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
 							}
@@ -1387,7 +1414,9 @@ func (Il InvoiceLine) GetData(req *DataRequest) (DataHandlerResponse, error) {
 			return DataHandlerResponse{}, fmt.Errorf("unable to cdc query from qbo: %w", err)
 		}
 
+		cacheMutex.Lock()
 		items, err := Il.transformChangeDataCapture(res.(ChangeDataCapture), &existingIDCache)
+		cacheMutex.Unlock()
 		if err != nil {
 			return DataHandlerResponse{}, fmt.Errorf("unable to transform data: %w", err)
 		}
@@ -1418,4 +1447,5 @@ func init() {
 	RegisterType(InvoiceLine{})
 	TestDependentDataType(InvoiceLine{})
 	TestQuickbooksDataType(Invoice{})
+	TestParentDataType(Invoice{})
 }

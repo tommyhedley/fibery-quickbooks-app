@@ -5,7 +5,9 @@ package qbo
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"reflect"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -40,6 +42,62 @@ func (d *Date) UnmarshalJSON(b []byte) (err error) {
 
 func (d Date) String() string {
 	return d.Format(qboDateFormat)
+}
+
+// QueryResponse defines the response format for Quickbooks queries
+// This format is used for single type query responses, Change Data Capture responses, and batch query responses
+type QueryResponse struct {
+	Items         []QuickbooksDataType
+	StartPosition int `json:"startPosition"`
+	MaxResults    int `json:"maxResults"`
+	TotalCount    int `json:"totalCount,omitempty"`
+}
+
+func (qr *QueryResponse) UnmarshalJSON(data []byte) error {
+	type alias QueryResponse
+	var temp struct {
+		alias
+	}
+	if err := json.Unmarshal(data, &temp.alias); err != nil {
+		return fmt.Errorf("failed to unmarshal known fields in QueryResponse: %w", err)
+	}
+
+	var generic map[string]json.RawMessage
+	if err := json.Unmarshal(data, &generic); err != nil {
+		return fmt.Errorf("failed to unmarshal entire QueryResponse: %w", err)
+	}
+
+	delete(generic, "startPosition")
+	delete(generic, "maxResults")
+	delete(generic, "totalCount")
+
+	var allItems []QuickbooksDataType
+	for key, raw := range generic {
+		constructor, ok := quickbooksTypes[key]
+		if !ok {
+			continue
+		}
+
+		var rawObjects []json.RawMessage
+		if err := json.Unmarshal(raw, &rawObjects); err != nil {
+			return fmt.Errorf("failed to unmarshal QueryResponse Items, array was expected but not found: %w", err)
+		}
+
+		for _, rawObj := range rawObjects {
+			obj := constructor()
+			if err := json.Unmarshal(rawObj, obj); err != nil {
+				return fmt.Errorf("failed to unmarshal QueryResponse Item: %w", err)
+			}
+			allItems = append(allItems, obj)
+		}
+	}
+
+	// 4) Store known fields and parsed items
+	qr.StartPosition = temp.alias.StartPosition
+	qr.MaxResults = temp.alias.MaxResults
+	qr.TotalCount = temp.alias.TotalCount
+	qr.Items = allItems
+	return nil
 }
 
 // EmailAddress represents a QuickBooks email address.
@@ -112,12 +170,6 @@ type FiberyAccountInfo struct {
 	Name    string `json:"name,omitempty"`
 	RealmID string `json:"realmId,omitempty"`
 	BearerToken
-}
-
-type QueryResponse struct {
-	QuickbooksDataType
-	StartPosition int `json:"startPosition"`
-	MaxResults    int `json:"maxResults"`
 }
 
 // Fibery Schema Definitions
@@ -244,10 +296,9 @@ type FiberyDataType interface {
 // QuickbooksDataType defines the available base functions of all the Quickbooks data types for the integration
 type QuickbooksDataType interface {
 	FiberyDataType
-	transformItem() (map[string]any, error)
+	TransformItem() (map[string]any, error)
 	getFullData(req *DataRequest) (DataResponse, error)
 	transformFullData(data DataResponse) ([]map[string]any, error)
-	Children() map[string][]DependentDataType
 }
 
 type CDCDataType interface {
@@ -255,9 +306,10 @@ type CDCDataType interface {
 	transformChangeDataCapture(cdc ChangeDataCapture) ([]map[string]any, error)
 }
 
-type WebhookDataType interface {
+type ParentDataType interface {
 	QuickbooksDataType
-	transformWebhookData(batch []map[string]any) ([]map[string]any, error)
+	Dependents() map[string][]DependentDataType
+	TransformItemAndDependents() (map[string][]map[string]any, error)
 }
 
 type DependentDataType interface {
@@ -267,10 +319,27 @@ type DependentDataType interface {
 	transformChangeDataCapture(cdc ChangeDataCapture, idCache *DependentDataIDCache) ([]map[string]any, error)
 }
 
-var Types = map[string]FiberyDataType{}
+var FiberyTypes = map[string]func() FiberyDataType{}
+var quickbooksTypes = map[string]func() QuickbooksDataType{}
 
 func RegisterType(t FiberyDataType) {
-	Types[t.ID()] = t
+	FiberyTypes[t.ID()] = func() FiberyDataType {
+		typ := reflect.TypeOf(t)
+		if typ.Kind() == reflect.Ptr {
+			typ = typ.Elem()
+		}
+		return reflect.New(typ).Interface().(FiberyDataType)
+	}
+
+	if qb, ok := t.(QuickbooksDataType); ok {
+		quickbooksTypes[qb.ID()] = func() QuickbooksDataType {
+			typ := reflect.TypeOf(qb)
+			if typ.Kind() == reflect.Ptr {
+				typ = typ.Elem()
+			}
+			return reflect.New(typ).Interface().(QuickbooksDataType)
+		}
+	}
 }
 
 // temp
@@ -292,7 +361,7 @@ func TestCDCDataType(t CDCDataType) {
 	return
 }
 
-func TestWebhookDataType(t WebhookDataType) {
+func TestParentDataType(t ParentDataType) {
 	return
 }
 

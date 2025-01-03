@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -169,7 +168,7 @@ func TransformHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, e := range event.DataChangeEvent.Entities {
-			if _, ok := qbo.Types[e.Name]; ok {
+			if _, ok := qbo.FiberyTypes[e.Name]; ok {
 				switch e.Operation {
 				case "Create", "Update", "Emailed", "Void":
 					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
@@ -181,8 +180,11 @@ func TransformHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result := responseBody{
-		Data: map[string][]map[string]any{},
+	var response responseBody
+	response.Data = map[string][]map[string]any{}
+
+	for typ, ids := range deleteEntities {
+		// add delete entities to response
 	}
 
 	batchRequest := []qbo.BatchItemRequest{}
@@ -202,52 +204,34 @@ func TransformHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	batchResponse, err := client.BatchRequest(batchRequest)
-
-	for _, item := range batchResponse {
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to make batch request: %w", err))
+		return
 	}
 
-	// Handle creates/updates in parallel (one goroutine per type)
-	var wg sync.WaitGroup
-	for typ, ids := range queryEntities {
-		wg.Add(1)
-		go func(t string, IDs []string) {
-			defer wg.Done()
-
-			// Look up the QBO type handler
-			dt := qbo.Types[t]
-			if dt == nil {
-				return
+	for _, resp := range batchResponse {
+		for _, item := range resp.QueryResponse.Items {
+			if parent, ok := item.(qbo.ParentDataType); ok {
+				responseData, err := parent.TransformItemAndDependents()
+				if err != nil {
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to transform data: %w", err))
+					return
+				}
+				for key, slice := range responseData {
+					response.Data[key] = append(response.Data[key], slice...)
+				}
+			} else {
+				responseData, err := item.TransformItem()
+				if err != nil {
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to transform data: %w", err))
+					return
+				}
+				response.Data[item.ID()] = append(response.Data[item.ID()], responseData)
 			}
-
-			// Example: fetch or transform data for these IDs
-			items, err := fetchAndTransform(realmID, dt, IDs)
-			if err == nil {
-				result.Data[t] = append(result.Data[t], items...)
-			}
-		}(typ, ids)
-	}
-
-	// Handle deletes/merges (can be done immediately or in parallel)
-	for typ, ids := range deleteEntities {
-		// Remove or mark deletions in your data store
-		// Possibly use your ID cache
-		for _, id := range ids {
-			dt := qbo.Types[typ]
-			if dt == nil {
-				continue
-			}
-			// Example: just store a “deleted” entry
-			delItem := map[string]any{
-				"id":           id,
-				"__syncAction": "REMOVE",
-			}
-			result.Data[typ] = append(result.Data[typ], delItem)
 		}
 	}
 
-	wg.Wait()
-
-	RespondWithJSON(w, http.StatusOK, struct{}{})
+	RespondWithJSON(w, http.StatusOK, response)
 }
 
 func DeleteHandler(w http.ResponseWriter, r *http.Request) {

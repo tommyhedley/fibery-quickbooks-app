@@ -26,7 +26,7 @@ func SchemaHandler(w http.ResponseWriter, r *http.Request) {
 	selectedSchemas := make(map[string]map[string]qbo.Field)
 
 	for _, t := range req.Types {
-		selectedSchemas[t] = qbo.Types[t].Schema()
+		selectedSchemas[t] = qbo.FiberyTypes[t]().Schema()
 	}
 
 	RespondWithJSON(w, http.StatusOK, selectedSchemas)

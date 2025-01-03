@@ -40,10 +40,11 @@ func SyncConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 	availableTypes := []configTypes{}
 
-	for _, t := range qbo.Types {
+	for _, t := range qbo.FiberyTypes {
+		typ := t()
 		availableTypes = append(availableTypes, configTypes{
-			ID:   t.ID(),
-			Name: t.Name(),
+			ID:   typ.ID(),
+			Name: typ.Name(),
 		})
 	}
 

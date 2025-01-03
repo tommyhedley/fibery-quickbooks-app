@@ -26,7 +26,7 @@ type BatchItemResponse struct {
 	BID                string `json:"bId"`
 	QuickbooksDataType `json:",omitempty"`
 	Fault              BatchFaultResponse `json:",omitempty"`
-	QueryResponse
+	QueryResponse      QueryResponse      `json:",omitempty"`
 }
 
 func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, error) {
