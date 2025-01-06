@@ -203,8 +203,8 @@ const (
 type CardinalityType string
 
 const (
-	OTO CardinalityType = "one-to-one"
-	OTM CardinalityType = "one-to-many"
+	// one-to-one support is not yet implemented by Fibery
+	// OTO CardinalityType = "one-to-one"
 	MTO CardinalityType = "many-to-one"
 	MTM CardinalityType = "many-to-many"
 )

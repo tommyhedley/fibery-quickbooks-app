@@ -22,7 +22,7 @@ type Invoice struct {
 	DepartmentRef ReferenceType `json:",omitempty"`
 	PrivateNote   string        `json:",omitempty"`
 	LinkedTxn     []LinkedTxn   `json:"LinkedTxn"`
-	Line          []InvoiceLine
+	Line          []Line
 	TxnTaxDetail  TxnTaxDetail `json:",omitempty"`
 	CustomerRef   ReferenceType
 	CustomerMemo  MemoRef         `json:",omitempty"`
@@ -54,13 +54,8 @@ type Invoice struct {
 	AllowOnlineACHPayment        bool          `json:",omitempty"`
 	Deposit                      json.Number   `json:",omitempty"`
 	DepositToAccountRef          ReferenceType `json:",omitempty"`
-	Domain                       string        `json:"domain,omitempty"`
-	Status                       string        `json:"status,omitempty"`
-}
-
-// InvoiceLine is a Line struct specifically for Invoices.
-type InvoiceLine struct {
-	Line
+	Domain                       string        `json:"domain"`
+	Status                       string        `json:"status"`
 }
 
 type MarkupInfo struct {
@@ -138,7 +133,7 @@ type SalesItemLineDetail struct {
 type GroupLineDetail struct {
 	Quantity     float32       `json:",omitempty"`
 	GroupItemRef ReferenceType `json:",omitempty"`
-	Line         []InvoiceLine `json:",omitempty"`
+	Line         []Line        `json:",omitempty"`
 }
 
 // DiscountLineDetail ...

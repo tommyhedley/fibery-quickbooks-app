@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
 )
 
 func TokenHandler(w http.ResponseWriter, r *http.Request) {

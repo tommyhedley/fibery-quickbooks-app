@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
 	"golang.org/x/sync/singleflight"
 )
 

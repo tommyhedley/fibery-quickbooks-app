@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
 )
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {

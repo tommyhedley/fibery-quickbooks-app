@@ -8,8 +8,11 @@ import (
 
 type ChangeDataCapture struct {
 	CDCResponse []struct {
-		CDCQueryResponse []struct {
-			QueryResponse QueryResponse
+		QueryResponse []struct {
+			Invoice       []Invoice `json:"Invoice,omitempty"`
+			StartPosition int       `json:"startPosition"`
+			MaxResults    int       `json:"maxResults"`
+			TotalCount    int       `json:"totalCount,omitempty"`
 		} `json:"QueryResponse"`
 	} `json:"CDCResponse"`
 	Time string `json:"time"`

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/qbo"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
 )
 
 func SchemaHandler(w http.ResponseWriter, r *http.Request) {
