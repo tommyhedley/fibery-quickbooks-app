@@ -16,7 +16,7 @@ type Request struct {
 	StartPosition  int
 	OperationId    string
 	RealmId        string
-	LastSynced     string
+	LastSynced     time.Time
 	RequestedType  string
 	RequestedTypes []string
 	CDCTypes       []string
@@ -27,7 +27,7 @@ type Request struct {
 }
 
 type Response struct {
-	Data     []any
+	Data     any
 	MoreData bool
 }
 
@@ -44,39 +44,73 @@ type Type interface {
 	GetName() string
 	GetSchema() map[string]fibery.Field
 	Query(req Request) (Response, error)
+	ProcessQuery(array any) ([]map[string]any, error)
+}
+
+type DependentType interface {
+	Type
+	GetSourceId() string
+}
+
+type CDCQueryable interface {
+	Type
+	ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error)
+}
+
+type DepCDCQueryable interface {
+	DependentType
+	MapType(sourceArray any) (map[string]map[string]bool, error)
+	ProcessCDC(cdc qbo.ChangeDataCapture, cacheEntry *IdCache) ([]map[string]any, error)
+}
+
+type DepWHQueryable interface {
+	WHQueryable()
 }
 
 type FiberyType struct {
-	Id     string
-	Name   string
-	Schema map[string]fibery.Field
+	id     string
+	name   string
+	schema map[string]fibery.Field
 }
 
 func (f FiberyType) GetId() string {
-	return f.Id
+	return f.id
 }
 
 func (f FiberyType) GetName() string {
-	return f.Name
+	return f.name
 }
 
 func (f FiberyType) GetSchema() map[string]fibery.Field {
-	return f.Schema
+	return f.schema
 }
+
+type SchemaGenFunc func(entity any) (map[string]any, error)
 
 type QuickbooksType struct {
 	FiberyType
-	SchemaTransformer func(entity any) (map[string]any, error)
-	DataQuery         func(req Request) (Response, error)
+	schemaGen      SchemaGenFunc
+	dataQuery      func(req Request) (Response, error)
+	queryProcessor func(entityArray any, schemaGen SchemaGenFunc) ([]map[string]any, error)
 }
 
 func (t QuickbooksType) Query(req Request) (Response, error) {
-	return t.DataQuery(req)
+	return t.dataQuery(req)
 }
+
+func (t QuickbooksType) ProcessQuery(array any) ([]map[string]any, error) {
+	return t.queryProcessor(array, t.schemaGen)
+}
+
+type CDCProcessorFunc func(cdc qbo.ChangeDataCapture, schemaGen SchemaGenFunc) ([]map[string]any, error)
 
 type QuickbooksCDCType struct {
 	QuickbooksType
-	ChangeDataCaptureProcessor func(cdc qbo.ChangeDataCapture) ([]map[string]any, error)
+	changeDataCaptureProcessor CDCProcessorFunc
+}
+
+func (t QuickbooksCDCType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error) {
+	return t.changeDataCaptureProcessor(cdc, t.schemaGen)
 }
 
 type QuickbooksWHType struct {
@@ -85,38 +119,95 @@ type QuickbooksWHType struct {
 
 type QuickbooksDualType struct {
 	QuickbooksType
-	ChangeDataCaptureProcessor func(cdc qbo.ChangeDataCapture) ([]map[string]any, error)
+	changeDataCaptureProcessor CDCProcessorFunc
 }
 
-type DepSchemaTransformerFunc func(entity any, source any) (map[string]any, error)
-type SourceMapperFunc func(source any) (map[string]bool, error)
-type TypeMapperFunc func(sourceArray any, sourceMapper SourceMapperFunc) (map[string]map[string]bool, error)
+type DependentSchemaGenFunc func(entity any, source any) (map[string]any, error)
+
+type DependentBaseType struct {
+	FiberyType
+	schemaGen      DependentSchemaGenFunc
+	queryProcessor func(sourceArray any, schemaGen DependentSchemaGenFunc) ([]map[string]any, error)
+}
+
+func (t DependentBaseType) ProcessQuery(array any) ([]map[string]any, error) {
+	return t.queryProcessor(array, t.schemaGen)
+}
 
 type DependentDataType struct {
-	FiberyType
-	Source                     Type
-	SchemaTransformer          DepSchemaTransformerFunc
-	SourceMapper               SourceMapperFunc
-	TypeMapper                 TypeMapperFunc
-	QueryProcessor             func(sourceArray any, schemaTransformer DepSchemaTransformerFunc) ([]map[string]any, error)
-	ChangeDataCaptureProcessor func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper SourceMapperFunc, schemaTransformer DepSchemaTransformerFunc) ([]map[string]any, error)
+	DependentBaseType
+	source QuickbooksType
 }
 
 func (t DependentDataType) Query(req Request) (Response, error) {
-	return t.Source.Query(req)
+	return t.source.Query(req)
+}
+
+func (t DependentDataType) GetSourceId() string {
+	return t.source.GetId()
+}
+
+type SourceMapperFunc func(source any) (map[string]bool, error)
+type TypeMapperFunc func(sourceArray any, sourceMapper SourceMapperFunc) (map[string]map[string]bool, error)
+type DependentCDCProcessorFunc func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper SourceMapperFunc, schemaGen DependentSchemaGenFunc) ([]map[string]any, error)
+
+type DependentCDCType struct {
+	DependentBaseType
+	source                     QuickbooksCDCType
+	sourceMapper               SourceMapperFunc
+	typeMapper                 TypeMapperFunc
+	changeDataCaptureProcessor DependentCDCProcessorFunc
+}
+
+func (t DependentCDCType) Query(req Request) (Response, error) {
+	return t.source.Query(req)
+}
+
+func (t DependentCDCType) GetSourceId() string {
+	return t.source.GetId()
+}
+
+func (t DependentCDCType) ProcessCDC(cdc qbo.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
+	return t.changeDataCaptureProcessor(cdc, idEntry, t.sourceMapper, t.schemaGen)
+}
+
+func (t DependentCDCType) MapType(sourceArray any) (map[string]map[string]bool, error) {
+	return t.typeMapper(sourceArray, t.sourceMapper)
+}
+
+type DependentWHType struct {
+	DependentBaseType
+	source QuickbooksWHType
+}
+
+func (t DependentWHType) Query(req Request) (Response, error) {
+	return t.source.Query(req)
+}
+
+func (t DependentWHType) GetSourceId() string {
+	return t.source.GetId()
+}
+
+type DependentDualType struct {
+	DependentBaseType
+	source                     QuickbooksDualType
+	sourceMapper               SourceMapperFunc
+	typeMapper                 TypeMapperFunc
+	changeDataCaptureProcessor DependentCDCProcessorFunc
+}
+
+func (t DependentDualType) Query(req Request) (Response, error) {
+	return t.source.Query(req)
+}
+
+func (t DependentDualType) GetSourceId() string {
+	return t.source.GetId()
 }
 
 var Types = map[string]*Type{}
 
 func RegisterType(t Type) {
 	Types[t.GetId()] = &t
-}
-
-func TestFiberyType(t Type) {
-	t.GetId()
-	t.GetName()
-	t.GetSchema()
-	t.Query(Request{})
 }
 
 func FormatJSON(data interface{}) string {

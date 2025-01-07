@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/data"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, err error) {
@@ -43,4 +45,29 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	}
 	w.WriteHeader(code)
 	w.Write(dat)
+}
+
+func ConvertToCDCTypes(types map[string]*data.Type, requestedTypes []string) []string {
+	typeSet := make(map[string]struct{})
+	var CDCTypes []string
+
+	for _, reqType := range requestedTypes {
+		if typePointer, ok := types[reqType]; ok {
+			datatype := *typePointer
+			if cdcType, ok := datatype.(data.CDCQueryable); ok {
+				if _, exists := typeSet[cdcType.GetId()]; !exists {
+					typeSet[cdcType.GetId()] = struct{}{}
+					CDCTypes = append(CDCTypes, cdcType.GetId())
+				}
+			}
+			if depCDCType, ok := datatype.(data.DepCDCQueryable); ok {
+				if _, exists := typeSet[depCDCType.GetSourceId()]; !exists {
+					typeSet[depCDCType.GetSourceId()] = struct{}{}
+					CDCTypes = append(CDCTypes, depCDCType.GetSourceId())
+				}
+			}
+		}
+	}
+
+	return CDCTypes
 }

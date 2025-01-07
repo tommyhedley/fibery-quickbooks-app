@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -139,8 +140,9 @@ func addRoutes(mux *http.ServeMux, c *cache.Cache, group *singleflight.Group) {
 	mux.HandleFunc("DELETE /api/v1/synchronizer/webhooks", DeleteHandler)
 }
 
-func NewServer(c *cache.Cache, group *singleflight.Group) http.Handler {
+func NewServer(i *Integration, c *cache.Cache, group *singleflight.Group) http.Handler {
 	mux := http.NewServeMux()
+	fibery.RegisterFiberyRoutes(mux, c, group)
 	addRoutes(mux, c, group)
 	var handler http.Handler = mux
 

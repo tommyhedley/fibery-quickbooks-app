@@ -183,10 +183,6 @@ func TransformHandler(w http.ResponseWriter, r *http.Request) {
 	var response responseBody
 	response.Data = map[string][]map[string]any{}
 
-	for typ, ids := range deleteEntities {
-		// add delete entities to response
-	}
-
 	batchRequest := []qbo.BatchItemRequest{}
 
 	for typ, ids := range queryEntities {
