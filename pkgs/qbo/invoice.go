@@ -52,8 +52,6 @@ type Invoice struct {
 	AllowOnlineACHPayment        bool          `json:",omitempty"`
 	Deposit                      json.Number   `json:",omitempty"`
 	DepositToAccountRef          ReferenceType `json:",omitempty"`
-	Domain                       string        `json:"domain"`
-	Status                       string        `json:"status"`
 }
 
 type MarkupInfo struct {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
 )
@@ -11,7 +12,7 @@ import (
 var Invoice = QuickbooksDualType{
 	QuickbooksType: QuickbooksType{
 		FiberyType: FiberyType{
-			id:   "invoice",
+			id:   "Invoice",
 			name: "Invoice",
 			schema: map[string]fibery.Field{
 				"id": {
@@ -547,6 +548,69 @@ var Invoice = QuickbooksDualType{
 			}
 		}
 		return items, nil
+	},
+	whQueryProcessor: func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, queryProcessor QueryProcessorFunc, schemaGen SchemaGenFunc, typeId string) error {
+		if len(itemResponse.Fault.Faults) > 0 {
+			return fmt.Errorf("batch request failed: %v", itemResponse.Fault.Faults)
+		}
+		for _, queryResponse := range itemResponse.QueryResponse {
+			if queryResponse.Invoice != nil {
+				invoiceData, err := queryProcessor(queryResponse.Invoice, schemaGen)
+				if err != nil {
+					return fmt.Errorf("unable to process invoice query data: %w", err)
+				}
+				(*response)[typeId] = append((*response)[typeId], invoiceData...)
+				if dependents, ok := SourceDependents[typeId]; ok {
+					for _, dependentPointer := range dependents {
+						dependent := *dependentPointer
+						dependentData, err := dependent.ProcessQuery(queryResponse.Invoice)
+						if err != nil {
+							return fmt.Errorf("unable to process dependent %s query data: %w", dependent.GetId(), err)
+						}
+						(*response)[dependent.GetId()] = append((*response)[dependent.GetId()], dependentData...)
+					}
+				}
+			}
+		}
+		return nil
+	},
+	whDeleteProcessor: func(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string, typeId string) error {
+		for _, deleteId := range deleteIds {
+			(*response)[typeId] = append((*response)[typeId], map[string]any{
+				"id":           deleteId,
+				"__syncAction": fibery.REMOVE,
+			})
+		}
+		if dependents, ok := SourceDependents[typeId]; ok {
+			for _, dependentPointer := range dependents {
+				dependent := *dependentPointer
+				cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
+				if cacheEntry, found := cache.Get(cacheKey); found {
+					cacheEntry, ok := cacheEntry.(*IdCache)
+					if !ok {
+						return fmt.Errorf("unable to convert cache entry to IdCache")
+					}
+
+					cacheEntry.Mu.Lock()
+					defer cacheEntry.Mu.Unlock()
+					for _, deleteId := range deleteIds {
+						cachedIds := cacheEntry.Entries[deleteId]
+						fmt.Printf("cachedIds from invoice %s: %s\n", deleteId, FormatJSON(cachedIds))
+						for cachedId := range cachedIds {
+							(*response)[dependent.GetId()] = append((*response)[dependent.GetId()], map[string]any{
+								"id":           cachedId,
+								"__syncAction": fibery.REMOVE,
+							})
+						}
+						delete(cacheEntry.Entries, deleteId)
+						if _, ok := cacheEntry.Entries[deleteId]; !ok {
+							fmt.Printf("cache entry for invoice %s deleted\n", deleteId)
+						}
+					}
+				}
+			}
+		}
+		return nil
 	},
 }
 

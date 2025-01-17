@@ -15,18 +15,23 @@ type BatchFaultResponse struct {
 }
 
 type BatchItemRequest struct {
-	BID                string `json:"bId"`
-	OptionsData        string `json:"optionsData,omitempty"`
-	Operation          string `json:"operation,omitempty"`
-	Query              string `json:",omitempty"`
-	QuickbooksDataType `json:",omitempty"`
+	BID         string `json:"bId"`
+	OptionsData string `json:"optionsData,omitempty"`
+	Operation   string `json:"operation,omitempty"`
+	Query       string `json:",omitempty"`
+	Invoice     `json:",omitempty"`
 }
 
 type BatchItemResponse struct {
-	BID                string `json:"bId"`
-	QuickbooksDataType `json:",omitempty"`
-	Fault              BatchFaultResponse `json:",omitempty"`
-	QueryResponse      QueryResponse      `json:",omitempty"`
+	BID           string `json:"bId"`
+	Invoice       `json:",omitempty"`
+	Fault         BatchFaultResponse `json:",omitempty"`
+	QueryResponse []struct {
+		Invoice       []Invoice `json:"Invoice,omitempty"`
+		StartPosition int       `json:"startPosition"`
+		MaxResults    int       `json:"maxResults"`
+		TotalCount    int       `json:"totalCount,omitempty"`
+	} `json:"QueryResponse"`
 }
 
 func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, error) {

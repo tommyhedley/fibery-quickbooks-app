@@ -72,7 +72,7 @@ type SyncConfigWebhook struct {
 
 type SyncConfig struct {
 	Types    []SyncConfigTypes `json:"types"`
-	Filers   []SyncFilter      `json:"filters"`
+	Filters  []SyncFilter      `json:"filters"`
 	Webhooks SyncConfigWebhook `json:"webhooks,omitempty"`
 }
 
@@ -163,3 +163,8 @@ type DataHandlerResponse struct {
 }
 
 const DateFormat = time.RFC3339
+
+type Webhook struct {
+	WebhookID   string `json:"id"`
+	WorkspaceID string `json:"workspaceId"`
+}

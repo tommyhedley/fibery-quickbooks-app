@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/data"
+	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -22,13 +24,59 @@ func main() {
 	c := cache.New(12*time.Hour, 12*time.Hour)
 	var group singleflight.Group
 
+	integration := Integration{
+		cache: c,
+		group: &group,
+		appConfig: fibery.AppConfig{
+			ID:          "qbo",
+			Name:        "QuickBooks Online",
+			Website:     "https://quickbooks.intuit.com",
+			Version:     "0.1.0",
+			Description: "Integrate QuickBooks Online data with Fibery",
+			Authentication: []fibery.Authentication{
+				{
+					ID:          "oauth2",
+					Name:        "OAuth v2 Authentication",
+					Description: "OAuth v2-based authentication and authorization for access to QuickBooks Online",
+					Fields: []fibery.AuthField{
+						{
+							ID:          "callback_uri",
+							Title:       "callback_uri",
+							Description: "OAuth post-auth redirect URI",
+							Type:        "oauth",
+						},
+					},
+				},
+			},
+			Sources: []string{},
+			ResponsibleFor: fibery.ResponsibleFor{
+				DataSynchronization: true,
+			},
+		},
+		syncConfig: fibery.SyncConfig{
+			Types:   []fibery.SyncConfigTypes{},
+			Filters: []fibery.SyncFilter{},
+			Webhooks: fibery.SyncConfigWebhook{
+				Enabled: true,
+				Type:    "ui",
+			},
+		},
+	}
+
+	for _, datatype := range data.Types {
+		integration.syncConfig.Types = append(integration.syncConfig.Types, fibery.SyncConfigTypes{
+			ID:   (*datatype).GetId(),
+			Name: (*datatype).GetName(),
+		})
+	}
+
 	SlogConfig := newSlogConfig(loggerLevel, loggerStyle)
 	logger := SlogConfig.Create()
 	slog.SetDefault(logger)
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      NewServer(c, &group),
+		Handler:      NewServer(&integration),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,

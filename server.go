@@ -140,14 +140,12 @@ func addRoutes(mux *http.ServeMux, c *cache.Cache, group *singleflight.Group) {
 	mux.HandleFunc("DELETE /api/v1/synchronizer/webhooks", DeleteHandler)
 }
 
-func NewServer(i *Integration, c *cache.Cache, group *singleflight.Group) http.Handler {
+func NewServer(i *Integration) http.Handler {
 	mux := http.NewServeMux()
-	fibery.RegisterFiberyRoutes(mux, c, group)
-	addRoutes(mux, c, group)
+	fibery.RegisterFiberyRoutes(mux, i)
 	var handler http.Handler = mux
 
 	handler = loggingMiddleware()(handler)
-	// remove gzip middleware for now until fibery issue resolved
 	handler = gzipMiddleware(handler)
 	return handler
 }

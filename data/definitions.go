@@ -63,8 +63,10 @@ type DepCDCQueryable interface {
 	ProcessCDC(cdc qbo.ChangeDataCapture, cacheEntry *IdCache) ([]map[string]any, error)
 }
 
-type DepWHQueryable interface {
-	WHQueryable()
+type WHQueryable interface {
+	Type
+	ProcessWHBatch(itemResponse qbo.BatchItemResponse, request *map[string][]map[string]any) error
+	ProcessWHDelete(deleteIds []string, request *map[string][]map[string]any, cache *cache.Cache, realmId string) error
 }
 
 type FiberyType struct {
@@ -87,11 +89,13 @@ func (f FiberyType) GetSchema() map[string]fibery.Field {
 
 type SchemaGenFunc func(entity any) (map[string]any, error)
 
+type QueryProcessorFunc func(entityArray any, schemaGen SchemaGenFunc) ([]map[string]any, error)
+
 type QuickbooksType struct {
 	FiberyType
 	schemaGen      SchemaGenFunc
 	dataQuery      func(req Request) (Response, error)
-	queryProcessor func(entityArray any, schemaGen SchemaGenFunc) ([]map[string]any, error)
+	queryProcessor QueryProcessorFunc
 }
 
 func (t QuickbooksType) Query(req Request) (Response, error) {
@@ -113,13 +117,40 @@ func (t QuickbooksCDCType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]a
 	return t.changeDataCaptureProcessor(cdc, t.schemaGen)
 }
 
+type WHQueryProcessorFunc func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, queryProcessor QueryProcessorFunc, schemaGen SchemaGenFunc, id string) error
+type whDeleteProcessorFunc func(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string, id string) error
+
 type QuickbooksWHType struct {
 	QuickbooksType
+	whQueryProcessor  WHQueryProcessorFunc
+	whDeleteProcessor whDeleteProcessorFunc
+}
+
+func (t QuickbooksWHType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any) error {
+	return t.whQueryProcessor(itemResponse, response, t.queryProcessor, t.schemaGen, t.GetId())
+}
+
+func (t QuickbooksWHType) ProcessWHDelete(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
+	return t.whDeleteProcessor(deleteIds, response, cache, realmId, t.GetId())
 }
 
 type QuickbooksDualType struct {
 	QuickbooksType
 	changeDataCaptureProcessor CDCProcessorFunc
+	whQueryProcessor           WHQueryProcessorFunc
+	whDeleteProcessor          whDeleteProcessorFunc
+}
+
+func (t QuickbooksDualType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error) {
+	return t.changeDataCaptureProcessor(cdc, t.schemaGen)
+}
+
+func (t QuickbooksDualType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any) error {
+	return t.whQueryProcessor(itemResponse, response, t.queryProcessor, t.schemaGen, t.GetId())
+}
+
+func (t QuickbooksDualType) ProcessWHDelete(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
+	return t.whDeleteProcessor(deleteIds, response, cache, realmId, t.GetId())
 }
 
 type DependentSchemaGenFunc func(entity any, source any) (map[string]any, error)
@@ -205,9 +236,14 @@ func (t DependentDualType) GetSourceId() string {
 }
 
 var Types = map[string]*Type{}
+var SourceDependents = map[string][]*DependentType{}
 
 func RegisterType(t Type) {
 	Types[t.GetId()] = &t
+	deptype, ok := t.(DependentType)
+	if ok {
+		SourceDependents[deptype.GetSourceId()] = append(SourceDependents[deptype.GetSourceId()], &deptype)
+	}
 }
 
 func FormatJSON(data interface{}) string {
