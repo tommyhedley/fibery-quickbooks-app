@@ -61,6 +61,7 @@ func main() {
 				Type:    "ui",
 			},
 		},
+		types: data.Types,
 	}
 
 	for _, datatype := range data.Types {

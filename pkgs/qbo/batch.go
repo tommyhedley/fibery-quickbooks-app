@@ -19,7 +19,6 @@ type BatchItemRequest struct {
 	OptionsData string `json:"optionsData,omitempty"`
 	Operation   string `json:"operation,omitempty"`
 	Query       string `json:",omitempty"`
-	Invoice     `json:",omitempty"`
 }
 
 type BatchItemResponse struct {
@@ -59,6 +58,8 @@ func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, er
 		}
 
 		req.BatchItemRequest = batch
+
+		fmt.Println(FormatJSON(req.BatchItemRequest))
 
 		err := c.req("POST", "/batch", req, &res, nil)
 		if err != nil {

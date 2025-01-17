@@ -26,7 +26,7 @@ var Invoice = QuickbooksDualType{
 				"customer_id": {
 					Name: "Customer ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Customer",
 						TargetName:    "Invoices",
@@ -176,7 +176,7 @@ var Invoice = QuickbooksDualType{
 				"class_id": {
 					Name: "Class ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Class",
 						TargetName:    "Invoices",
@@ -201,7 +201,7 @@ var Invoice = QuickbooksDualType{
 				"term_id": {
 					Name: "Term ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Term",
 						TargetName:    "Invoices",
@@ -230,7 +230,7 @@ var Invoice = QuickbooksDualType{
 				"tax_code_id": {
 					Name: "Tax Code ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Tax Code",
 						TargetName:    "Invoices",
@@ -256,7 +256,7 @@ var Invoice = QuickbooksDualType{
 				"tax_exemption_id": {
 					Name: "Tax Exemption ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Tax Exemption",
 						TargetName:    "Invoices",
@@ -267,7 +267,7 @@ var Invoice = QuickbooksDualType{
 				"deposit_account_id": {
 					Name: "Deposit Account ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Deposit Account",
 						TargetName:    "Invoice Deposits",
@@ -531,14 +531,14 @@ var Invoice = QuickbooksDualType{
 		items := []map[string]any{}
 		for _, cdcResponse := range cdc.CDCResponse {
 			for _, queryResponse := range cdcResponse.QueryResponse {
-				for _, invoice := range queryResponse.Invoice {
-					if invoice.Status == "Deleted" {
+				for _, cdcInvoice := range queryResponse.Invoice {
+					if cdcInvoice.Status == "Deleted" {
 						items = append(items, map[string]any{
-							"id":           invoice.Id,
+							"id":           cdcInvoice.Id,
 							"__syncAction": fibery.REMOVE,
 						})
 					} else {
-						item, err := schemaGen(invoice)
+						item, err := schemaGen(cdcInvoice.Invoice)
 						if err != nil {
 							return nil, fmt.Errorf("unable to transform data: %w", err)
 						}
@@ -636,7 +636,7 @@ var InvoiceLine = DependentDualType{
 				"invoice_id": {
 					Name: "Invoice ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Invoice",
 						TargetName:    "Invoice Lines",
@@ -705,7 +705,7 @@ var InvoiceLine = DependentDualType{
 				"group_line_id": {
 					Name: "Group Line ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Group",
 						TargetName:    "Lines",
@@ -716,7 +716,7 @@ var InvoiceLine = DependentDualType{
 				"item_id": {
 					Name: "Item",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Item",
 						TargetName:    "Invoice Lines",
@@ -727,7 +727,7 @@ var InvoiceLine = DependentDualType{
 				"class_id": {
 					Name: "Class ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Class",
 						TargetName:    "Expense Account Line(s)",
@@ -738,7 +738,7 @@ var InvoiceLine = DependentDualType{
 				"tax_code_id": {
 					Name: "Tax Code ID",
 					Type: fibery.Text,
-					Relation: fibery.Relation{
+					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Tax Code",
 						TargetName:    "Invoice Lines",

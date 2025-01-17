@@ -10,9 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
-	"golang.org/x/sync/singleflight"
 )
 
 type loggingResponseWriter struct {
@@ -117,27 +115,6 @@ func gzipMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(gzrw, r)
 	})
-}
-
-func addRoutes(mux *http.ServeMux, c *cache.Cache, group *singleflight.Group) {
-	mux.HandleFunc("GET /", AppConfigHandler)
-	mux.HandleFunc("GET /logo", LogoHandler)
-
-	mux.HandleFunc("POST /oauth2/v1/authorize", AuthorizeHandler)
-	mux.HandleFunc("POST /oauth2/v1/access_token", TokenHandler)
-	mux.HandleFunc("POST /validate", ValidateHandler)
-
-	mux.HandleFunc("POST /api/v1/synchronizer/config", SyncConfigHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/schema", SchemaHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/data", DataHandler(c, group))
-	mux.HandleFunc("POST /api/v1/synchronizer/filter/validate", ValidateFiltersHandler)
-
-	mux.Handle("POST /api/v1/automations/sync_action/{type}", ActionAuth(http.HandlerFunc(ActionHandler)))
-
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks", RegisterHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/pre-process", PreProcessHandler)
-	mux.HandleFunc("POST /api/v1/synchronizer/webhooks/transform", TransformHandler)
-	mux.HandleFunc("DELETE /api/v1/synchronizer/webhooks", DeleteHandler)
 }
 
 func NewServer(i *Integration) http.Handler {

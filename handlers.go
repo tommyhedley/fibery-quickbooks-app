@@ -706,7 +706,7 @@ func (i *Integration) Oauth2TokenHandler(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-func IntegrationLogo(w http.ResponseWriter, r *http.Request) {
+func (Integration) IntegrationLogo(w http.ResponseWriter, r *http.Request) {
 	file, err := os.Open("./logo.svg")
 	if err != nil {
 		http.Error(w, "Unable to open SVG file", http.StatusInternalServerError)
@@ -723,4 +723,8 @@ func IntegrationLogo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 
 	w.Write(svgData)
+}
+
+func (Integration) SyncFilterValidateHandler(w http.ResponseWriter, r *http.Request) {
+	RespondWithJSON(w, http.StatusOK, nil)
 }

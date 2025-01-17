@@ -130,7 +130,7 @@ type Field struct {
 	SubType     FieldSubtype     `json:"subType,omitempty"`
 	Format      map[string]any   `json:"format,omitempty"`
 	Options     []map[string]any `json:"options,omitempty"`
-	Relation    Relation         `json:"relation,omitempty"`
+	Relation    *Relation        `json:"relation,omitempty"`
 }
 
 type SyncType string

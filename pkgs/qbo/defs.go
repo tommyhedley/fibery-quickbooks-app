@@ -4,6 +4,8 @@
 package qbo
 
 import (
+	"encoding/json"
+	"log"
 	"time"
 )
 
@@ -104,4 +106,13 @@ type WebSiteAddress struct {
 type Datatype struct {
 	Id     string
 	Entity any
+}
+
+func FormatJSON(data interface{}) string {
+	prettyJSON, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Println("Failed to generate json", err)
+		return ""
+	}
+	return string(prettyJSON)
 }
