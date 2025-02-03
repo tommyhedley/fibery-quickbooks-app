@@ -9,6 +9,13 @@ import (
 	"strconv"
 )
 
+// CDCInvoice represents an invoice object returned as part of a Change Data Capture response
+type CDCInvoice struct {
+	Invoice
+	Domain string `json:"domain,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
 // Invoice represents a QuickBooks Invoice object.
 type Invoice struct {
 	Id            string        `json:"Id,omitempty"`

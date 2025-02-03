@@ -118,12 +118,12 @@ func (t QuickbooksCDCType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]a
 }
 
 type WHQueryProcessorFunc func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, queryProcessor QueryProcessorFunc, schemaGen SchemaGenFunc, id string) error
-type whDeleteProcessorFunc func(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string, id string) error
+type WHDeleteProcessorFunc func(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string, id string) error
 
 type QuickbooksWHType struct {
 	QuickbooksType
 	whQueryProcessor  WHQueryProcessorFunc
-	whDeleteProcessor whDeleteProcessorFunc
+	whDeleteProcessor WHDeleteProcessorFunc
 }
 
 func (t QuickbooksWHType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any) error {
@@ -138,7 +138,7 @@ type QuickbooksDualType struct {
 	QuickbooksType
 	changeDataCaptureProcessor CDCProcessorFunc
 	whQueryProcessor           WHQueryProcessorFunc
-	whDeleteProcessor          whDeleteProcessorFunc
+	whDeleteProcessor          WHDeleteProcessorFunc
 }
 
 func (t QuickbooksDualType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error) {

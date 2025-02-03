@@ -2,6 +2,18 @@ package qbo
 
 import "fmt"
 
+type BatchOperations string
+
+const (
+	Create BatchOperations = "create"
+	Update BatchOperations = "update"
+	Delete BatchOperations = "delete"
+)
+
+type BatchOptions string
+
+const Void BatchOptions = "void"
+
 type BatchFault struct {
 	Message string
 	Code    string `json:"code"`
@@ -9,16 +21,16 @@ type BatchFault struct {
 	Element string `json:"element"`
 }
 
+type BatchItemRequest struct {
+	BID         string          `json:"bId"`
+	OptionsData BatchOptions    `json:"optionsData,omitempty"`
+	Operation   BatchOperations `json:"operation,omitempty"`
+	Query       string          `json:",omitempty"`
+}
+
 type BatchFaultResponse struct {
 	FaultType string       `json:"type"`
 	Faults    []BatchFault `json:"Error"`
-}
-
-type BatchItemRequest struct {
-	BID         string `json:"bId"`
-	OptionsData string `json:"optionsData,omitempty"`
-	Operation   string `json:"operation,omitempty"`
-	Query       string `json:",omitempty"`
 }
 
 type BatchItemResponse struct {
@@ -54,19 +66,19 @@ func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, er
 		}
 
 		var res struct {
-			BatchItemResponse []BatchItemResponse `json:"BatchItemResponse"`
+			BatchItemResponses []BatchItemResponse `json:"BatchItemResponse"`
 		}
 
 		req.BatchItemRequest = batch
 
-		fmt.Println(FormatJSON(req.BatchItemRequest))
+		fmt.Println(FormatJSON(req))
 
 		err := c.req("POST", "/batch", req, &res, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to make batch request: %w", err)
+			return nil, fmt.Errorf("failed to complete batch request: %w", err)
 		}
 
-		allResponses = append(allResponses, res.BatchItemResponse...)
+		allResponses = append(allResponses, res.BatchItemResponses...)
 	}
 
 	return allResponses, nil

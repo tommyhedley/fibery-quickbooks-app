@@ -6,12 +6,6 @@ import (
 	"time"
 )
 
-type CDCInvoice struct {
-	Invoice
-	Domain string `json:"domain"`
-	Status string `json:"status"`
-}
-
 type ChangeDataCapture struct {
 	CDCResponse []struct {
 		QueryResponse []struct {

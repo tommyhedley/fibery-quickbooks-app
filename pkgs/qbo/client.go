@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -153,7 +154,12 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to make request: %v", err)
+		return fmt.Errorf("failed to complete request: %v", err)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	defer resp.Body.Close()
@@ -168,6 +174,11 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 		}
 	default:
 		return parseFailure(resp)
+	}
+
+	var result interface{}
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return fmt.Errorf("error decoding json for logging: %v", err)
 	}
 
 	if responseObject != nil {
