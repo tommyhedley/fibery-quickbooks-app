@@ -24,6 +24,7 @@ import (
 type Integration struct {
 	cache      *cache.Cache
 	group      *singleflight.Group
+	client     *qbo.Client
 	appConfig  fibery.AppConfig
 	syncConfig fibery.SyncConfig
 	types      map[string]*data.Type
@@ -569,7 +570,6 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 				switch e.Operation {
 				case "Create", "Update", "Emailed", "Void":
 					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
-					// If needed, skip old timestamps here
 				case "Delete", "Merge":
 					deleteEntities[e.Name] = append(deleteEntities[e.Name], e.ID)
 				}
@@ -581,6 +581,20 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 
 	var response responseBody
 	response.Data = map[string][]map[string]any{}
+
+	for typ, ids := range deleteEntities {
+		datatype := *i.types[typ]
+		whDatatype, ok := datatype.(data.WHQueryable)
+		if !ok {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert datatype to WHQueryable: %w", err))
+			return
+		}
+		err := whDatatype.ProcessWHDelete(ids, &response.Data, i.cache, params.Account.RealmID)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process deleted entities: %w", err))
+			return
+		}
+	}
 
 	batchRequest := []qbo.BatchItemRequest{}
 
@@ -617,6 +631,9 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			return
 		}
 	}
+
+	fmt.Println(data.FormatJSON(response))
+
 	RespondWithJSON(w, http.StatusOK, response)
 }
 

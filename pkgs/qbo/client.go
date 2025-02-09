@@ -181,8 +181,10 @@ func (c *Client) req(method string, endpoint string, payloadData interface{}, re
 		return fmt.Errorf("error decoding json for logging: %v", err)
 	}
 
+	fmt.Println(FormatJSON(result))
+
 	if responseObject != nil {
-		if err = json.NewDecoder(resp.Body).Decode(&responseObject); err != nil {
+		if err = json.Unmarshal(bodyBytes, &responseObject); err != nil {
 			return fmt.Errorf("failed to unmarshal response into object: %v", err)
 		}
 	}

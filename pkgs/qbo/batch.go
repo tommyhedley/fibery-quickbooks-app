@@ -1,6 +1,9 @@
 package qbo
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type BatchOperations string
 
@@ -37,12 +40,12 @@ type BatchItemResponse struct {
 	BID           string `json:"bId"`
 	Invoice       `json:",omitempty"`
 	Fault         BatchFaultResponse `json:",omitempty"`
-	QueryResponse []struct {
-		Invoice       []Invoice `json:"Invoice,omitempty"`
+	QueryResponse struct {
+		Invoice       []Invoice `json:",omitempty"`
 		StartPosition int       `json:"startPosition"`
 		MaxResults    int       `json:"maxResults"`
 		TotalCount    int       `json:"totalCount,omitempty"`
-	} `json:"QueryResponse"`
+	} `json:"QueryResponse,omitempty"`
 }
 
 func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, error) {
@@ -67,6 +70,7 @@ func (c *Client) BatchRequest(items []BatchItemRequest) ([]BatchItemResponse, er
 
 		var res struct {
 			BatchItemResponses []BatchItemResponse `json:"BatchItemResponse"`
+			Time               time.Time           `json:"time"`
 		}
 
 		req.BatchItemRequest = batch
