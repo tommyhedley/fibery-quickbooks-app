@@ -1,3 +1,4 @@
 .env
 integration
 *.json
+.DS_Store
