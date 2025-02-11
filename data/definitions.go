@@ -72,8 +72,12 @@ type DepCDCQueryable interface {
 // WHQueryable limits Types to those that can send a Webhook notification on update
 type WHQueryable interface {
 	Type
-	ProcessWHBatch(itemResponse qbo.BatchItemResponse, request *map[string][]map[string]any) error
-	ProcessWHDelete(deleteIds []string, request *map[string][]map[string]any, cache *cache.Cache, realmId string) error
+	ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error
+}
+
+type DepWHReceivable interface {
+	DependentType
+	ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error)
 }
 
 // FiberyType establishes the base information required to create a datatype in Fibery
@@ -130,31 +134,23 @@ func (t QuickBooksCDCType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]a
 	return t.cdcProcessor(cdc, t.schemaGen)
 }
 
-type WHQueryProcessorFunc func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, id string) error
-
-type WHDeleteProcessorFunc func(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string, id string) error
+type WHBatchProcessorFunc func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error
 
 // QuickBooksWHType established the additional function(s) required to process a webhook notifcation
 type QuickBooksWHType struct {
 	QuickBooksType
-	whQueryProcessor  WHQueryProcessorFunc
-	whDeleteProcessor WHDeleteProcessorFunc
+	whBatchProcessor WHBatchProcessorFunc
 }
 
-func (t QuickBooksWHType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any) error {
-	return t.whQueryProcessor(itemResponse, response, t.queryProcessor, t.schemaGen, t.GetId())
-}
-
-func (t QuickBooksWHType) ProcessWHDelete(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
-	return t.whDeleteProcessor(deleteIds, response, cache, realmId, t.GetId())
+func (t QuickBooksWHType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
+	return t.whBatchProcessor(itemResponse, response, cache, realmId, t.queryProcessor, t.schemaGen, t.GetId())
 }
 
 // QuickBooksDualType requires the functions from both QuickBooksCDCType and QuickBooksWHType
 type QuickBooksDualType struct {
 	QuickBooksType
-	cdcProcessor      cdcProcessorFunc
-	whQueryProcessor  WHQueryProcessorFunc
-	whDeleteProcessor WHDeleteProcessorFunc
+	cdcProcessor     cdcProcessorFunc
+	whBatchProcessor WHBatchProcessorFunc
 }
 
 // ProcessCDC takes a non-specific Change Data Capture response and returns entities of the relevant type converted to Fibery schema
@@ -162,21 +158,17 @@ func (t QuickBooksDualType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]
 	return t.cdcProcessor(cdc, t.schemaGen)
 }
 
-func (t QuickBooksDualType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any) error {
-	return t.whQueryProcessor(itemResponse, response, t.queryProcessor, t.schemaGen, t.GetId())
+func (t QuickBooksDualType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
+	return t.whBatchProcessor(itemResponse, response, cache, realmId, t.queryProcessor, t.schemaGen, t.GetId())
 }
 
-func (t QuickBooksDualType) ProcessWHDelete(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
-	return t.whDeleteProcessor(deleteIds, response, cache, realmId, t.GetId())
-}
-
-type dpdSchemaGenFunc func(entity any, source any) (map[string]any, error)
+type depSchemaGenFunc func(entity any, source any) (map[string]any, error)
 
 // DependentBaseType established the base functions required to process, extract, and convert dependent data from an array of source entities
 type DependentBaseType struct {
 	FiberyType
-	schemaGen      dpdSchemaGenFunc
-	queryProcessor func(sourceArray any, schemaGen dpdSchemaGenFunc) ([]map[string]any, error)
+	schemaGen      depSchemaGenFunc
+	queryProcessor func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error)
 }
 
 func (t DependentBaseType) ProcessQuery(array any) ([]map[string]any, error) {
@@ -203,14 +195,14 @@ type sourceMapperFunc func(source any) (map[string]bool, error)
 // typeMapperFunc maps an array of source entities using the sourceMapperFunc for each source entity
 type typeMapperFunc func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error)
 
-type dpdCDCProcessorFunc func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen dpdSchemaGenFunc) ([]map[string]any, error)
+type depCDCProcessorFunc func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error)
 
 type DependentCDCType struct {
 	DependentBaseType
 	source       QuickBooksCDCType
 	sourceMapper sourceMapperFunc
 	typeMapper   typeMapperFunc
-	cdcProcessor dpdCDCProcessorFunc
+	cdcProcessor depCDCProcessorFunc
 }
 
 func (t DependentCDCType) Query(req Request) (Response, error) {
@@ -231,14 +223,14 @@ func (t DependentCDCType) MapType(sourceArray any) (map[string]map[string]bool, 
 	return t.typeMapper(sourceArray, t.sourceMapper)
 }
 
+type depWHBatchProcessorFunc func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error)
+
 type DependentWHType struct {
 	DependentBaseType
-	source       QuickBooksWHType
-	sourceMapper sourceMapperFunc
-	whProcessor  whProcessorFunc
+	source           QuickBooksWHType
+	sourceMapper     sourceMapperFunc
+	whBatchProcessor depWHBatchProcessorFunc
 }
-
-type whProcessorFunc func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen dpdSchemaGenFunc) ([]map[string]any, error)
 
 func (t DependentWHType) Query(req Request) (Response, error) {
 	return t.source.Query(req)
@@ -248,17 +240,17 @@ func (t DependentWHType) GetSourceId() string {
 	return t.source.GetId()
 }
 
-func (t DependentWHType) ProcessWH(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error) {
-	return t.whProcessor(sourceArray, cacheEntry, t.sourceMapper, t.schemaGen)
+func (t DependentWHType) ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error) {
+	return t.whBatchProcessor(sourceArray, cacheEntry, t.sourceMapper, t.schemaGen)
 }
 
 type DependentDualType struct {
 	DependentBaseType
-	source       QuickBooksDualType
-	sourceMapper sourceMapperFunc
-	typeMapper   typeMapperFunc
-	whProcessor  whProcessorFunc
-	cdcProcessor dpdCDCProcessorFunc
+	source           QuickBooksDualType
+	sourceMapper     sourceMapperFunc
+	typeMapper       typeMapperFunc
+	whBatchProcessor depWHBatchProcessorFunc
+	cdcProcessor     depCDCProcessorFunc
 }
 
 func (t DependentDualType) Query(req Request) (Response, error) {
@@ -269,8 +261,18 @@ func (t DependentDualType) GetSourceId() string {
 	return t.source.GetId()
 }
 
-func (t DependentDualType) ProcessWH(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error) {
-	return t.whProcessor(sourceArray, cacheEntry, t.sourceMapper, t.schemaGen)
+// ProcessCDC takes a non-specific Change Data Capture response and returns dependent entities if the source type is included
+func (t DependentDualType) ProcessCDC(cdc qbo.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
+	return t.cdcProcessor(cdc, idEntry, t.sourceMapper, t.schemaGen)
+}
+
+// MapType creates a map of source & dependent entity ids to track changes from Change Data Capture and Webhook notifications
+func (t DependentDualType) MapType(sourceArray any) (map[string]map[string]bool, error) {
+	return t.typeMapper(sourceArray, t.sourceMapper)
+}
+
+func (t DependentDualType) ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error) {
+	return t.whBatchProcessor(sourceArray, cacheEntry, t.sourceMapper, t.schemaGen)
 }
 
 var Types = map[string]*Type{}

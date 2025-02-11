@@ -234,10 +234,6 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 					}
 					cacheEntry.Mu.Lock()
 					defer cacheEntry.Mu.Unlock()
-					if !ok {
-						RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
-						return
-					}
 					if cacheEntry.OperationId == req.OperationId {
 						for sourceId, sourceMap := range idMap {
 							cacheEntry.Entries[sourceId] = sourceMap
@@ -583,16 +579,41 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 	response.Data = map[string][]map[string]any{}
 
 	for typ, ids := range deleteEntities {
-		datatype := *i.types[typ]
-		whDatatype, ok := datatype.(data.WHQueryable)
-		if !ok {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert datatype to WHQueryable: %w", err))
-			return
+		for _, id := range ids {
+			response.Data[typ] = append(response.Data[typ], map[string]any{
+				"id":           id,
+				"__syncAction": fibery.REMOVE,
+			})
 		}
-		err := whDatatype.ProcessWHDelete(ids, &response.Data, i.cache, params.Account.RealmID)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process deleted entities: %w", err))
-			return
+		if dependents, ok := data.SourceDependents[typ]; ok {
+			for _, dependentPtr := range dependents {
+				dependent := *dependentPtr
+				cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, dependent.GetId())
+				if cacheEntry, found := i.cache.Get(cacheKey); found {
+					cacheEntry, ok := cacheEntry.(*data.IdCache)
+					if !ok {
+						RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
+						return
+					}
+
+					cacheEntry.Mu.Lock()
+					defer cacheEntry.Mu.Unlock()
+					for _, id := range ids {
+						cachedIds := cacheEntry.Entries[id]
+						for cachedId := range cachedIds {
+							response.Data[dependent.GetId()] = append(response.Data[dependent.GetId()], map[string]any{
+								"id":           cachedId,
+								"__syncAction": fibery.REMOVE,
+							})
+						}
+						delete(cacheEntry.Entries, id)
+						if _, ok := cacheEntry.Entries[id]; !ok {
+							fmt.Printf("cache entry for invoice %s deleted\n", id)
+						}
+					}
+				}
+
+			}
 		}
 	}
 
@@ -625,7 +646,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert datatype to WHQueryable"))
 			return
 		}
-		err := whDatatype.ProcessWHBatch(itemResponse, &response.Data)
+		err := whDatatype.ProcessWHBatch(itemResponse, &response.Data, i.cache, params.Account.RealmID)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process webhook batch: %w", err))
 			return
@@ -723,7 +744,7 @@ func (i *Integration) Oauth2TokenHandler(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-func (Integration) IntegrationLogo(w http.ResponseWriter, r *http.Request) {
+func (Integration) LogoHandler(w http.ResponseWriter, r *http.Request) {
 	file, err := os.Open("./logo.svg")
 	if err != nil {
 		http.Error(w, "Unable to open SVG file", http.StatusInternalServerError)

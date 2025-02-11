@@ -39,6 +39,11 @@ var Invoice = QuickBooksDualType{
 					Type:     fibery.Text,
 					ReadOnly: true,
 				},
+				"shipping_address": {
+					Name:    "Shipping Address",
+					Type:    fibery.Text,
+					SubType: fibery.MD,
+				},
 				"shipping_line_1": {
 					Name: "Shipping Line 1",
 					Type: fibery.Text,
@@ -82,6 +87,11 @@ var Invoice = QuickBooksDualType{
 				"shipping_long": {
 					Name: "Shipping Longitude",
 					Type: fibery.Text,
+				},
+				"billing_address": {
+					Name:    "Billing Address",
+					Type:    fibery.Text,
+					SubType: fibery.MD,
 				},
 				"billing_line_1": {
 					Name: "Billing Line 1",
@@ -435,11 +445,45 @@ var Invoice = QuickBooksDualType{
 				emailSendTime = invoice.DeliveryInfo.DeliveryTime.Format(fibery.DateFormat)
 			}
 
+			var billingAddress string
+			if invoice.BillAddr.Line1 != "" {
+				billingAddress += (invoice.BillAddr.Line1 + "  \n")
+			}
+			if invoice.BillAddr.Line2 != "" {
+				billingAddress += (invoice.BillAddr.Line2 + "  \n")
+			}
+			if invoice.BillAddr.Line3 != "" {
+				billingAddress += (invoice.BillAddr.Line3 + "  \n")
+			}
+			if invoice.BillAddr.Line4 != "" {
+				billingAddress += (invoice.BillAddr.Line4 + "  \n")
+			}
+			if invoice.BillAddr.Line5 != "" {
+				billingAddress += (invoice.BillAddr.Line5 + "  \n")
+			}
+			var shippingAddress string
+			if invoice.ShipAddr.Line1 != "" {
+				shippingAddress += (invoice.ShipAddr.Line1 + "  \n")
+			}
+			if invoice.ShipAddr.Line2 != "" {
+				shippingAddress += (invoice.ShipAddr.Line2 + "  \n")
+			}
+			if invoice.ShipAddr.Line3 != "" {
+				shippingAddress += (invoice.ShipAddr.Line3 + "  \n")
+			}
+			if invoice.ShipAddr.Line4 != "" {
+				shippingAddress += (invoice.ShipAddr.Line4 + "  \n")
+			}
+			if invoice.ShipAddr.Line5 != "" {
+				shippingAddress += (invoice.ShipAddr.Line5 + "  \n")
+			}
+
 			data = map[string]any{
 				"id":                   invoice.Id,
 				"qbo_id":               invoice.Id,
 				"customer_id":          invoice.CustomerRef.Value,
 				"sync_token":           invoice.SyncToken,
+				"shipping_address":     shippingAddress,
 				"shipping_line_1":      invoice.ShipAddr.Line1,
 				"shipping_line_2":      invoice.ShipAddr.Line2,
 				"shipping_line_3":      invoice.ShipAddr.Line3,
@@ -451,6 +495,7 @@ var Invoice = QuickBooksDualType{
 				"shipping_country":     invoice.ShipAddr.Country,
 				"shipping_lat":         invoice.ShipAddr.Lat,
 				"shipping_long":        invoice.ShipAddr.Long,
+				"billing_address":      billingAddress,
 				"billing_line_1":       invoice.BillAddr.Line1,
 				"billing_line_2":       invoice.BillAddr.Line2,
 				"billing_line_3":       invoice.BillAddr.Line3,
@@ -549,7 +594,7 @@ var Invoice = QuickBooksDualType{
 		}
 		return items, nil
 	},
-	whQueryProcessor: func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	whBatchProcessor: func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
 		if len(itemResponse.Fault.Faults) > 0 {
 			return fmt.Errorf("batch request failed: %v", itemResponse.Fault.Faults)
 		}
@@ -562,49 +607,20 @@ var Invoice = QuickBooksDualType{
 			if dependents, ok := SourceDependents[typeId]; ok {
 				for _, dependentPointer := range dependents {
 					// change type assertion to WHType
-					dependent := (*dependentPointer).(DependentDualType)
-					dependentData, err := dependent.ProcessWH(invoices)
-					if err != nil {
-						return fmt.Errorf("unable to process dependent %s query data: %w", dependent.GetId(), err)
-					}
-					(*response)[dependent.GetId()] = append((*response)[dependent.GetId()], dependentData...)
-				}
-			}
-		}
-		return nil
-	},
-	whDeleteProcessor: func(deleteIds []string, response *map[string][]map[string]any, cache *cache.Cache, realmId string, typeId string) error {
-		for _, deleteId := range deleteIds {
-			(*response)[typeId] = append((*response)[typeId], map[string]any{
-				"id":           deleteId,
-				"__syncAction": fibery.REMOVE,
-			})
-		}
-		if dependents, ok := SourceDependents[typeId]; ok {
-			for _, dependentPointer := range dependents {
-				dependent := *dependentPointer
-				cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
-				if cacheEntry, found := cache.Get(cacheKey); found {
-					cacheEntry, ok := cacheEntry.(*IdCache)
-					if !ok {
-						return fmt.Errorf("unable to convert cache entry to IdCache")
-					}
-
-					cacheEntry.Mu.Lock()
-					defer cacheEntry.Mu.Unlock()
-					for _, deleteId := range deleteIds {
-						cachedIds := cacheEntry.Entries[deleteId]
-						fmt.Printf("cachedIds from invoice %s: %s\n", deleteId, FormatJSON(cachedIds))
-						for cachedId := range cachedIds {
-							(*response)[dependent.GetId()] = append((*response)[dependent.GetId()], map[string]any{
-								"id":           cachedId,
-								"__syncAction": fibery.REMOVE,
-							})
+					dependent := (*dependentPointer).(DepWHReceivable)
+					fmt.Printf("processing webhook for %s\n", dependent.GetId())
+					cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
+					if cacheEntry, found := cache.Get(cacheKey); found {
+						fmt.Printf("cache entry exists for %s\n", dependent.GetId())
+						cacheEntry, ok := cacheEntry.(*IdCache)
+						if !ok {
+							return fmt.Errorf("unable to convert cache entry to IdCache")
 						}
-						delete(cacheEntry.Entries, deleteId)
-						if _, ok := cacheEntry.Entries[deleteId]; !ok {
-							fmt.Printf("cache entry for invoice %s deleted\n", deleteId)
+						dependentData, err := dependent.ProcessWHBatch(invoices, cacheEntry)
+						if err != nil {
+							return fmt.Errorf("unable to process dependent %s query data: %w", dependent.GetId(), err)
 						}
+						(*response)[dependent.GetId()] = append((*response)[dependent.GetId()], dependentData...)
 					}
 				}
 			}
@@ -813,7 +829,7 @@ var InvoiceLine = DependentDualType{
 			}
 			return nil, nil
 		},
-		queryProcessor: func(sourceArray any, schemaGen dpdSchemaGenFunc) ([]map[string]any, error) {
+		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
 			invoices, ok := sourceArray.([]qbo.Invoice)
 			if !ok {
 				return nil, fmt.Errorf("unable to convert sourceArray to invoices")
@@ -884,10 +900,10 @@ var InvoiceLine = DependentDualType{
 		}
 		return idMap, nil
 	},
-	whProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen dpdSchemaGenFunc) ([]map[string]any, error) {
+	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
 		invoices, ok := sourceArray.([]qbo.Invoice)
 		if !ok {
-			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.invoice")
+			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.Invoice")
 		}
 		items := []map[string]any{}
 		cacheEntry.Mu.Lock()
@@ -949,7 +965,7 @@ var InvoiceLine = DependentDualType{
 		}
 		return items, nil
 	},
-	cdcProcessor: func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen dpdSchemaGenFunc) ([]map[string]any, error) {
+	cdcProcessor: func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
 		items := []map[string]any{}
 		cacheEntry.Mu.Lock()
 		defer cacheEntry.Mu.Unlock()
