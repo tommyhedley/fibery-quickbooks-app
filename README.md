@@ -1,8 +1,10 @@
 # Fibery-quickbooks-app
 Fibery-quickbooks-app is a custom integration app for fibery.io. It pulls implemented datatypes from QuickBooks online and converts them to Fibery schema and data. Full, delta (Change Data Capture in QuickBooks), and webhook sync options are all available based on the methods available for each datatype in the Quickbooks API. Currently there is no sync-back/2-way sync option, but that may be implemented in the future using Fibery custome integration actions or the Fibery 2-way sync API when available.
 
-![Fibery Custom Integration API Docs](https://the.fibery.io/@public/User_Guide/Guide/Integrations-API-267)
-![QuickBooks Online API Docs](https://developer.intuit.com/app/developer/qbo/docs/get-started)
+
+[Fibery Custom Integration API Docs](https://the.fibery.io/@public/User_Guide/Guide/Integrations-API-267)
+
+[QuickBooks Online API Docs](https://developer.intuit.com/app/developer/qbo/docs/get-started)
 
 ## Environment Variables
 Fibery-quickbooks-app uses a number of enviroment variables to spefic QuickBooks API parameters. For testing I use a .env file and for production you options will vary depending on how it is hosted. They are as follows:
