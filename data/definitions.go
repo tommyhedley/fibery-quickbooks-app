@@ -7,23 +7,22 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
 	"golang.org/x/sync/singleflight"
 )
 
 type Request struct {
-	StartPosition  int
-	OperationId    string
-	RealmId        string
-	LastSynced     time.Time
-	RequestedType  string
-	RequestedTypes []string
-	CDCTypes       []string
-	Filter         map[string]any
-	Cache          *cache.Cache
-	Group          *singleflight.Group
-	Token          *qbo.BearerToken
+	StartPosition     int
+	OperationId       string
+	LastSynced        time.Time
+	RequestedType     string
+	RequestedTypes    []string
+	RequestedCDCTypes []string
+	Filter            map[string]any
+	Cache             *cache.Cache
+	Group             *singleflight.Group
+	Client            *quickbooks.Client
 }
 
 type Response struct {
@@ -59,20 +58,20 @@ type DependentType interface {
 // CDCQueryable limits Types to those that can be queried using QuickBooks Change Data Capture
 type CDCQueryable interface {
 	Type
-	ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error)
+	ProcessCDC(cdc quickbooks.ChangeDataCapture) ([]map[string]any, error)
 }
 
 // DepCDCQueryable limits Types to those whos source can be queried using QuickBooks Change Data Capture
 type DepCDCQueryable interface {
 	DependentType
 	MapType(sourceArray any) (map[string]map[string]bool, error)
-	ProcessCDC(cdc qbo.ChangeDataCapture, cacheEntry *IdCache) ([]map[string]any, error)
+	ProcessCDC(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache) ([]map[string]any, error)
 }
 
 // WHQueryable limits Types to those that can send a Webhook notification on update
 type WHQueryable interface {
 	Type
-	ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error
+	ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error
 }
 
 type DepWHReceivable interface {
@@ -121,7 +120,7 @@ func (t QuickBooksType) ProcessQuery(array any) ([]map[string]any, error) {
 	return t.queryProcessor(array, t.schemaGen)
 }
 
-type cdcProcessorFunc func(cdc qbo.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error)
+type cdcProcessorFunc func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error)
 
 // QuickBooksCDCType established the additional function(s) required to process Change Data Capture responses
 type QuickBooksCDCType struct {
@@ -130,11 +129,11 @@ type QuickBooksCDCType struct {
 }
 
 // ProcessCDC takes a non-specific Change Data Capture response and returns entities of the relevant type converted to Fibery schema
-func (t QuickBooksCDCType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error) {
+func (t QuickBooksCDCType) ProcessCDC(cdc quickbooks.ChangeDataCapture) ([]map[string]any, error) {
 	return t.cdcProcessor(cdc, t.schemaGen)
 }
 
-type WHBatchProcessorFunc func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error
+type WHBatchProcessorFunc func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error
 
 // QuickBooksWHType established the additional function(s) required to process a webhook notifcation
 type QuickBooksWHType struct {
@@ -142,7 +141,7 @@ type QuickBooksWHType struct {
 	whBatchProcessor WHBatchProcessorFunc
 }
 
-func (t QuickBooksWHType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
+func (t QuickBooksWHType) ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
 	return t.whBatchProcessor(itemResponse, response, cache, realmId, t.queryProcessor, t.schemaGen, t.GetId())
 }
 
@@ -154,11 +153,11 @@ type QuickBooksDualType struct {
 }
 
 // ProcessCDC takes a non-specific Change Data Capture response and returns entities of the relevant type converted to Fibery schema
-func (t QuickBooksDualType) ProcessCDC(cdc qbo.ChangeDataCapture) ([]map[string]any, error) {
+func (t QuickBooksDualType) ProcessCDC(cdc quickbooks.ChangeDataCapture) ([]map[string]any, error) {
 	return t.cdcProcessor(cdc, t.schemaGen)
 }
 
-func (t QuickBooksDualType) ProcessWHBatch(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
+func (t QuickBooksDualType) ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
 	return t.whBatchProcessor(itemResponse, response, cache, realmId, t.queryProcessor, t.schemaGen, t.GetId())
 }
 
@@ -195,7 +194,7 @@ type sourceMapperFunc func(source any) (map[string]bool, error)
 // typeMapperFunc maps an array of source entities using the sourceMapperFunc for each source entity
 type typeMapperFunc func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error)
 
-type depCDCProcessorFunc func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error)
+type depCDCProcessorFunc func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error)
 
 type DependentCDCType struct {
 	DependentBaseType
@@ -214,7 +213,7 @@ func (t DependentCDCType) GetSourceId() string {
 }
 
 // ProcessCDC takes a non-specific Change Data Capture response and returns dependent entities if the source type is included
-func (t DependentCDCType) ProcessCDC(cdc qbo.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
+func (t DependentCDCType) ProcessCDC(cdc quickbooks.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
 	return t.cdcProcessor(cdc, idEntry, t.sourceMapper, t.schemaGen)
 }
 
@@ -262,7 +261,7 @@ func (t DependentDualType) GetSourceId() string {
 }
 
 // ProcessCDC takes a non-specific Change Data Capture response and returns dependent entities if the source type is included
-func (t DependentDualType) ProcessCDC(cdc qbo.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
+func (t DependentDualType) ProcessCDC(cdc quickbooks.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
 	return t.cdcProcessor(cdc, idEntry, t.sourceMapper, t.schemaGen)
 }
 
@@ -284,13 +283,4 @@ func RegisterType(t Type) {
 	if ok {
 		SourceDependents[deptype.GetSourceId()] = append(SourceDependents[deptype.GetSourceId()], &deptype)
 	}
-}
-
-func FormatJSON(data interface{}) string {
-	prettyJSON, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		log.Println("Failed to generate json", err)
-		return ""
-	}
-	return string(prettyJSON)
 }

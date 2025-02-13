@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
 )
 
 var Invoice = QuickBooksDualType{
@@ -382,7 +382,7 @@ var Invoice = QuickBooksDualType{
 			},
 		},
 		schemaGen: func(entity any) (map[string]any, error) {
-			invoice, ok := entity.(qbo.Invoice)
+			invoice, ok := entity.(quickbooks.Invoice)
 			if !ok {
 				return nil, fmt.Errorf("unable to convert entity to invoice")
 			}
@@ -408,8 +408,8 @@ var Invoice = QuickBooksDualType{
 				false: "Amount",
 			}
 			var data map[string]any
-			var discountLine *qbo.Line
-			var subtotalLine *qbo.Line
+			var discountLine *quickbooks.Line
+			var subtotalLine *quickbooks.Line
 			for _, line := range invoice.Line {
 				if line.DetailType == "DiscountLineDetail" {
 					if discountLine != nil {
@@ -541,23 +541,18 @@ var Invoice = QuickBooksDualType{
 			return data, nil
 		},
 		query: func(req Request) (Response, error) {
-			client, err := qbo.NewClient(req.RealmId, req.Token)
-			if err != nil {
-				return Response{}, fmt.Errorf("unable to create new client: %w", err)
-			}
-
-			invoices, err := client.FindInvoicesByPage(req.StartPosition)
+			invoices, err := req.Client.FindInvoicesByPage(req.StartPosition)
 			if err != nil {
 				return Response{}, fmt.Errorf("unable to find invoices: %w", err)
 			}
 
 			return Response{
 				Data:     invoices,
-				MoreData: len(invoices) >= qbo.QueryPageSize,
+				MoreData: len(invoices) >= quickbooks.QueryPageSize,
 			}, nil
 		},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {
-			invoices, ok := entityArray.([]qbo.Invoice)
+			invoices, ok := entityArray.([]quickbooks.Invoice)
 			if !ok {
 				return nil, fmt.Errorf("unable to convert entityArray to invoices")
 			}
@@ -572,7 +567,7 @@ var Invoice = QuickBooksDualType{
 			return items, nil
 		},
 	},
-	cdcProcessor: func(cdc qbo.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {
+	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {
 		items := []map[string]any{}
 		for _, cdcResponse := range cdc.CDCResponse {
 			for _, queryResponse := range cdcResponse.QueryResponse {
@@ -594,7 +589,7 @@ var Invoice = QuickBooksDualType{
 		}
 		return items, nil
 	},
-	whBatchProcessor: func(itemResponse qbo.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
 		if len(itemResponse.Fault.Faults) > 0 {
 			return fmt.Errorf("batch request failed: %v", itemResponse.Fault.Faults)
 		}
@@ -608,10 +603,8 @@ var Invoice = QuickBooksDualType{
 				for _, dependentPointer := range dependents {
 					// change type assertion to WHType
 					dependent := (*dependentPointer).(DepWHReceivable)
-					fmt.Printf("processing webhook for %s\n", dependent.GetId())
 					cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
 					if cacheEntry, found := cache.Get(cacheKey); found {
-						fmt.Printf("cache entry exists for %s\n", dependent.GetId())
 						cacheEntry, ok := cacheEntry.(*IdCache)
 						if !ok {
 							return fmt.Errorf("unable to convert cache entry to IdCache")
@@ -780,11 +773,11 @@ var InvoiceLine = DependentDualType{
 				}},
 		},
 		schemaGen: func(entity any, source any) (map[string]any, error) {
-			line, ok := entity.(qbo.Line)
+			line, ok := entity.(quickbooks.Line)
 			if !ok {
 				return nil, fmt.Errorf("unable to convert entity to invoice line")
 			}
-			invoice, ok := source.(qbo.Invoice)
+			invoice, ok := source.(quickbooks.Invoice)
 			if !ok {
 				return nil, fmt.Errorf("unable to convert source to invoice")
 			}
@@ -830,7 +823,7 @@ var InvoiceLine = DependentDualType{
 			return nil, nil
 		},
 		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-			invoices, ok := sourceArray.([]qbo.Invoice)
+			invoices, ok := sourceArray.([]quickbooks.Invoice)
 			if !ok {
 				return nil, fmt.Errorf("unable to convert sourceArray to invoices")
 			}
@@ -867,7 +860,7 @@ var InvoiceLine = DependentDualType{
 	},
 	source: Invoice,
 	sourceMapper: func(source any) (map[string]bool, error) {
-		invoice, ok := source.(qbo.Invoice)
+		invoice, ok := source.(quickbooks.Invoice)
 		if !ok {
 			return nil, fmt.Errorf("unable to convert source to invoice")
 		}
@@ -886,7 +879,7 @@ var InvoiceLine = DependentDualType{
 		return sourceMap, nil
 	},
 	typeMapper: func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {
-		invoices, ok := sourceArray.([]qbo.Invoice)
+		invoices, ok := sourceArray.([]quickbooks.Invoice)
 		if !ok {
 			return nil, fmt.Errorf("unable to convert sourceArray to invoices")
 		}
@@ -901,7 +894,7 @@ var InvoiceLine = DependentDualType{
 		return idMap, nil
 	},
 	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-		invoices, ok := sourceArray.([]qbo.Invoice)
+		invoices, ok := sourceArray.([]quickbooks.Invoice)
 		if !ok {
 			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.Invoice")
 		}
@@ -940,12 +933,9 @@ var InvoiceLine = DependentDualType{
 				}
 			}
 
-			fmt.Printf("items after transform: %s\n", FormatJSON(items))
-
 			// check for lines in cache but not in cdc response
 			if _, ok := cacheEntry.Entries[invoice.Id]; ok {
 				cachedIds := cacheEntry.Entries[invoice.Id]
-				fmt.Printf("cachedLines: %s\n", FormatJSON(cachedIds))
 				for cachedId := range cachedIds {
 					if !sourceItemIds[cachedId] {
 						items = append(items, map[string]any{
@@ -956,16 +946,12 @@ var InvoiceLine = DependentDualType{
 				}
 			}
 
-			fmt.Printf("items after remove: %s\n", FormatJSON(items))
-
 			// update cache with new line ids
 			cacheEntry.Entries[invoice.Id] = sourceItemIds
-
-			fmt.Printf("cache after transform: %s\n", FormatJSON(cacheEntry.Entries[invoice.Id]))
 		}
 		return items, nil
 	},
-	cdcProcessor: func(cdc qbo.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
 		items := []map[string]any{}
 		cacheEntry.Mu.Lock()
 		defer cacheEntry.Mu.Unlock()
@@ -981,7 +967,6 @@ var InvoiceLine = DependentDualType{
 					// handle lines on deleted invoices
 					if cdcInvoice.Status == "Deleted" {
 						cachedIds := cacheEntry.Entries[cdcInvoice.Id]
-						fmt.Printf("cachedIds from invoice %s: %s\n", cdcInvoice.Id, FormatJSON(cachedIds))
 						for cachedId := range cachedIds {
 							items = append(items, map[string]any{
 								"id":           cachedId,
@@ -989,13 +974,8 @@ var InvoiceLine = DependentDualType{
 							})
 						}
 						delete(cacheEntry.Entries, cdcInvoice.Id)
-						if _, ok := cacheEntry.Entries[cdcInvoice.Id]; !ok {
-							fmt.Printf("cache entry for invoice %s deleted\n", cdcInvoice.Id)
-						}
 						continue
 					}
-
-					fmt.Printf("items after delete: %s\n", FormatJSON(items))
 
 					// transform line data on added or updated invoices
 					for _, line := range cdcInvoice.Line {
@@ -1024,12 +1004,9 @@ var InvoiceLine = DependentDualType{
 						}
 					}
 
-					fmt.Printf("items after transform: %s\n", FormatJSON(items))
-
 					// check for lines in cache but not in cdc response
 					if _, ok := cacheEntry.Entries[cdcInvoice.Id]; ok {
 						cachedIds := cacheEntry.Entries[cdcInvoice.Id]
-						fmt.Printf("cachedLines: %s\n", FormatJSON(cachedIds))
 						for cachedId := range cachedIds {
 							if !cdcItemIds[cachedId] {
 								items = append(items, map[string]any{
@@ -1040,12 +1017,8 @@ var InvoiceLine = DependentDualType{
 						}
 					}
 
-					fmt.Printf("items after remove: %s\n", FormatJSON(items))
-
 					// update cache with new line ids
 					cacheEntry.Entries[cdcInvoice.Id] = cdcItemIds
-
-					fmt.Printf("cache after transform: %s\n", FormatJSON(cacheEntry.Entries[cdcInvoice.Id]))
 				}
 			}
 		}

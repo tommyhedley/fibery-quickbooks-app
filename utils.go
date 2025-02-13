@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/tommyhedley/fibery-quickbooks-app/data"
+	"github.com/tommyhedley/quickbooks-go"
 	"log/slog"
 	"net/http"
-
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/data"
+	"os"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, err error) {
@@ -70,4 +72,26 @@ func ConvertToCDCTypes(types map[string]*data.Type, requestedTypes []string) []s
 	}
 
 	return CDCTypes
+}
+
+func NewClientRequest(discovery *quickbooks.DiscoveryAPI, token *quickbooks.BearerToken, realmId string) (quickbooks.ClientRequest, error) {
+	clientRequest := quickbooks.ClientRequest{
+		DiscoveryAPI: discovery,
+		Token:        token,
+		RealmId:      realmId,
+	}
+	switch os.Getenv("MODE") {
+	case "production":
+		clientRequest.ClientId = os.Getenv("OAUTH_CLIENT_ID_PRODUCTION")
+		clientRequest.ClientSecret = os.Getenv("OAUTH_CLIENT_SECRET_PRODUCTION")
+		clientRequest.Endpoint = os.Getenv("PRODUCTION_ENDPOINT")
+	case "sandbox":
+		clientRequest.ClientId = os.Getenv("OAUTH_CLIENT_ID_SANDBOX")
+		clientRequest.ClientSecret = os.Getenv("OAUTH_CLIENT_SECRET_SANDBOX")
+		clientRequest.Endpoint = os.Getenv("SANDBOX_ENDPOINT")
+	default:
+		return quickbooks.ClientRequest{}, fmt.Errorf("invalid MODE setting: %s", os.Getenv("MODE"))
+	}
+
+	return clientRequest, nil
 }

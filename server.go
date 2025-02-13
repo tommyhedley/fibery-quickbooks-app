@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 )
 
 type loggingResponseWriter struct {

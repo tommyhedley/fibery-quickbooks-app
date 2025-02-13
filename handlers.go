@@ -10,31 +10,32 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/patrickmn/go-cache"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/data"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/qbo"
+	"github.com/tommyhedley/fibery-quickbooks-app/data"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
 	"golang.org/x/sync/singleflight"
 )
 
 type Integration struct {
-	cache      *cache.Cache
-	group      *singleflight.Group
-	client     *qbo.Client
-	appConfig  fibery.AppConfig
-	syncConfig fibery.SyncConfig
-	types      map[string]*data.Type
+	cache        *cache.Cache
+	group        *singleflight.Group
+	discoveryAPI *quickbooks.DiscoveryAPI
+	appConfig    fibery.AppConfig
+	syncConfig   fibery.SyncConfig
+	types        map[string]*data.Type
 }
 
 func (i *Integration) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	RespondWithJSON(w, http.StatusOK, i.appConfig)
 }
 
-func (Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Request) {
+func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
 		Id     string `json:"id"`
 		Fields struct {
@@ -50,7 +51,13 @@ func (Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	client, err := qbo.NewClient(reqBody.Fields.RealmID, &reqBody.Fields.BearerToken)
+	clientReq, err := NewClientRequest(i.discoveryAPI, &reqBody.Fields.BearerToken, reqBody.Fields.RealmID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest struct: %w", err))
+		return
+	}
+
+	client, err := quickbooks.NewClient(clientReq)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
 		return
@@ -58,11 +65,13 @@ func (Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Request
 
 	token := reqBody.Fields.BearerToken
 
-	refreshNeeded, err := token.RefreshNeeded()
+	secBeforeExp, err := strconv.Atoi(os.Getenv("TOKEN_REFRESH_BEFORE_EXPIRATION"))
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to determine if token refresh is needed: %w", err))
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid TOKEN_REFRESH_BEFORE_EXPIRATION value: %w", err))
 		return
 	}
+
+	refreshNeeded := token.CheckExpiration(secBeforeExp)
 
 	if refreshNeeded {
 		newToken, err := client.RefreshToken(token.RefreshToken)
@@ -171,18 +180,29 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clientReq, err := NewClientRequest(i.discoveryAPI, &params.Account.BearerToken, params.Account.RealmID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
+		return
+	}
+
+	client, err := quickbooks.NewClient(clientReq)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct new Client: %w", err))
+		return
+	}
+
 	req := data.Request{
-		StartPosition:  startPosition,
-		OperationId:    params.OperationID,
-		RealmId:        params.Account.RealmID,
-		LastSynced:     lastSynced,
-		RequestedType:  params.RequestedType,
-		RequestedTypes: params.Types,
-		CDCTypes:       ConvertToCDCTypes(i.types, params.Types),
-		Filter:         params.Filter,
-		Cache:          i.cache,
-		Group:          i.group,
-		Token:          &params.Account.BearerToken,
+		StartPosition:     startPosition,
+		OperationId:       params.OperationID,
+		LastSynced:        lastSynced,
+		RequestedType:     params.RequestedType,
+		RequestedTypes:    params.Types,
+		RequestedCDCTypes: ConvertToCDCTypes(i.types, params.Types),
+		Filter:            params.Filter,
+		Cache:             i.cache,
+		Group:             i.group,
+		Client:            client,
 	}
 
 	var responseBody fibery.DataHandlerResponse
@@ -191,7 +211,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 	switch datatype := types.(type) {
 	case data.DependentType:
 		if cdctype, ok := datatype.(data.DepCDCQueryable); ok {
-			cacheKey := fmt.Sprintf("%s:%s", req.RealmId, req.RequestedType)
+			cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, req.RequestedType)
 			cacheEntry, found := i.cache.Get(cacheKey)
 			if req.LastSynced.IsZero() || !found {
 				groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, datatype.GetSourceId(), req.StartPosition)
@@ -257,7 +277,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 					Pagination: fibery.Pagination{
 						HasNext: dataResponse.MoreData,
 						NextPageConfig: fibery.NextPageConfig{
-							StartPosition: req.StartPosition + qbo.QueryPageSize,
+							StartPosition: req.StartPosition + quickbooks.QueryPageSize,
 						},
 					},
 					SynchronizationType: fibery.FullSync,
@@ -270,12 +290,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-					client, err := qbo.NewClient(req.RealmId, req.Token)
-					if err != nil {
-						return nil, fmt.Errorf("unable to create quickbooks client: %w", err)
-					}
-
-					data, err := client.ChangeDataCapture(req.CDCTypes, req.LastSynced)
+					data, err := client.ChangeDataCapture(req.RequestedCDCTypes, req.LastSynced)
 					if err != nil {
 						return nil, err
 					}
@@ -288,7 +303,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
-				items, err := cdctype.ProcessCDC(res.(qbo.ChangeDataCapture), cacheEntry)
+				items, err := cdctype.ProcessCDC(res.(quickbooks.ChangeDataCapture), cacheEntry)
 				if err != nil {
 					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process change data capture: %w", err))
 					return
@@ -299,7 +314,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 					Pagination: fibery.Pagination{
 						HasNext: false,
 						NextPageConfig: fibery.NextPageConfig{
-							StartPosition: req.StartPosition + qbo.QueryPageSize,
+							StartPosition: req.StartPosition + quickbooks.QueryPageSize,
 						},
 					},
 					SynchronizationType: fibery.DeltaSync,
@@ -332,7 +347,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 				Pagination: fibery.Pagination{
 					HasNext: dataResponse.MoreData,
 					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + qbo.QueryPageSize,
+						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
 					},
 				},
 				SynchronizationType: fibery.FullSync,
@@ -366,7 +381,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 				Pagination: fibery.Pagination{
 					HasNext: dataResponse.MoreData,
 					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + qbo.QueryPageSize,
+						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
 					},
 				},
 				SynchronizationType: fibery.FullSync,
@@ -374,12 +389,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			groupKey := params.OperationID
 			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-				client, err := qbo.NewClient(req.RealmId, req.Token)
-				if err != nil {
-					return nil, fmt.Errorf("unable to create quickbooks client: %w", err)
-				}
-
-				data, err := client.ChangeDataCapture(req.CDCTypes, req.LastSynced)
+				data, err := client.ChangeDataCapture(req.RequestedCDCTypes, req.LastSynced)
 				if err != nil {
 					return nil, err
 				}
@@ -391,7 +401,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			items, err := datatype.ProcessCDC(res.(qbo.ChangeDataCapture))
+			items, err := datatype.ProcessCDC(res.(quickbooks.ChangeDataCapture))
 			if err != nil {
 				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process change data capture: %w", err))
 				return
@@ -402,7 +412,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 				Pagination: fibery.Pagination{
 					HasNext: false,
 					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + qbo.QueryPageSize,
+						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
 					},
 				},
 				SynchronizationType: fibery.DeltaSync,
@@ -607,9 +617,6 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 							})
 						}
 						delete(cacheEntry.Entries, id)
-						if _, ok := cacheEntry.Entries[id]; !ok {
-							fmt.Printf("cache entry for invoice %s deleted\n", id)
-						}
 					}
 				}
 
@@ -617,17 +624,23 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	batchRequest := []qbo.BatchItemRequest{}
+	batchRequest := []quickbooks.BatchItemRequest{}
 
 	for typ, ids := range queryEntities {
-		req := qbo.BatchItemRequest{
+		req := quickbooks.BatchItemRequest{
 			BID:   typ,
 			Query: fmt.Sprintf("SELECT * FROM %s WHERE Id IN ('%s')", typ, strings.Join(ids, "','")),
 		}
 		batchRequest = append(batchRequest, req)
 	}
 
-	client, err := qbo.NewClient(params.Account.RealmID, &params.Account.BearerToken)
+	clientReq, err := NewClientRequest(i.discoveryAPI, &params.Account.BearerToken, params.Account.RealmID)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
+		return
+	}
+
+	client, err := quickbooks.NewClient(clientReq)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
 		return
@@ -653,8 +666,6 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	fmt.Println(data.FormatJSON(response))
-
 	RespondWithJSON(w, http.StatusOK, response)
 }
 
@@ -674,7 +685,13 @@ func (i *Integration) Oauth2AuthorizeHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	client, err := qbo.NewClient("", nil)
+	clientReq, err := NewClientRequest(i.discoveryAPI, nil, "")
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
+		return
+	}
+
+	client, err := quickbooks.NewClient(clientReq)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error creating new client: %w", err))
 		return
@@ -715,18 +732,14 @@ func (i *Integration) Oauth2TokenHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	realmId := reqBody.RealmID
-	if realmId == "" {
-		mode := os.Getenv("MODE")
-		switch mode {
-		case "production":
-			realmId = os.Getenv("REALM_ID_PRODUCTION")
-		case "sandbox":
-			realmId = os.Getenv("REALM_ID_SANDBOX")
-		default:
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid mode: %s", mode))
-		}
+
+	clientReq, err := NewClientRequest(i.discoveryAPI, nil, realmId)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
+		return
 	}
-	client, err := qbo.NewClient(realmId, nil)
+
+	client, err := quickbooks.NewClient(clientReq)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
 		return

@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/data"
-	"github.com/tommyhedley/fibery/fibery-qbo-integration/pkgs/fibery"
+	"github.com/tommyhedley/fibery-quickbooks-app/data"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
 	"golang.org/x/sync/singleflight"
 )
+
+var version = "dev"
 
 func main() {
 	port := os.Getenv("PORT")
@@ -24,14 +27,32 @@ func main() {
 	c := cache.New(12*time.Hour, 12*time.Hour)
 	var group singleflight.Group
 
+	var discoveryUrl string
+	switch os.Getenv("MODE") {
+	case "production":
+		discoveryUrl = os.Getenv("DISCOVERY_PRODUCTION_ENDPOINT")
+	case "sandbox":
+		discoveryUrl = os.Getenv("DISCOVERY_SANDBOX_ENDPOINT")
+	default:
+		slog.Error("Invalid mode", "error", os.Getenv("MODE"))
+		os.Exit(1)
+	}
+
+	discoveryAPI, err := quickbooks.CallDiscoveryAPI(discoveryUrl)
+	if err != nil {
+		slog.Error("Error calling discovery API", "error", err)
+		os.Exit(1)
+	}
+
 	integration := Integration{
-		cache: c,
-		group: &group,
+		cache:        c,
+		group:        &group,
+		discoveryAPI: discoveryAPI,
 		appConfig: fibery.AppConfig{
 			ID:          "qbo",
 			Name:        "QuickBooks Online",
 			Website:     "https://quickbooks.intuit.com",
-			Version:     "0.1.0",
+			Version:     version,
 			Description: "Integrate QuickBooks Online data with Fibery",
 			Authentication: []fibery.Authentication{
 				{
