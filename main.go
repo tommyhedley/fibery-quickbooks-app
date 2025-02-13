@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/data"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
@@ -20,6 +21,7 @@ import (
 var version = "dev"
 
 func main() {
+	godotenv.Load()
 	port := os.Getenv("PORT")
 	loggerLevel := os.Getenv("LOGGER_LEVEL")
 	loggerStyle := os.Getenv("LOGGER_STYLE")
