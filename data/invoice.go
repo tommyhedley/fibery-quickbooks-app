@@ -11,7 +11,7 @@ import (
 
 var Invoice = QuickBooksDualType{
 	QuickBooksType: QuickBooksType{
-		FiberyType: FiberyType{
+		fiberyType: fiberyType{
 			id:   "Invoice",
 			name: "Invoice",
 			schema: map[string]fibery.Field{
@@ -367,14 +367,6 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"created_qbo": {
-					Name: "Creation Date (QBO)",
-					Type: fibery.DateType,
-				},
-				"last_updated_qbo": {
-					Name: "Last Updated (QBO)",
-					Type: fibery.DateType,
-				},
 				"__syncAction": {
 					Type: fibery.Text,
 					Name: "Sync Action",
@@ -602,7 +594,7 @@ var Invoice = QuickBooksDualType{
 			if dependents, ok := SourceDependents[typeId]; ok {
 				for _, dependentPointer := range dependents {
 					// change type assertion to WHType
-					dependent := (*dependentPointer).(DepWHReceivable)
+					dependent := (*dependentPointer).(DepWHQueryable)
 					cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
 					if cacheEntry, found := cache.Get(cacheKey); found {
 						cacheEntry, ok := cacheEntry.(*IdCache)
@@ -623,9 +615,9 @@ var Invoice = QuickBooksDualType{
 }
 
 var InvoiceLine = DependentDualType{
-	DependentBaseType: DependentBaseType{
-		FiberyType: FiberyType{
-			id:   "Invoice_line",
+	dependentBaseType: dependentBaseType{
+		fiberyType: fiberyType{
+			id:   "InvoiceLine",
 			name: "Invoice Line",
 			schema: map[string]fibery.Field{
 				"id": {
@@ -717,7 +709,7 @@ var InvoiceLine = DependentDualType{
 						Cardinality:   fibery.MTO,
 						Name:          "Group",
 						TargetName:    "Lines",
-						TargetType:    "Invoice_line",
+						TargetType:    "InvoiceLine",
 						TargetFieldID: "id",
 					},
 				},
@@ -893,64 +885,6 @@ var InvoiceLine = DependentDualType{
 		}
 		return idMap, nil
 	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-		invoices, ok := sourceArray.([]quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.Invoice")
-		}
-		items := []map[string]any{}
-		cacheEntry.Mu.Lock()
-		defer cacheEntry.Mu.Unlock()
-		for _, invoice := range invoices {
-			sourceItemIds, err := sourceMapper(invoice)
-			if err != nil {
-				return nil, fmt.Errorf("unable to map source: %w", err)
-			}
-
-			for _, line := range invoice.Line {
-				if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-					item, err := schemaGen(line, invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-					}
-					items = append(items, item)
-				}
-				if line.DetailType == "GroupLineDetail" {
-					for _, groupLine := range line.GroupLineDetail.Line {
-						item, err := schemaGen(groupLine, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-						}
-						item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
-						item["group_line_id"] = line.Id
-						items = append(items, item)
-					}
-					item, err := schemaGen(line, invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-					}
-					items = append(items, item)
-				}
-			}
-
-			// check for lines in cache but not in cdc response
-			if _, ok := cacheEntry.Entries[invoice.Id]; ok {
-				cachedIds := cacheEntry.Entries[invoice.Id]
-				for cachedId := range cachedIds {
-					if !sourceItemIds[cachedId] {
-						items = append(items, map[string]any{
-							"id":           cachedId,
-							"__syncAction": fibery.REMOVE,
-						})
-					}
-				}
-			}
-
-			// update cache with new line ids
-			cacheEntry.Entries[invoice.Id] = sourceItemIds
-		}
-		return items, nil
-	},
 	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
 		items := []map[string]any{}
 		cacheEntry.Mu.Lock()
@@ -1021,6 +955,64 @@ var InvoiceLine = DependentDualType{
 					cacheEntry.Entries[cdcInvoice.Id] = cdcItemIds
 				}
 			}
+		}
+		return items, nil
+	},
+	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+		invoices, ok := sourceArray.([]quickbooks.Invoice)
+		if !ok {
+			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.Invoice")
+		}
+		items := []map[string]any{}
+		cacheEntry.Mu.Lock()
+		defer cacheEntry.Mu.Unlock()
+		for _, invoice := range invoices {
+			sourceItemIds, err := sourceMapper(invoice)
+			if err != nil {
+				return nil, fmt.Errorf("unable to map source: %w", err)
+			}
+
+			for _, line := range invoice.Line {
+				if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
+					item, err := schemaGen(line, invoice)
+					if err != nil {
+						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+					}
+					items = append(items, item)
+				}
+				if line.DetailType == "GroupLineDetail" {
+					for _, groupLine := range line.GroupLineDetail.Line {
+						item, err := schemaGen(groupLine, invoice)
+						if err != nil {
+							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+						}
+						item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
+						item["group_line_id"] = line.Id
+						items = append(items, item)
+					}
+					item, err := schemaGen(line, invoice)
+					if err != nil {
+						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+					}
+					items = append(items, item)
+				}
+			}
+
+			// check for lines in cache but not in cdc response
+			if _, ok := cacheEntry.Entries[invoice.Id]; ok {
+				cachedIds := cacheEntry.Entries[invoice.Id]
+				for cachedId := range cachedIds {
+					if !sourceItemIds[cachedId] {
+						items = append(items, map[string]any{
+							"id":           cachedId,
+							"__syncAction": fibery.REMOVE,
+						})
+					}
+				}
+			}
+
+			// update cache with new line ids
+			cacheEntry.Entries[invoice.Id] = sourceItemIds
 		}
 		return items, nil
 	},
