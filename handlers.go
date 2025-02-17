@@ -209,118 +209,10 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 	types := *typePointer
 
 	switch datatype := types.(type) {
-	case data.DependentType:
-		if cdctype, ok := datatype.(data.DepCDCQueryable); ok {
-			cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, req.RequestedType)
-			cacheEntry, found := i.cache.Get(cacheKey)
-			if req.LastSynced.IsZero() || !found {
-				groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, datatype.GetSourceId(), req.StartPosition)
-				res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-					data, err := datatype.Query(req)
-					if err != nil {
-						return nil, err
-					}
-					return data, nil
-				})
-
-				if err != nil {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve parent data: %w", err))
-					return
-				}
-
-				dataResponse := res.(data.Response)
-
-				idMap, err := cdctype.MapType(dataResponse.Data)
-				if err != nil {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to map ids: %w", err))
-					return
-				}
-
-				if !found {
-					idEntry := data.IdCache{
-						OperationId: req.OperationId,
-						Entries:     idMap,
-					}
-					err = req.Cache.Add(cacheKey, &idEntry, data.IdCacheLifetime)
-					if err != nil {
-						RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to add cache entry: %w", err))
-						return
-					}
-				} else {
-					cacheEntry, ok := cacheEntry.(*data.IdCache)
-					if !ok {
-						RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
-						return
-					}
-					cacheEntry.Mu.Lock()
-					defer cacheEntry.Mu.Unlock()
-					if cacheEntry.OperationId == req.OperationId {
-						for sourceId, sourceMap := range idMap {
-							cacheEntry.Entries[sourceId] = sourceMap
-						}
-						req.Cache.Set(cacheKey, cacheEntry, data.IdCacheLifetime)
-					} else {
-						newCacheEntry := data.IdCache{
-							OperationId: req.OperationId,
-							Entries:     idMap,
-						}
-						req.Cache.Set(cacheKey, &newCacheEntry, data.IdCacheLifetime)
-					}
-				}
-				items, err := datatype.ProcessQuery(dataResponse.Data)
-				if err != nil {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
-					return
-				}
-				responseBody = fibery.DataHandlerResponse{
-					Items: items,
-					Pagination: fibery.Pagination{
-						HasNext: dataResponse.MoreData,
-						NextPageConfig: fibery.NextPageConfig{
-							StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-						},
-					},
-					SynchronizationType: fibery.FullSync,
-				}
-			} else {
-				groupKey := params.OperationID
-				cacheEntry, ok := cacheEntry.(*data.IdCache)
-				if !ok {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
-					return
-				}
-				res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-					data, err := client.ChangeDataCapture(req.RequestedCDCTypes, req.LastSynced)
-					if err != nil {
-						return nil, err
-					}
-
-					return data, nil
-				})
-
-				if err != nil {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to get change data capture: %w", err))
-					return
-				}
-
-				items, err := cdctype.ProcessCDC(res.(quickbooks.ChangeDataCapture), cacheEntry)
-				if err != nil {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process change data capture: %w", err))
-					return
-				}
-
-				responseBody = fibery.DataHandlerResponse{
-					Items: items,
-					Pagination: fibery.Pagination{
-						HasNext: false,
-						NextPageConfig: fibery.NextPageConfig{
-							StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-						},
-					},
-					SynchronizationType: fibery.DeltaSync,
-				}
-			}
-		} else {
+	case data.DepCDCQueryable:
+		cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, req.RequestedType)
+		cacheEntry, found := i.cache.Get(cacheKey)
+		if req.LastSynced.IsZero() || !found {
 			groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, datatype.GetSourceId(), req.StartPosition)
 			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
 				data, err := datatype.Query(req)
@@ -337,6 +229,43 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 
 			dataResponse := res.(data.Response)
 
+			idMap, err := datatype.MapType(dataResponse.Data)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to map ids: %w", err))
+				return
+			}
+
+			if !found {
+				idEntry := data.IdCache{
+					OperationId: req.OperationId,
+					Entries:     idMap,
+				}
+				err = req.Cache.Add(cacheKey, &idEntry, data.IdCacheLifetime)
+				if err != nil {
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to add cache entry: %w", err))
+					return
+				}
+			} else {
+				cacheEntry, ok := cacheEntry.(*data.IdCache)
+				if !ok {
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
+					return
+				}
+				cacheEntry.Mu.Lock()
+				defer cacheEntry.Mu.Unlock()
+				if cacheEntry.OperationId == req.OperationId {
+					for sourceId, sourceMap := range idMap {
+						cacheEntry.Entries[sourceId] = sourceMap
+					}
+					req.Cache.Set(cacheKey, cacheEntry, data.IdCacheLifetime)
+				} else {
+					newCacheEntry := data.IdCache{
+						OperationId: req.OperationId,
+						Entries:     idMap,
+					}
+					req.Cache.Set(cacheKey, &newCacheEntry, data.IdCacheLifetime)
+				}
+			}
 			items, err := datatype.ProcessQuery(dataResponse.Data)
 			if err != nil {
 				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
@@ -352,9 +281,78 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 				},
 				SynchronizationType: fibery.FullSync,
 			}
+		} else {
+			groupKey := params.OperationID
+			cacheEntry, ok := cacheEntry.(*data.IdCache)
+			if !ok {
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
+				return
+			}
+			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
+				data, err := client.ChangeDataCapture(req.RequestedCDCTypes, req.LastSynced)
+				if err != nil {
+					return nil, err
+				}
+
+				return data, nil
+			})
+
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to get change data capture: %w", err))
+				return
+			}
+
+			items, err := datatype.ProcessCDC(res.(quickbooks.ChangeDataCapture), cacheEntry)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process change data capture: %w", err))
+				return
+			}
+
+			responseBody = fibery.DataHandlerResponse{
+				Items: items,
+				Pagination: fibery.Pagination{
+					HasNext: false,
+					NextPageConfig: fibery.NextPageConfig{
+						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
+					},
+				},
+				SynchronizationType: fibery.DeltaSync,
+			}
 		}
-	default:
-		if datatype, ok := datatype.(data.CDCQueryable); !ok || req.LastSynced.IsZero() {
+	case data.DependentType:
+		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, datatype.GetSourceId(), req.StartPosition)
+		res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
+			data, err := datatype.Query(req)
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
+
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve parent data: %w", err))
+			return
+		}
+
+		dataResponse := res.(data.Response)
+
+		items, err := datatype.ProcessQuery(dataResponse.Data)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
+			return
+		}
+		responseBody = fibery.DataHandlerResponse{
+			Items: items,
+			Pagination: fibery.Pagination{
+				HasNext: dataResponse.MoreData,
+				NextPageConfig: fibery.NextPageConfig{
+					StartPosition: req.StartPosition + quickbooks.QueryPageSize,
+				},
+			},
+			SynchronizationType: fibery.FullSync,
+		}
+	case data.CDCQueryable:
+		if req.LastSynced.IsZero() {
 			groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, params.RequestedType, req.StartPosition)
 			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
 				data, err := datatype.Query(req)
@@ -417,6 +415,38 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 				},
 				SynchronizationType: fibery.DeltaSync,
 			}
+		}
+	default:
+		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, params.RequestedType, req.StartPosition)
+		res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
+			data, err := datatype.Query(req)
+			if err != nil {
+				return nil, err
+			}
+			return data, nil
+		})
+
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve data: %w", err))
+			return
+		}
+
+		dataResponse := res.(data.Response)
+
+		items, err := datatype.ProcessQuery(dataResponse.Data)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
+			return
+		}
+		responseBody = fibery.DataHandlerResponse{
+			Items: items,
+			Pagination: fibery.Pagination{
+				HasNext: dataResponse.MoreData,
+				NextPageConfig: fibery.NextPageConfig{
+					StartPosition: req.StartPosition + quickbooks.QueryPageSize,
+				},
+			},
+			SynchronizationType: fibery.FullSync,
 		}
 	}
 
@@ -582,8 +612,6 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			}
 		}
 	}
-
-	// handle removing deleted entities from cache
 
 	var response responseBody
 	response.Data = map[string][]map[string]any{}

@@ -2,7 +2,7 @@ package data
 
 import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 
-var term = QuickBooksDualType{
+var Term = QuickBooksDualType{
 	QuickBooksType: QuickBooksType{
 		fiberyType: fiberyType{
 			id:   "Term",
@@ -10,6 +10,10 @@ var term = QuickBooksDualType{
 			schema: map[string]fibery.Field{
 				"id": {
 					Name: "id",
+					Type: fibery.Text,
+				},
+				"qbo_id": {
+					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"name": {

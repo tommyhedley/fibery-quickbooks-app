@@ -11,185 +11,120 @@ var Customer = QuickBooksDualType{
 			id:   "Customer",
 			name: "Customer",
 			schema: map[string]fibery.Field{
-				"id": {
-					Name: "id",
+				"Id": {
+					Name: "ID",
 					Type: fibery.ID,
 				},
-				"qbo_id": {
+				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
-				"sync_token": {
-					Name:     "Sync Token",
-					Type:     fibery.Text,
-					ReadOnly: true,
-				},
-				"active": {
-					Name:    "Active",
-					Type:    fibery.Text,
-					SubType: fibery.Boolean,
-				},
-				"display_name": {
+				"DisplayName": {
 					Name:    "Display Name",
 					Type:    fibery.Text,
 					SubType: fibery.Title,
 				},
-				"title": {
+				"SyncToken": {
+					Name:     "Sync Token",
+					Type:     fibery.Text,
+					ReadOnly: true,
+				},
+				"__syncAction": {
+					Type: fibery.Text,
+					Name: "Sync Action",
+				},
+				"Active": {
+					Name:    "Active",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"Title": {
 					Name: "Title",
 					Type: fibery.Text,
 				},
-				"given_name": {
+				"GivenName": {
 					Name: "First Name",
 					Type: fibery.Text,
 				},
-				"middle_name": {
+				"MiddleName": {
 					Name: "Middle Name",
 					Type: fibery.Text,
 				},
-				"family_name": {
+				"FamilyName": {
 					Name: "Last Name",
 					Type: fibery.Text,
 				},
-				"suffix": {
+				"Suffix": {
 					Name: "Suffix",
 					Type: fibery.Text,
 				},
-				"company_name": {
+				"CompanyName": {
 					Name: "Company Name",
 					Type: fibery.Text,
 				},
-				"primary_email": {
+				"PrimaryEmail": {
 					Name:    "Email",
 					Type:    fibery.Text,
 					SubType: fibery.Email,
 				},
-				"taxable": {
+				"Taxable": {
 					Name:    "Taxable",
 					Type:    fibery.Text,
 					SubType: fibery.Boolean,
 				},
-				"tax_exemption_id": {
-					Name: "Tax Exemption ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Tax Exemption",
-						TargetName:    "Customers",
-						TargetType:    "TaxExemption",
-						TargetFieldID: "id",
-					},
-				},
-				"resale_num": {
+				"ResaleNum": {
 					Name: "Resale ID",
 					Type: fibery.Text,
 				},
-				"default_tax_code_id": {
-					Name: "Default Tax Code ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Default Tax Code",
-						TargetName:    "Customers",
-						TargetType:    "TaxCode",
-						TargetFieldID: "id",
-					},
-				},
-				"customer_type_id": {
-					Name: "Customer Type ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Customer Type",
-						TargetName:    "Customers",
-						TargetType:    "CustomerType",
-						TargetFieldID: "id",
-					},
-				},
-				"delivery_method": {
-					Name:     "Delivery Method",
-					Type:     fibery.Text,
-					SubType:  fibery.SingleSelect,
-					ReadOnly: true,
-					Options: []map[string]any{
-						{
-							"name": "Print",
-						},
-						{
-							"name": "Email",
-						},
-					},
-				},
-				"sales_term_id": {
-					Name: "Sales Term ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Sales Term",
-						TargetName:    "Customers",
-						TargetType:    "SalesTerm",
-						TargetFieldID: "id",
-					},
-				},
-				"phone": {
+				"PrimaryPhone": {
 					Name: "Phone",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"alt_phone": {
+				"AlternatePhone": {
 					Name: "Alternate Phone",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"mobile": {
+				"Mobile": {
 					Name: "Mobile",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"fax": {
+				"Fax": {
 					Name: "Fax",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"parent_id": {
-					Name: "Parent ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Parent",
-						TargetName:    "Jobs",
-						TargetType:    "Customer",
-						TargetFieldID: "id",
-					},
-				},
-				"job": {
+				"Job": {
 					Name:    "Job",
 					Type:    fibery.Text,
 					SubType: fibery.Boolean,
 				},
-				"bill_with_parent": {
+				"BillWithParent": {
 					Name:    "Bill With Parent",
 					Type:    fibery.Text,
 					SubType: fibery.Boolean,
 				},
-				"notes": {
+				"Notes": {
 					Name:    "Notes",
 					Type:    fibery.Text,
 					SubType: fibery.MD,
 				},
-				"website": {
+				"Website": {
 					Name:    "Website",
 					Type:    fibery.Text,
 					SubType: fibery.URL,
 				},
-				"balance": {
+				"Balance": {
 					Name: "Balance",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -199,7 +134,7 @@ var Customer = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"balance_with_jobs": {
+				"BalanceWithJobs": {
 					Name: "Balance With Jobs",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -209,7 +144,139 @@ var Customer = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"payment_method_id": {
+				"ShippingLine1": {
+					Name: "Shipping Line 1",
+					Type: fibery.Text,
+				},
+				"ShippingLine2": {
+					Name: "Shipping Line 2",
+					Type: fibery.Text,
+				},
+				"ShippingLine3": {
+					Name: "Shipping Line 3",
+					Type: fibery.Text,
+				},
+				"ShippingLine4": {
+					Name: "Shipping Line 4",
+					Type: fibery.Text,
+				},
+				"ShippingLine5": {
+					Name: "Shipping Line 5",
+					Type: fibery.Text,
+				},
+				"ShippingCity": {
+					Name: "Shipping City",
+					Type: fibery.Text,
+				},
+				"ShippingState": {
+					Name: "Shipping State",
+					Type: fibery.Text,
+				},
+				"ShippingPostalCode": {
+					Name: "Shipping Postal Code",
+					Type: fibery.Text,
+				},
+				"ShippingCountry": {
+					Name: "Shipping Country",
+					Type: fibery.Text,
+				},
+				"ShippingLat": {
+					Name: "Shipping Latitude",
+					Type: fibery.Text,
+				},
+				"ShippingLong": {
+					Name: "Shipping Longitude",
+					Type: fibery.Text,
+				},
+				"BillingLine1": {
+					Name: "Billing Line 1",
+					Type: fibery.Text,
+				},
+				"BillingLine2": {
+					Name: "Billing Line 2",
+					Type: fibery.Text,
+				},
+				"BillingLine3": {
+					Name: "Billing Line 3",
+					Type: fibery.Text,
+				},
+				"BillingLine4": {
+					Name: "Billing Line 4",
+					Type: fibery.Text,
+				},
+				"BillingLine5": {
+					Name: "Billing Line 5",
+					Type: fibery.Text,
+				},
+				"BillingCity": {
+					Name: "Billing City",
+					Type: fibery.Text,
+				},
+				"BillingState": {
+					Name: "Billing State",
+					Type: fibery.Text,
+				},
+				"BillingPostalCode": {
+					Name: "Billing Postal Code",
+					Type: fibery.Text,
+				},
+				"BillingCountry": {
+					Name: "Billing Country",
+					Type: fibery.Text,
+				},
+				"BillingLat": {
+					Name: "Billing Latitude",
+					Type: fibery.Text,
+				},
+				"BillingLong": {
+					Name: "Billing Longitude",
+					Type: fibery.Text,
+				},
+				"TaxExemptionId": {
+					Name: "Tax Exemption ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Tax Exemption",
+						TargetName:    "Customers",
+						TargetType:    "TaxExemption",
+						TargetFieldID: "Id",
+					},
+				},
+				"DefaultTaxCodeId": {
+					Name: "Default Tax Code ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Default Tax Code",
+						TargetName:    "Customers",
+						TargetType:    "TaxCode",
+						TargetFieldID: "Id",
+					},
+				},
+				"CustomerTypeId": {
+					Name: "Customer Type ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Customer Type",
+						TargetName:    "Customers",
+						TargetType:    "CustomerType",
+						TargetFieldID: "Id",
+					},
+				},
+				"SalesTermId": {
+					Name: "Sales Term ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Sales Term",
+						TargetName:    "Customers",
+						TargetType:    "SalesTerm",
+						TargetFieldID: "Id",
+					},
+				},
+				"PaymentMethodId": {
 					Name: "Payment Method ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -217,114 +284,90 @@ var Customer = QuickBooksDualType{
 						Name:          "Payment Method",
 						TargetName:    "Customers",
 						TargetType:    "PaymentMethod",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"shipping_address": {
-					Name:    "Shipping Address",
-					Type:    fibery.Text,
-					SubType: fibery.MD,
-				},
-				"shipping_line_1": {
-					Name: "Shipping Line 1",
+				"ParentId": {
+					Name: "Parent ID",
 					Type: fibery.Text,
-				},
-				"shipping_line_2": {
-					Name: "Shipping Line 2",
-					Type: fibery.Text,
-				},
-				"shipping_line_3": {
-					Name: "Shipping Line 3",
-					Type: fibery.Text,
-				},
-				"shipping_line_4": {
-					Name: "Shipping Line 4",
-					Type: fibery.Text,
-				},
-				"shipping_line_5": {
-					Name: "Shipping Line 5",
-					Type: fibery.Text,
-				},
-				"shipping_city": {
-					Name: "Shipping City",
-					Type: fibery.Text,
-				},
-				"shipping_state": {
-					Name: "Shipping State",
-					Type: fibery.Text,
-				},
-				"shipping_postal_code": {
-					Name: "Shipping Postal Code",
-					Type: fibery.Text,
-				},
-				"shipping_country": {
-					Name: "Shipping Country",
-					Type: fibery.Text,
-				},
-				"shipping_lat": {
-					Name: "Shipping Latitude",
-					Type: fibery.Text,
-				},
-				"shipping_long": {
-					Name: "Shipping Longitude",
-					Type: fibery.Text,
-				},
-				"billing_address": {
-					Name:    "Billing Address",
-					Type:    fibery.Text,
-					SubType: fibery.MD,
-				},
-				"billing_line_1": {
-					Name: "Billing Line 1",
-					Type: fibery.Text,
-				},
-				"billing_line_2": {
-					Name: "Billing Line 2",
-					Type: fibery.Text,
-				},
-				"billing_line_3": {
-					Name: "Billing Line 3",
-					Type: fibery.Text,
-				},
-				"billing_line_4": {
-					Name: "Billing Line 4",
-					Type: fibery.Text,
-				},
-				"billing_line_5": {
-					Name: "Billing Line 5",
-					Type: fibery.Text,
-				},
-				"billing_city": {
-					Name: "Billing City",
-					Type: fibery.Text,
-				},
-				"billing_state": {
-					Name: "Billing State",
-					Type: fibery.Text,
-				},
-				"billing_postal_code": {
-					Name: "Billing Postal Code",
-					Type: fibery.Text,
-				},
-				"billing_country": {
-					Name: "Billing Country",
-					Type: fibery.Text,
-				},
-				"billing_lat": {
-					Name: "Billing Latitude",
-					Type: fibery.Text,
-				},
-				"billing_long": {
-					Name: "Billing Longitude",
-					Type: fibery.Text,
-				},
-				"__syncAction": {
-					Type: fibery.Text,
-					Name: "Sync Action",
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Parent",
+						TargetName:    "Jobs",
+						TargetType:    "Customer",
+						TargetFieldID: "Id",
+					},
 				},
 			},
 		},
-		schemaGen:      func(entity any) (map[string]any, error) {},
+		schemaGen: func(entity any) (map[string]any, error) {
+			customer, ok := entity.(quickbooks.Customer)
+			if !ok {
+				return nil, fmt.Errorf("unable to convert entity to Customer")
+			}
+
+			job := false
+			if customer.Job.Valid {
+				job = customer.Job.Bool
+			}
+
+			data := map[string]any{
+				"Id":                 customer.Id,
+				"QBOId":              customer.Id,
+				"DisplayName":        customer.DisplayName,
+				"SyncToken":          customer.SyncToken,
+				"__syncAction":       fibery.SET,
+				"Active":             customer.Active,
+				"Title":              customer.Title,
+				"GivenName":          customer.GivenName,
+				"MiddleName":         customer.MiddleName,
+				"FamilyName":         customer.FamilyName,
+				"Suffix":             customer.Suffix,
+				"CompanyName":        customer.CompanyName,
+				"PrimaryEmail":       customer.PrimaryEmailAddr,
+				"Taxable":            customer.Taxable,
+				"ResaleNum":          customer.ResaleNum,
+				"PrimaryPhone":       customer.PrimaryPhone.FreeFormNumber,
+				"AlternatePhone":     customer.AlternatePhone.FreeFormNumber,
+				"Mobile":             customer.Mobile.FreeFormNumber,
+				"Fax":                customer.Fax.FreeFormNumber,
+				"Job":                job,
+				"BillWithParent":     customer.BillWithParent,
+				"Notes":              customer.Notes,
+				"Website":            customer.WebAddr.URI,
+				"Balance":            customer.Balance,
+				"BalanceWithJobs":    customer.BalanceWithJobs,
+				"ShippingLine1":      customer.ShipAddr.Line1,
+				"ShippingLine2":      customer.ShipAddr.Line2,
+				"ShippingLine3":      customer.ShipAddr.Line3,
+				"ShippingLine4":      customer.ShipAddr.Line4,
+				"ShippingLine5":      customer.ShipAddr.Line5,
+				"ShippingCity":       customer.ShipAddr.City,
+				"ShippingState":      customer.ShipAddr.CountrySubDivisionCode,
+				"ShippingPostalCode": customer.ShipAddr.PostalCode,
+				"ShippingCountry":    customer.ShipAddr.Country,
+				"ShippingLat":        customer.ShipAddr.Lat,
+				"ShippingLong":       customer.ShipAddr.Long,
+				"BillingLine1":       customer.BillAddr.Line1,
+				"BillingLine2":       customer.BillAddr.Line2,
+				"BillingLine3":       customer.BillAddr.Line3,
+				"BillingLine4":       customer.BillAddr.Line4,
+				"BillingLine5":       customer.BillAddr.Line5,
+				"BillingCity":        customer.BillAddr.City,
+				"BillingState":       customer.BillAddr.CountrySubDivisionCode,
+				"BillingPostalCode":  customer.BillAddr.PostalCode,
+				"BillingCountry":     customer.BillAddr.Country,
+				"BillingLat":         customer.BillAddr.Lat,
+				"BillingLong":        customer.BillAddr.Long,
+				"TaxExemptionId":     customer.TaxExemptionReasonId,
+				"DefaultTaxCodeId":   customer.DefaultTaxCodeRef.Value,
+				"CustomerTypeId":     customer.CustomerTypeRef.Value,
+				"SalesTermId":        customer.SalesTermRef.Value,
+				"PaymentMethodId":    customer.PaymentMethodRef.Value,
+				"ParentId":           customer.ParentRef.Value,
+			}
+			return data, nil
+		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
 	},

@@ -13,6 +13,10 @@ var TaxCode = QuickBooksType{
 				Name: "id",
 				Type: fibery.Text,
 			},
+			"qbo_id": {
+				Name: "QBO ID",
+				Type: fibery.Text,
+			},
 			"name": {
 				Name: "Name",
 				Type: fibery.Text,

@@ -1,19 +1,15 @@
 package data
 
 import (
-	"encoding/json"
-	"fmt"
-
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Invoice = QuickBooksDualType{
+var Estimate = QuickBooksDualType{
 	QuickBooksType: QuickBooksType{
 		fiberyType: fiberyType{
-			id:   "Invoice",
-			name: "Invoice",
+			id:   "Estimate",
+			name: "Estimate",
 			schema: map[string]fibery.Field{
 				"id": {
 					Name: "id",
@@ -27,22 +23,65 @@ var Invoice = QuickBooksDualType{
 					Name: "Name",
 					Type: fibery.Text,
 				},
-				"sync_token": {
-					Name:     "Sync Token",
-					Type:     fibery.Text,
-					ReadOnly: true,
-				},
-
 				"customer_id": {
 					Name: "Customer ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Customer",
-						TargetName:    "Invoices",
+						TargetName:    "Estimates",
 						TargetType:    "Customer",
 						TargetFieldID: "id",
 					},
+				},
+				"sync_token": {
+					Name:     "Sync Token",
+					Type:     fibery.Text,
+					ReadOnly: true,
+				},
+				"shipping_from_line_1": {
+					Name: "Sale Line 1",
+					Type: fibery.Text,
+				},
+				"shipping_from_line_2": {
+					Name: "Sale Line 2",
+					Type: fibery.Text,
+				},
+				"shipping_from_line_3": {
+					Name: "Sale Line 3",
+					Type: fibery.Text,
+				},
+				"shipping_from_line_4": {
+					Name: "Sale Line 4",
+					Type: fibery.Text,
+				},
+				"shipping_from_line_5": {
+					Name: "Sale Line 5",
+					Type: fibery.Text,
+				},
+				"shipping_from_city": {
+					Name: "Sale City",
+					Type: fibery.Text,
+				},
+				"shipping_from_state": {
+					Name: "Sale State",
+					Type: fibery.Text,
+				},
+				"shipping_from_postal_code": {
+					Name: "Sale Postal Code",
+					Type: fibery.Text,
+				},
+				"shipping_from_country": {
+					Name: "Sale Country",
+					Type: fibery.Text,
+				},
+				"shipping_from_lat": {
+					Name: "Sale Latitude",
+					Type: fibery.Text,
+				},
+				"shipping_from_long": {
+					Name: "Sale Longitude",
+					Type: fibery.Text,
 				},
 				"shipping_line_1": {
 					Name: "Shipping Line 1",
@@ -580,415 +619,4 @@ var Invoice = QuickBooksDualType{
 		}
 		return nil
 	},
-}
-
-var InvoiceLine = DependentDualType{
-	dependentBaseType: dependentBaseType{
-		fiberyType: fiberyType{
-			id:   "InvoiceLine",
-			name: "Invoice Line",
-			schema: map[string]fibery.Field{
-				"id": {
-					Name: "id",
-					Type: fibery.ID,
-				},
-				"qbo_id": {
-					Name: "QBO ID",
-					Type: fibery.Text,
-				},
-				"invoice_sync_token": {
-					Name:     "Invoice Sync Token",
-					Type:     fibery.Text,
-					ReadOnly: true,
-				},
-				"invoice_id": {
-					Name: "Invoice ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Invoice",
-						TargetName:    "Invoice Lines",
-						TargetType:    "Invoice",
-						TargetFieldID: "id",
-					},
-				},
-				"description": {
-					Name:    "Description",
-					Type:    fibery.Text,
-					SubType: fibery.Title,
-				},
-				"line_type": {
-					Name:    "Line Type",
-					Type:    fibery.Text,
-					SubType: fibery.SingleSelect,
-					Options: []map[string]any{
-						{
-							"name": "Sales Item",
-						},
-						{
-							"name": "Group",
-						},
-						{
-							"name": "Description",
-						},
-						{
-							"name": "Group",
-						},
-					},
-				},
-				"quantity": {
-					Name: "Quantity",
-					Type: fibery.Number,
-					Format: map[string]any{
-						"format":               "Number",
-						"hasThousandSeparator": true,
-						"precision":            2,
-					},
-				},
-				"unit_price": {
-					Name: "Unit Price",
-					Type: fibery.Number,
-					Format: map[string]any{
-						"format":               "Money",
-						"currencyCode":         "USD",
-						"hasThousandSeperator": true,
-						"precision":            2,
-					},
-				},
-				"amount": {
-					Name: "Amount",
-					Type: fibery.Number,
-					Format: map[string]any{
-						"format":               "Money",
-						"currencyCode":         "USD",
-						"hasThousandSeperator": true,
-						"precision":            2,
-					},
-				},
-				"line_num": {
-					Name:    "Line",
-					Type:    fibery.Number,
-					SubType: fibery.Integer,
-				},
-				"group_line_id": {
-					Name: "Group Line ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Group",
-						TargetName:    "Lines",
-						TargetType:    "InvoiceLine",
-						TargetFieldID: "id",
-					},
-				},
-				"item_id": {
-					Name: "Item",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Item",
-						TargetName:    "Invoice Lines",
-						TargetType:    "Item",
-						TargetFieldID: "id",
-					},
-				},
-				"class_id": {
-					Name: "Class ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Class",
-						TargetName:    "Expense Account Line(s)",
-						TargetType:    "Class",
-						TargetFieldID: "id",
-					},
-				},
-				"tax_code_id": {
-					Name: "Tax Code ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Tax Code",
-						TargetName:    "Invoice Lines",
-						TargetType:    "TaxCode",
-						TargetFieldID: "id",
-					},
-				},
-				"markup_percent": {
-					Name: "Markup",
-					Type: fibery.Number,
-					Format: map[string]any{
-						"format":    "Percent",
-						"precision": 2,
-					},
-				},
-				"service_date": {
-					Name:    "Date",
-					Type:    fibery.DateType,
-					SubType: fibery.Day,
-				},
-				"__syncAction": {
-					Type: fibery.Text,
-					Name: "Sync Action",
-				}},
-		},
-		schemaGen: func(entity any, source any) (map[string]any, error) {
-			line, ok := entity.(quickbooks.Line)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to invoice line")
-			}
-
-			invoice, ok := source.(quickbooks.Invoice)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert source to invoice")
-			}
-
-			var lineTypes = map[string]string{
-				"SalesItemLineDetail": "Sales Item Line",
-				"GroupLineDetail":     "Group Line",
-				"DescriptionOnly":     "Description Line",
-			}
-
-			if line.DetailType == "GroupLineDetail" {
-				return map[string]any{
-					"id":                 fmt.Sprintf("%s:%s", invoice.Id, line.Id),
-					"qbo_id":             line.Id,
-					"invoice_sync_token": invoice.SyncToken,
-					"invoice_id":         invoice.Id,
-					"description":        line.Description,
-					"line_type":          lineTypes[line.DetailType],
-					"quantity":           line.GroupLineDetail.Quantity,
-					"line_num":           line.LineNum,
-					"item_id":            line.GroupLineDetail.GroupItemRef.Value,
-					"__syncAction":       fibery.SET,
-				}, nil
-			} else if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-				return map[string]any{
-					"id":                 fmt.Sprintf("%s:%s", invoice.Id, line.Id),
-					"qbo_id":             line.Id,
-					"invoice_sync_token": invoice.SyncToken,
-					"invoice_id":         invoice.Id,
-					"description":        line.Description,
-					"type":               lineTypes[line.DetailType],
-					"quantity":           line.SalesItemLineDetail.Qty,
-					"unit_price":         line.SalesItemLineDetail.UnitPrice,
-					"amount":             line.Amount,
-					"line_num":           line.LineNum,
-					"item_id":            line.SalesItemLineDetail.ItemRef.Value,
-					"class_id":           line.SalesItemLineDetail.ClassRef.Value,
-					"tax_code_id":        line.SalesItemLineDetail.TaxCodeRef.Value,
-					"markup_percent":     line.SalesItemLineDetail.MarkupInfo.Percent,
-					"service_date":       line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
-					"__syncAction":       fibery.SET,
-				}, nil
-			}
-			return nil, nil
-		},
-		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-			invoices, ok := sourceArray.([]quickbooks.Invoice)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert sourceArray to invoices")
-			}
-			items := []map[string]any{}
-			for _, invoice := range invoices {
-				for _, line := range invoice.Line {
-					if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-						item, err := schemaGen(line, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-						}
-						items = append(items, item)
-					}
-					if line.DetailType == "GroupLineDetail" {
-						for _, groupLine := range line.GroupLineDetail.Line {
-							item, err := schemaGen(groupLine, invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-							}
-							item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
-							item["group_line_id"] = line.Id
-							items = append(items, item)
-						}
-						item, err := schemaGen(line, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-						}
-						items = append(items, item)
-					}
-				}
-			}
-			return items, nil
-		},
-	},
-	source: Invoice,
-	sourceMapper: func(source any) (map[string]bool, error) {
-		invoice, ok := source.(quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert source to invoice")
-		}
-		sourceMap := map[string]bool{}
-		for _, line := range invoice.Line {
-			if line.DetailType == "GroupLineDetail" {
-				for _, groupLine := range line.GroupLineDetail.Line {
-					sourceMap[fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)] = true
-				}
-				sourceMap[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
-			}
-			if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-				sourceMap[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
-			}
-		}
-		return sourceMap, nil
-	},
-	typeMapper: func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {
-		invoices, ok := sourceArray.([]quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert sourceArray to invoices")
-		}
-		idMap := map[string]map[string]bool{}
-		for _, invoice := range invoices {
-			sourceMap, err := sourceMapper(invoice)
-			if err != nil {
-				return nil, fmt.Errorf("unable to map source: %w", err)
-			}
-			idMap[invoice.Id] = sourceMap
-		}
-		return idMap, nil
-	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-		items := []map[string]any{}
-		cacheEntry.Mu.Lock()
-		defer cacheEntry.Mu.Unlock()
-		for _, cdcResponse := range cdc.CDCResponse {
-			for _, queryResponse := range cdcResponse.QueryResponse {
-				for _, cdcInvoice := range queryResponse.Invoice {
-					// map lines in cdc response
-					cdcItemIds, err := sourceMapper(cdcInvoice.Invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to map source: %w", err)
-					}
-
-					// handle lines on deleted invoices
-					if cdcInvoice.Status == "Deleted" {
-						cachedIds := cacheEntry.Entries[cdcInvoice.Id]
-						for cachedId := range cachedIds {
-							items = append(items, map[string]any{
-								"id":           cachedId,
-								"__syncAction": fibery.REMOVE,
-							})
-						}
-						delete(cacheEntry.Entries, cdcInvoice.Id)
-						continue
-					}
-
-					// transform line data on added or updated invoices
-					for _, line := range cdcInvoice.Line {
-						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-							item, err := schemaGen(line, cdcInvoice.Invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-							}
-							items = append(items, item)
-						}
-						if line.DetailType == "GroupLineDetail" {
-							for _, groupLine := range line.GroupLineDetail.Line {
-								item, err := schemaGen(groupLine, cdcInvoice.Invoice)
-								if err != nil {
-									return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-								}
-								item["id"] = fmt.Sprintf("%s:%s:%s", cdcInvoice.Id, line.Id, groupLine.Id)
-								item["group_line_id"] = line.Id
-								items = append(items, item)
-							}
-							item, err := schemaGen(line, cdcInvoice.Invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-							}
-							items = append(items, item)
-						}
-					}
-
-					// check for lines in cache but not in cdc response
-					if _, ok := cacheEntry.Entries[cdcInvoice.Id]; ok {
-						cachedIds := cacheEntry.Entries[cdcInvoice.Id]
-						for cachedId := range cachedIds {
-							if !cdcItemIds[cachedId] {
-								items = append(items, map[string]any{
-									"id":           cachedId,
-									"__syncAction": fibery.REMOVE,
-								})
-							}
-						}
-					}
-
-					// update cache with new line ids
-					cacheEntry.Entries[cdcInvoice.Id] = cdcItemIds
-				}
-			}
-		}
-		return items, nil
-	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-		invoices, ok := sourceArray.([]quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.Invoice")
-		}
-		items := []map[string]any{}
-		cacheEntry.Mu.Lock()
-		defer cacheEntry.Mu.Unlock()
-		for _, invoice := range invoices {
-			sourceItemIds, err := sourceMapper(invoice)
-			if err != nil {
-				return nil, fmt.Errorf("unable to map source: %w", err)
-			}
-
-			for _, line := range invoice.Line {
-				if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-					item, err := schemaGen(line, invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-					}
-					items = append(items, item)
-				}
-				if line.DetailType == "GroupLineDetail" {
-					for _, groupLine := range line.GroupLineDetail.Line {
-						item, err := schemaGen(groupLine, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-						}
-						item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
-						item["group_line_id"] = line.Id
-						items = append(items, item)
-					}
-					item, err := schemaGen(line, invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-					}
-					items = append(items, item)
-				}
-			}
-
-			// check for lines in cache but not in cdc response
-			if _, ok := cacheEntry.Entries[invoice.Id]; ok {
-				cachedIds := cacheEntry.Entries[invoice.Id]
-				for cachedId := range cachedIds {
-					if !sourceItemIds[cachedId] {
-						items = append(items, map[string]any{
-							"id":           cachedId,
-							"__syncAction": fibery.REMOVE,
-						})
-					}
-				}
-			}
-
-			// update cache with new line ids
-			cacheEntry.Entries[invoice.Id] = sourceItemIds
-		}
-		return items, nil
-	},
-}
-
-func init() {
-	RegisterType(Invoice)
-	RegisterType(InvoiceLine)
 }

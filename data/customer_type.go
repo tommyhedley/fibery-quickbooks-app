@@ -11,15 +11,19 @@ var CustomerType = QuickBooksCDCType{
 			id:   "CustomerType",
 			name: "Customer Type",
 			schema: map[string]fibery.Field{
-				"id": {
-					Name: "id",
+				"Id": {
+					Name: "ID",
 					Type: fibery.Text,
 				},
-				"name": {
+				"QBOId": {
+					Name: "QBO ID",
+					Type: fibery.Text,
+				},
+				"Name": {
 					Name: "Name",
 					Type: fibery.Text,
 				},
-				"sync_token": {
+				"SyncToken": {
 					Name:     "Sync Token",
 					Type:     fibery.Text,
 					ReadOnly: true,
@@ -28,9 +32,30 @@ var CustomerType = QuickBooksCDCType{
 					Type: fibery.Text,
 					Name: "Sync Action",
 				},
+				"Active": {
+					Name:    "Active",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
 			},
 		},
-		schemaGen:      func(entity any) (map[string]any, error) {},
+		schemaGen: func(entity any) (map[string]any, error) {
+			customerType, ok := entity.(quickbooks.CustomerType)
+			if !ok {
+				return nil, fmt.Errorf("unable to convert entity to CustomerType")
+			}
+
+			data := map[string]any{
+				"Id":           customerType.Id,
+				"QBOId":        customerType.Id,
+				"Name":         customerType.Name,
+				"SyncToken":    customerType.SyncToken,
+				"__syncAction": fibery.SET,
+				"Active":       customerType.Active,
+			}
+
+			return data, nil
+		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
 	},
