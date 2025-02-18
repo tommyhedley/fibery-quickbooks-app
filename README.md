@@ -7,7 +7,7 @@ Fibery-quickbooks-app is a custom integration app for fibery.io. It pulls implem
 [QuickBooks Online API Docs](https://developer.intuit.com/app/developer/qbo/docs/get-started)
 
 ## Environment Variables
-Fibery-quickbooks-app uses a number of enviroment variables to spefic QuickBooks API parameters. For testing I use a .env file and for production you options will vary depending on how it is hosted. They are as follows:
+Fibery-quickbooks-app uses a number of enviroment variables to specific QuickBooks API parameters. For testing I use a .env file and for production you options will vary depending on how it is hosted. They are as follows:
 ```shell
 # Mode
 # Options: "production" or "sandbox"
