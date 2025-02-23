@@ -1,6 +1,8 @@
 package data
 
 import (
+	"fmt"
+
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
@@ -157,7 +159,7 @@ var Employee = QuickBooksDualType{
 				return nil, fmt.Errorf("unable to convert entity to Employee")
 			}
 
-			data := map[string]any{
+			return map[string]any{
 				"Id":                employee.Id,
 				"QBOId":             employee.Id,
 				"DisplayName":       employee.DisplayName,
@@ -187,9 +189,7 @@ var Employee = QuickBooksDualType{
 				"AddressCountry":    employee.PrimaryAddr.Country,
 				"AddressLat":        employee.PrimaryAddr.Lat,
 				"AddressLong":       employee.PrimaryAddr.Long,
-			}
-
-			return data, nil
+			}, nil
 		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},

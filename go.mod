@@ -13,5 +13,5 @@ require (
 
 require (
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/tommyhedley/quickbooks-go v0.0.0-20250217023801-32ca969f480c // indirect
+	github.com/tommyhedley/quickbooks-go v0.0.0-20250223071031-3b6d1684bfa7 // indirect
 )

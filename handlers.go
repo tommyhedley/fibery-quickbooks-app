@@ -23,12 +23,12 @@ import (
 )
 
 type Integration struct {
-	cache        *cache.Cache
-	group        *singleflight.Group
-	discoveryAPI *quickbooks.DiscoveryAPI
 	appConfig    fibery.AppConfig
 	syncConfig   fibery.SyncConfig
 	types        map[string]*data.Type
+	cache        *cache.Cache
+	group        *singleflight.Group
+	discoveryAPI *quickbooks.DiscoveryAPI
 }
 
 func (i *Integration) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -194,6 +194,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 
 	req := data.Request{
 		StartPosition:     startPosition,
+		PageSize:          quickbooks.QueryPageSize,
 		OperationId:       params.OperationID,
 		LastSynced:        lastSynced,
 		RequestedType:     params.RequestedType,
@@ -209,7 +210,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 	types := *typePointer
 
 	switch datatype := types.(type) {
-	case data.DepCDCQueryable:
+	case data.DependentCDCQueryable:
 		cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, req.RequestedType)
 		cacheEntry, found := i.cache.Get(cacheKey)
 		if req.LastSynced.IsZero() || !found {

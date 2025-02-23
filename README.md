@@ -8,27 +8,25 @@ Fibery-quickbooks-app is a custom integration app for fibery.io. It pulls implem
 
 ## Environment Variables
 Fibery-quickbooks-app uses a number of enviroment variables to spefic QuickBooks API parameters. For testing I use a .env file and for production you options will vary depending on how it is hosted. They are as follows:
-
-#### Mode
-> [!Note]
-> Options: "production" or "sandbox"
-
+```
+# Mode
+# Options: "production" or "sandbox"
 MODE="sandbox"
 
-#### Server Configuration
+# Server Configuration
 PORT="8080"
 LOGGER_LEVEL="info"
 LOGGER_STYLE="json"
 
-#### Quickbooks Configuration 
+# Quickbooks Configuration 
 MINOR_VERSION="75"
 SCOPE="com.intuit.quickbooks.accounting openid profile email phone address"
 WEBHOOK_TOKEN=""
 
-#### Quickbooks Token Refresh Before Expiration Time (In Seconds)
+# Quickbooks Token Refresh Before Expiration Time (In Seconds)
 TOKEN_REFRESH_BEFORE_EXPIRATION="600"
 
-#### Quickbooks Discover URLS
+# Quickbooks Discover URLS
 DISCOVERY_SANDBOX_ENDPOINT="https://developer.api.intuit.com/.well-known/openid_sandbox_configuration"
 DISCOVERY_PRODUCTION_ENDPOINT="https://developer.api.intuit.com/.well-known/openid_configuration"
 
@@ -36,12 +34,12 @@ DISCOVERY_PRODUCTION_ENDPOINT="https://developer.api.intuit.com/.well-known/open
 SANDBOX_ENDPOINT="https://sandbox-quickbooks.api.intuit.com"
 PRODUCTION_ENDPONT="https://quickbooks.api.intuit.com"
 
-#### Quickbooks Client IDs and Secrets
+# Quickbooks Client IDs and Secrets
 OAUTH_CLIENT_ID_SANDBOX=""
 OAUTH_CLIENT_SECRET_SANDBOX=""
 OAUTH_CLIENT_ID_PRODUCTION=""
 OAUTH_CLIENT_SECRET_PRODUCTION=""
-
+```
 ## Data Types
 > [!Note]
 > This app does not comprehensivley implement all possible datatypes. Please feel free to fork if you would like to implement more types.

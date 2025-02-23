@@ -1,6 +1,8 @@
 package data
 
 import (
+	"fmt"
+
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
@@ -311,7 +313,7 @@ var Customer = QuickBooksDualType{
 				job = customer.Job.Bool
 			}
 
-			data := map[string]any{
+			return map[string]any{
 				"Id":                 customer.Id,
 				"QBOId":              customer.Id,
 				"DisplayName":        customer.DisplayName,
@@ -365,8 +367,7 @@ var Customer = QuickBooksDualType{
 				"SalesTermId":        customer.SalesTermRef.Value,
 				"PaymentMethodId":    customer.PaymentMethodRef.Value,
 				"ParentId":           customer.ParentRef.Value,
-			}
-			return data, nil
+			}, nil
 		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},

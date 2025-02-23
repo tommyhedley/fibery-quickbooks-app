@@ -497,7 +497,7 @@ var BillAccountLine = DependentDualType{
 				billed = true
 			}
 
-			data := map[string]any{
+			return map[string]any{
 				"Id":              fmt.Sprintf("%s:a:%s", bill.Id, line.Id),
 				"QBOId":           line.Id,
 				"Description":     line.Description,
@@ -513,9 +513,7 @@ var BillAccountLine = DependentDualType{
 				"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
 				"ClassId":         line.AccountBasedExpenseLineDetail.ClassRef.Value,
 				"MarkupAccountId": line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
-			}
-
-			return data, nil
+			}, nil
 		},
 		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {},
 	},

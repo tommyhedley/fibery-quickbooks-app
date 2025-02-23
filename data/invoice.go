@@ -15,272 +15,217 @@ var Invoice = QuickBooksDualType{
 			id:   "Invoice",
 			name: "Invoice",
 			schema: map[string]fibery.Field{
-				"id": {
-					Name: "id",
+				"Id": {
+					Name: "ID",
 					Type: fibery.ID,
 				},
-				"qbo_id": {
+				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
-				"name": {
+				"Name": {
 					Name: "Name",
 					Type: fibery.Text,
 				},
-				"sync_token": {
+				"SyncToken": {
 					Name:     "Sync Token",
 					Type:     fibery.Text,
 					ReadOnly: true,
 				},
-
-				"customer_id": {
-					Name: "Customer ID",
+				"__syncAction": {
 					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Customer",
-						TargetName:    "Invoices",
-						TargetType:    "Customer",
-						TargetFieldID: "id",
-					},
+					Name: "Sync Action",
 				},
-				"shipping_line_1": {
+				"ShippingFromLine1": {
+					Name: "Sale Line 1",
+					Type: fibery.Text,
+				},
+				"ShippingFromLine2": {
+					Name: "Sale Line 2",
+					Type: fibery.Text,
+				},
+				"ShippingFromLine3": {
+					Name: "Sale Line 3",
+					Type: fibery.Text,
+				},
+				"ShippingFromLine4": {
+					Name: "Sale Line 4",
+					Type: fibery.Text,
+				},
+				"ShippingFromLine5": {
+					Name: "Sale Line 5",
+					Type: fibery.Text,
+				},
+				"ShippingFromCity": {
+					Name: "Sale City",
+					Type: fibery.Text,
+				},
+				"ShippingFromState": {
+					Name: "Sale State",
+					Type: fibery.Text,
+				},
+				"ShippingFromPostalCode": {
+					Name: "Sale Postal Code",
+					Type: fibery.Text,
+				},
+				"ShippingFromCountry": {
+					Name: "Sale Country",
+					Type: fibery.Text,
+				},
+				"shippingFromLat": {
+					Name: "Sale Latitude",
+					Type: fibery.Text,
+				},
+				"ShippingFromLong": {
+					Name: "Sale Longitude",
+					Type: fibery.Text,
+				},
+				"ShippingLine1": {
 					Name: "Shipping Line 1",
 					Type: fibery.Text,
 				},
-				"shipping_line_2": {
+				"ShippingLine2": {
 					Name: "Shipping Line 2",
 					Type: fibery.Text,
 				},
-				"shipping_line_3": {
+				"ShippingLine3": {
 					Name: "Shipping Line 3",
 					Type: fibery.Text,
 				},
-				"shipping_line_4": {
+				"ShippingLine4": {
 					Name: "Shipping Line 4",
 					Type: fibery.Text,
 				},
-				"shipping_line_5": {
+				"ShippingLine5": {
 					Name: "Shipping Line 5",
 					Type: fibery.Text,
 				},
-				"shipping_city": {
+				"ShippingCity": {
 					Name: "Shipping City",
 					Type: fibery.Text,
 				},
-				"shipping_state": {
+				"ShippingState": {
 					Name: "Shipping State",
 					Type: fibery.Text,
 				},
-				"shipping_postal_code": {
+				"ShippingPostalCode": {
 					Name: "Shipping Postal Code",
 					Type: fibery.Text,
 				},
-				"shipping_country": {
+				"ShippingCountry": {
 					Name: "Shipping Country",
 					Type: fibery.Text,
 				},
-				"shipping_lat": {
+				"ShippingLat": {
 					Name: "Shipping Latitude",
 					Type: fibery.Text,
 				},
-				"shipping_long": {
+				"ShippingLong": {
 					Name: "Shipping Longitude",
 					Type: fibery.Text,
 				},
-				"billing_line_1": {
+				"BillingLine1": {
 					Name: "Billing Line 1",
 					Type: fibery.Text,
 				},
-				"billing_line_2": {
+				"BillingLine2": {
 					Name: "Billing Line 2",
 					Type: fibery.Text,
 				},
-				"billing_line_3": {
+				"BillingLine3": {
 					Name: "Billing Line 3",
 					Type: fibery.Text,
 				},
-				"billing_line_4": {
+				"BillingLine4": {
 					Name: "Billing Line 4",
 					Type: fibery.Text,
 				},
-				"billing_line_5": {
+				"BillingLine5": {
 					Name: "Billing Line 5",
 					Type: fibery.Text,
 				},
-				"billing_city": {
+				"BillingCity": {
 					Name: "Billing City",
 					Type: fibery.Text,
 				},
-				"billing_state": {
+				"BillingState": {
 					Name: "Billing State",
 					Type: fibery.Text,
 				},
-				"billing_postal_code": {
+				"BillingPostalCode": {
 					Name: "Billing Postal Code",
 					Type: fibery.Text,
 				},
-				"billing_country": {
+				"BillingCountry": {
 					Name: "Billing Country",
 					Type: fibery.Text,
 				},
-				"billing_lat": {
+				"BillingLat": {
 					Name: "Billing Latitude",
 					Type: fibery.Text,
 				},
-				"billing_long": {
+				"BillingLong": {
 					Name: "Billing Longitude",
 					Type: fibery.Text,
 				},
-				"invoice_num": {
+				"DocNumber": {
 					Name: "Number",
 					Type: fibery.Text,
 				},
-				"email": {
+				"Email": {
 					Name:    "To",
 					Type:    fibery.Text,
 					SubType: fibery.Email,
 				},
-				"email_cc": {
+				"EmailCC": {
 					Name:    "CC",
 					Type:    fibery.Text,
 					SubType: fibery.Email,
 				},
-				"email_bcc": {
+				"EmailBCC": {
 					Name:    "BCC",
 					Type:    fibery.Text,
 					SubType: fibery.Email,
 				},
-				"email_status": {
-					Name:     "Email Status",
-					Type:     fibery.Text,
-					SubType:  fibery.SingleSelect,
-					ReadOnly: true,
-					Options: []map[string]any{
-						{
-							"name": "Need To Send",
-						},
-						{
-							"name": "Sent",
-						},
-					},
+				"EmailSendLater": {
+					Name:    "Send Later",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
 				},
-				"email_send_time": {
+				"EmailSent": {
+					Name:    "Sent",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"EmailSendTime": {
 					Name: "Send Time",
 					Type: fibery.DateType,
 				},
-				"txn_date": {
-					Name: "Invoice Date",
+				"TxnDate": {
+					Name: "Date",
 					Type: fibery.DateType,
 				},
-				"due_date": {
+				"DueDate": {
 					Name: "Due Date",
 					Type: fibery.DateType,
 				},
-				"class_id": {
-					Name: "Class ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Class",
-						TargetName:    "Invoices",
-						TargetType:    "Class",
-						TargetFieldID: "id",
-					},
-				},
-				"print_status": {
-					Name:     "Print Status",
-					Type:     fibery.Text,
-					SubType:  fibery.SingleSelect,
-					ReadOnly: true,
-					Options: []map[string]any{
-						{
-							"name": "Need To Print",
-						},
-						{
-							"name": "Print Complete",
-						},
-					},
-				},
-				"sales_term_id": {
-					Name: "Sales Term ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Terms",
-						TargetName:    "Invoices",
-						TargetType:    "Term",
-						TargetFieldID: "id",
-					},
-				},
-				"private_note": {
+				"PrivateNote": {
 					Name:    "Message on Statement",
 					Type:    fibery.Text,
 					SubType: fibery.MD,
 				},
-				"customer_memo": {
-					Name: "Message on Invoice",
-					Type: fibery.Text,
-				},
-				"allow_ach": {
-					Name:    "ACH Payments",
+				"CustomerMemo": {
+					Name:    "Message on Invoice",
 					Type:    fibery.Text,
-					SubType: fibery.Boolean,
+					SubType: fibery.MD,
 				},
-				"allow_cc": {
-					Name:    "Credit Card Payments",
-					Type:    fibery.Text,
-					SubType: fibery.Boolean,
+				"DiscountPosition": {
+					Name:        "Discount Before Tax",
+					Type:        fibery.Text,
+					SubType:     fibery.Boolean,
+					Description: "Should the discount be applied before or after the sales tax calculation? Default is false as tax should generally be calculated first before a discount is given.",
 				},
-				"tax_code_id": {
-					Name: "Tax Code ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Sales Tax Rate",
-						TargetName:    "Invoices",
-						TargetType:    "TaxCode",
-						TargetFieldID: "id",
-					},
-				},
-				"tax_position": {
-					Name:     "Apply Tax",
-					Type:     fibery.Text,
-					SubType:  fibery.SingleSelect,
-					ReadOnly: true,
-					Options: []map[string]any{
-						{
-							"name":    "Before Discount",
-							"default": true,
-						},
-						{
-							"name": "After Discount",
-						},
-					},
-				},
-				"tax_exemption_id": {
-					Name: "Tax Exemption ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Tax Exemption",
-						TargetName:    "Invoices",
-						TargetType:    "TaxExemption",
-						TargetFieldID: "id",
-					},
-				},
-				"deposit_account_id": {
-					Name: "Deposit Account ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Deposit Account",
-						TargetName:    "Invoice Deposits",
-						TargetType:    "Account",
-						TargetFieldID: "id",
-					},
-				},
-				"deposit_field": {
+				"DepositField": {
 					Name: "Deposit Amount",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -290,7 +235,7 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"discount_type": {
+				"DiscountType": {
 					Name:     "Discount Type",
 					Type:     fibery.Text,
 					SubType:  fibery.SingleSelect,
@@ -304,7 +249,7 @@ var Invoice = QuickBooksDualType{
 						},
 					},
 				},
-				"discount_percent": {
+				"DiscountPercent": {
 					Name: "Discount Percent",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -312,7 +257,7 @@ var Invoice = QuickBooksDualType{
 						"precision": 2,
 					},
 				},
-				"discount_amount": {
+				"DiscountAmount": {
 					Name: "Discount Amount",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -322,7 +267,7 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"tax": {
+				"Tax": {
 					Name: "Tax",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -332,7 +277,7 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"subtotal": {
+				"SubtotalAmt": {
 					Name: "Subtotal",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -342,7 +287,7 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"total": {
+				"TotalAmt": {
 					Name: "Total",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -352,7 +297,7 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"balance": {
+				"Balance": {
 					Name: "Balance",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -362,9 +307,81 @@ var Invoice = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"__syncAction": {
+				"AllowACH": {
+					Name:    "ACH Payments",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"AllowCC": {
+					Name:    "Credit Card Payments",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"ClassId": {
+					Name: "Class ID",
 					Type: fibery.Text,
-					Name: "Sync Action",
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Class",
+						TargetName:    "Invoices",
+						TargetType:    "Class",
+						TargetFieldID: "Id",
+					},
+				},
+				"SalesTermId": {
+					Name: "Sales Term ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Terms",
+						TargetName:    "Invoices",
+						TargetType:    "Term",
+						TargetFieldID: "Id",
+					},
+				},
+				"TaxCodeId": {
+					Name: "Tax Code ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Sales Tax Rate",
+						TargetName:    "Invoices",
+						TargetType:    "TaxCode",
+						TargetFieldID: "Id",
+					},
+				},
+				"TaxExemptionId": {
+					Name: "Tax Exemption ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Tax Exemption",
+						TargetName:    "Invoices",
+						TargetType:    "TaxExemption",
+						TargetFieldID: "Id",
+					},
+				},
+				"DepositAccountId": {
+					Name: "Deposit Account ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Deposit Account",
+						TargetName:    "Invoice Deposits",
+						TargetType:    "Account",
+						TargetFieldID: "Id",
+					},
+				},
+				"CustomerId": {
+					Name: "Customer ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Customer",
+						TargetName:    "Estimates",
+						TargetType:    "Customer",
+						TargetFieldID: "Id",
+					},
 				},
 			},
 		},
@@ -373,28 +390,11 @@ var Invoice = QuickBooksDualType{
 			if !ok {
 				return nil, fmt.Errorf("unable to convert entity to invoice")
 			}
-			var emailStatus = map[string]string{
-				"NotSet":     "",
-				"NeedToSend": "Need To Send",
-				"EmailSent":  "Sent",
-			}
-
-			var printStatus = map[string]string{
-				"NotSet":        "",
-				"NeedToPrint":   "Need To Print",
-				"PrintComplete": "Print Complete",
-			}
-
-			var taxPosition = map[bool]string{
-				true:  "After Discount",
-				false: "Before Discount",
-			}
 
 			var discountType = map[bool]string{
 				true:  "Percentage",
 				false: "Amount",
 			}
-			var data map[string]any
 			var discountLine *quickbooks.Line
 			var subtotalLine *quickbooks.Line
 			for _, line := range invoice.Line {
@@ -412,8 +412,12 @@ var Invoice = QuickBooksDualType{
 				}
 			}
 
+			if subtotalLine == nil {
+				return nil, fmt.Errorf("estimate %s has no subtotal lines", invoice.Id)
+			}
+
 			var discountTypeValue string
-			var discountPercent float32
+			var discountPercent json.Number
 			var discountAmount json.Number
 
 			if discountLine != nil {
@@ -439,69 +443,76 @@ var Invoice = QuickBooksDualType{
 				name = invoice.DocNumber + " " + invoice.CustomerRef.Name
 			}
 
-			data = map[string]any{
-				"id":                   invoice.Id,
-				"qbo_id":               invoice.Id,
-				"name":                 name,
-				"customer_id":          invoice.CustomerRef.Value,
-				"sync_token":           invoice.SyncToken,
-				"shipping_line_1":      invoice.ShipAddr.Line1,
-				"shipping_line_2":      invoice.ShipAddr.Line2,
-				"shipping_line_3":      invoice.ShipAddr.Line3,
-				"shipping_line_4":      invoice.ShipAddr.Line4,
-				"shipping_line_5":      invoice.ShipAddr.Line5,
-				"shipping_city":        invoice.ShipAddr.City,
-				"shipping_state":       invoice.ShipAddr.CountrySubDivisionCode,
-				"shipping_postal_code": invoice.ShipAddr.PostalCode,
-				"shipping_country":     invoice.ShipAddr.Country,
-				"shipping_lat":         invoice.ShipAddr.Lat,
-				"shipping_long":        invoice.ShipAddr.Long,
-				"billing_line_1":       invoice.BillAddr.Line1,
-				"billing_line_2":       invoice.BillAddr.Line2,
-				"billing_line_3":       invoice.BillAddr.Line3,
-				"billing_line_4":       invoice.BillAddr.Line4,
-				"billing_line_5":       invoice.BillAddr.Line5,
-				"billing_city":         invoice.BillAddr.City,
-				"billing_state":        invoice.BillAddr.CountrySubDivisionCode,
-				"billing_postal_code":  invoice.BillAddr.PostalCode,
-				"billing_country":      invoice.BillAddr.Country,
-				"billing_lat":          invoice.BillAddr.Lat,
-				"billing_long":         invoice.BillAddr.Long,
-				"invoice_num":          invoice.DocNumber,
-				"email":                invoice.BillEmail.Address,
-				"email_cc":             invoice.BillEmailCC.Address,
-				"email_bcc":            invoice.BillEmailBCC.Address,
-				"email_status":         emailStatus[invoice.EmailStatus],
-				"email_send_time":      emailSendTime,
-				"txn_date":             invoice.TxnDate.Format(fibery.DateFormat),
-				"due_date":             invoice.DueDate.Format(fibery.DateFormat),
-				"class_id":             invoice.ClassRef.Value,
-				"print_status":         printStatus[invoice.PrintStatus],
-				"term_id":              invoice.SalesTermRef.Value,
-				"private_note":         invoice.PrivateNote,
-				"customer_memo":        invoice.CustomerMemo.Value,
-				"allow_ach":            invoice.AllowOnlineACHPayment,
-				"allow_cc":             invoice.AllowOnlineCreditCardPayment,
-				"tax_code_id":          invoice.TxnTaxDetail.TxnTaxCodeRef.Value,
-				"tax_position":         taxPosition[invoice.ApplyTaxAfterDiscount],
-				"tax_exemption_id":     invoice.TaxExemptionRef.Value,
-				"deposit_account_id":   invoice.DepositToAccountRef.Value,
-				"deposit_field":        invoice.Deposit,
-				"discount_type":        discountTypeValue,
-				"discount_percent":     discountPercent,
-				"discount_amount":      discountAmount,
-				"tax":                  invoice.TxnTaxDetail.TotalTax,
-				"subtotal":             subtotalAmount,
-				"total":                invoice.TotalAmt,
-				"balance":              invoice.Balance,
-				"created_qbo":          invoice.MetaData.CreateTime.Format(fibery.DateFormat),
-				"last_updated_qbo":     invoice.MetaData.LastUpdatedTime.Format(fibery.DateFormat),
-				"__syncAction":         fibery.SET,
-			}
-			return data, nil
+			return map[string]any{
+				"Id":                     invoice.Id,
+				"QBOId":                  invoice.Id,
+				"Name":                   name,
+				"SyncToken":              invoice.SyncToken,
+				"__syncAction":           fibery.SET,
+				"ShippingLine1":          invoice.ShipAddr.Line1,
+				"ShippingLine2":          invoice.ShipAddr.Line2,
+				"ShippingLine3":          invoice.ShipAddr.Line3,
+				"ShippingLine4":          invoice.ShipAddr.Line4,
+				"ShippingLine5":          invoice.ShipAddr.Line5,
+				"ShippingCity":           invoice.ShipAddr.City,
+				"ShippingState":          invoice.ShipAddr.CountrySubDivisionCode,
+				"ShippingPostalCode":     invoice.ShipAddr.PostalCode,
+				"ShippingCountry":        invoice.ShipAddr.Country,
+				"ShippingLat":            invoice.ShipAddr.Lat,
+				"ShippingLong":           invoice.ShipAddr.Long,
+				"ShippingFromLine1":      invoice.ShipFromAddr.Line1,
+				"ShippingFromLine2":      invoice.ShipFromAddr.Line2,
+				"ShippingFromLine3":      invoice.ShipFromAddr.Line3,
+				"ShippingFromLine4":      invoice.ShipFromAddr.Line4,
+				"ShippingFromLine5":      invoice.ShipFromAddr.Line5,
+				"ShippingFromCity":       invoice.ShipFromAddr.City,
+				"ShippingFromState":      invoice.ShipFromAddr.CountrySubDivisionCode,
+				"ShippingFromPostalCode": invoice.ShipFromAddr.PostalCode,
+				"ShippingFromCountry":    invoice.ShipFromAddr.Country,
+				"ShippingFromLat":        invoice.ShipFromAddr.Lat,
+				"ShippingFromLong":       invoice.ShipFromAddr.Long,
+				"BillingLine1":           invoice.BillAddr.Line1,
+				"BillingLine2":           invoice.BillAddr.Line2,
+				"BillingLine3":           invoice.BillAddr.Line3,
+				"BillingLine4":           invoice.BillAddr.Line4,
+				"BillingLine5":           invoice.BillAddr.Line5,
+				"BillingCity":            invoice.BillAddr.City,
+				"BillingState":           invoice.BillAddr.CountrySubDivisionCode,
+				"BillingPostalCode":      invoice.BillAddr.PostalCode,
+				"BillingCountry":         invoice.BillAddr.Country,
+				"BillingLat":             invoice.BillAddr.Lat,
+				"BillingLong":            invoice.BillAddr.Long,
+				"DocNumber":              invoice.DocNumber,
+				"Email":                  invoice.BillEmail.Address,
+				"EmailCC":                invoice.BillEmailCC.Address,
+				"EmailBCC":               invoice.BillEmailBCC.Address,
+				"EmailSendLater":         invoice.EmailStatus == "NeedToSend",
+				"EmailSent":              invoice.EmailStatus == "EmailSent",
+				"EmailSendTime":          emailSendTime,
+				"TxnDate":                invoice.TxnDate.Format(fibery.DateFormat),
+				"DueDate":                invoice.DueDate.Format(fibery.DateFormat),
+				"PrivateNote":            invoice.PrivateNote,
+				"CustomerMemo":           invoice.CustomerMemo.Value,
+				"DiscountPosition":       invoice.ApplyTaxAfterDiscount,
+				"DepositField":           invoice.Deposit,
+				"DiscountType":           discountTypeValue,
+				"DiscountPercent":        discountPercent,
+				"DiscountAmount":         discountAmount,
+				"Tax":                    invoice.TxnTaxDetail.TotalTax,
+				"SubtotalAmt":            subtotalAmount,
+				"TotalAmt":               invoice.TotalAmt,
+				"Balance":                invoice.Balance,
+				"AllowACH":               invoice.AllowOnlineACHPayment,
+				"AllowCC":                invoice.AllowOnlineCreditCardPayment,
+				"ClassId":                invoice.ClassRef.Value,
+				"TaxCodeId":              invoice.TxnTaxDetail.TxnTaxCodeRef.Value,
+				"TaxExemptionId":         invoice.TaxExemptionRef.Value,
+				"DepositAccountId":       invoice.DepartmentRef.Value,
+				"CustomerId":             invoice.CustomerRef.Value,
+			}, nil
 		},
 		query: func(req Request) (Response, error) {
-			invoices, err := req.Client.FindInvoicesByPage(req.StartPosition)
+			invoices, err := req.Client.FindInvoicesByPage(req.StartPosition, req.PageSize)
 			if err != nil {
 				return Response{}, fmt.Errorf("unable to find invoices: %w", err)
 			}
@@ -562,7 +573,7 @@ var Invoice = QuickBooksDualType{
 			if dependents, ok := SourceDependents[typeId]; ok {
 				for _, dependentPointer := range dependents {
 					// change type assertion to WHType
-					dependent := (*dependentPointer).(DepWHQueryable)
+					dependent := (*dependentPointer).(DependentWHQueryable)
 					cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
 					if cacheEntry, found := cache.Get(cacheKey); found {
 						cacheEntry, ok := cacheEntry.(*IdCache)
@@ -588,55 +599,38 @@ var InvoiceLine = DependentDualType{
 			id:   "InvoiceLine",
 			name: "Invoice Line",
 			schema: map[string]fibery.Field{
-				"id": {
-					Name: "id",
+				"Id": {
+					Name: "ID",
 					Type: fibery.ID,
 				},
-				"qbo_id": {
+				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
-				"invoice_sync_token": {
-					Name:     "Invoice Sync Token",
-					Type:     fibery.Text,
-					ReadOnly: true,
-				},
-				"invoice_id": {
-					Name: "Invoice ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Invoice",
-						TargetName:    "Invoice Lines",
-						TargetType:    "Invoice",
-						TargetFieldID: "id",
-					},
-				},
-				"description": {
+				"Description": {
 					Name:    "Description",
 					Type:    fibery.Text,
 					SubType: fibery.Title,
 				},
-				"line_type": {
-					Name:    "Line Type",
-					Type:    fibery.Text,
-					SubType: fibery.SingleSelect,
-					Options: []map[string]any{
-						{
-							"name": "Sales Item",
-						},
-						{
-							"name": "Group",
-						},
-						{
-							"name": "Description",
-						},
-						{
-							"name": "Group",
-						},
-					},
+				"__syncAction": {
+					Type: fibery.Text,
+					Name: "Sync Action",
 				},
-				"quantity": {
+				"LineNum": {
+					Name: "Line",
+					Type: fibery.Number,
+				},
+				"Taxed": {
+					Name:    "Taxed",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"ServiceDate": {
+					Name:    "Service Date",
+					Type:    fibery.DateType,
+					SubType: fibery.Day,
+				},
+				"Qty": {
 					Name: "Quantity",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -645,7 +639,7 @@ var InvoiceLine = DependentDualType{
 						"precision":            2,
 					},
 				},
-				"unit_price": {
+				"UnitPrice": {
 					Name: "Unit Price",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -655,7 +649,7 @@ var InvoiceLine = DependentDualType{
 						"precision":            2,
 					},
 				},
-				"amount": {
+				"Amount": {
 					Name: "Amount",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -665,121 +659,89 @@ var InvoiceLine = DependentDualType{
 						"precision":            2,
 					},
 				},
-				"line_num": {
-					Name:    "Line",
-					Type:    fibery.Number,
-					SubType: fibery.Integer,
-				},
-				"group_line_id": {
+				"GroupLineId": {
 					Name: "Group Line ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Group",
 						TargetName:    "Lines",
-						TargetType:    "InvoiceLine",
-						TargetFieldID: "id",
+						TargetType:    "EstimateLine",
+						TargetFieldID: "Id",
 					},
 				},
-				"item_id": {
+				"ItemId": {
 					Name: "Item",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Item",
-						TargetName:    "Invoice Lines",
+						TargetName:    "Estimate Lines",
 						TargetType:    "Item",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"class_id": {
+				"ClassId": {
 					Name: "Class ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Class",
-						TargetName:    "Expense Account Line(s)",
+						TargetName:    "Expense Lines",
 						TargetType:    "Class",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"tax_code_id": {
-					Name: "Tax Code ID",
+				"InvoiceId": {
+					Name: "Estimate ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
-						Name:          "Tax Code",
-						TargetName:    "Invoice Lines",
-						TargetType:    "TaxCode",
-						TargetFieldID: "id",
+						Name:          "Invoice",
+						TargetName:    "Lines",
+						TargetType:    "Invoice",
+						TargetFieldID: "Id",
 					},
 				},
-				"markup_percent": {
-					Name: "Markup",
-					Type: fibery.Number,
-					Format: map[string]any{
-						"format":    "Percent",
-						"precision": 2,
-					},
-				},
-				"service_date": {
-					Name:    "Date",
-					Type:    fibery.DateType,
-					SubType: fibery.Day,
-				},
-				"__syncAction": {
-					Type: fibery.Text,
-					Name: "Sync Action",
-				}},
+			},
 		},
 		schemaGen: func(entity any, source any) (map[string]any, error) {
 			line, ok := entity.(quickbooks.Line)
 			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to invoice line")
+				return nil, fmt.Errorf("unable to convert entity to Line")
 			}
 
 			invoice, ok := source.(quickbooks.Invoice)
 			if !ok {
-				return nil, fmt.Errorf("unable to convert source to invoice")
+				return nil, fmt.Errorf("unable to convert source to Invoice")
 			}
 
-			var lineTypes = map[string]string{
-				"SalesItemLineDetail": "Sales Item Line",
-				"GroupLineDetail":     "Group Line",
-				"DescriptionOnly":     "Description Line",
-			}
-
-			if line.DetailType == "GroupLineDetail" {
+			if line.DetailType == quickbooks.GroupLine {
 				return map[string]any{
-					"id":                 fmt.Sprintf("%s:%s", invoice.Id, line.Id),
-					"qbo_id":             line.Id,
-					"invoice_sync_token": invoice.SyncToken,
-					"invoice_id":         invoice.Id,
-					"description":        line.Description,
-					"line_type":          lineTypes[line.DetailType],
-					"quantity":           line.GroupLineDetail.Quantity,
-					"line_num":           line.LineNum,
-					"item_id":            line.GroupLineDetail.GroupItemRef.Value,
-					"__syncAction":       fibery.SET,
+					"Id":           fmt.Sprintf("%s:%s", invoice.Id, line.Id),
+					"QBOId":        line.Id,
+					"Description":  line.Description,
+					"__syncAction": fibery.SET,
+					"Qty":          line.GroupLineDetail.Quantity,
+					"LineNum":      line.LineNum,
+					"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+					"InvoiceId":    invoice.Id,
 				}, nil
-			} else if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
+			} else if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
 				return map[string]any{
-					"id":                 fmt.Sprintf("%s:%s", invoice.Id, line.Id),
-					"qbo_id":             line.Id,
-					"invoice_sync_token": invoice.SyncToken,
-					"invoice_id":         invoice.Id,
-					"description":        line.Description,
-					"type":               lineTypes[line.DetailType],
-					"quantity":           line.SalesItemLineDetail.Qty,
-					"unit_price":         line.SalesItemLineDetail.UnitPrice,
-					"amount":             line.Amount,
-					"line_num":           line.LineNum,
-					"item_id":            line.SalesItemLineDetail.ItemRef.Value,
-					"class_id":           line.SalesItemLineDetail.ClassRef.Value,
-					"tax_code_id":        line.SalesItemLineDetail.TaxCodeRef.Value,
-					"markup_percent":     line.SalesItemLineDetail.MarkupInfo.Percent,
-					"service_date":       line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
-					"__syncAction":       fibery.SET,
+					"Id":           fmt.Sprintf("%s:%s", invoice.Id, line.Id),
+					"QBOId":        line.Id,
+					"Description":  line.Description,
+					"__syncAction": fibery.SET,
+					"LineNum":      line.LineNum,
+					"Taxed":        line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
+					"ServiceDate":  line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
+					"Qty":          line.GroupLineDetail.Quantity,
+					"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
+					"Amount":       line.Amount,
+					"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+					"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
+					"InvoiceId":    invoice.Id,
 				}, nil
 			}
 			return nil, nil
@@ -787,31 +749,31 @@ var InvoiceLine = DependentDualType{
 		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
 			invoices, ok := sourceArray.([]quickbooks.Invoice)
 			if !ok {
-				return nil, fmt.Errorf("unable to convert sourceArray to invoices")
+				return nil, fmt.Errorf("unable to convert sourceArray to Invoices")
 			}
 			items := []map[string]any{}
 			for _, invoice := range invoices {
 				for _, line := range invoice.Line {
-					if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
+					if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
 						item, err := schemaGen(line, invoice)
 						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+							return nil, fmt.Errorf("unable to transform Line data: %w", err)
 						}
 						items = append(items, item)
 					}
-					if line.DetailType == "GroupLineDetail" {
+					if line.DetailType == quickbooks.GroupLine {
 						for _, groupLine := range line.GroupLineDetail.Line {
 							item, err := schemaGen(groupLine, invoice)
 							if err != nil {
-								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+								return nil, fmt.Errorf("unable to transform Line data: %w", err)
 							}
-							item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
-							item["group_line_id"] = line.Id
+							item["Id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
+							item["GroupLineId"] = line.Id
 							items = append(items, item)
 						}
 						item, err := schemaGen(line, invoice)
 						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
+							return nil, fmt.Errorf("unable to transform Line data: %w", err)
 						}
 						items = append(items, item)
 					}

@@ -2,6 +2,8 @@ package data
 
 import (
 	"fmt"
+
+	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
@@ -1018,15 +1020,63 @@ var Account = QuickBooksDualType{
 				"Classification":                account.Classification,
 				"AccountType":                   account.AccountType,
 				"AccountSubType":                account.AccountSubType,
-				"ParentAccountId":               account.ParentRef.Value,
+			}
+
+			if account.ParentRef != nil {
+				data["ParentAccountId"] = account.ParentRef.Value
 			}
 
 			return data, nil
 		},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		query: func(req Request) (Response, error) {
+			accounts, err := req.Client.FindInvoicesByPage(req.StartPosition, req.PageSize)
+			if err != nil {
+				return Response{}, fmt.Errorf("unable to find invoices: %w", err)
+			}
+
+			return Response{
+				Data:     accounts,
+				MoreData: len(accounts) >= quickbooks.QueryPageSize,
+			}, nil
+		},
+		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {
+			accounts, ok := entityArray.([]quickbooks.Account)
+			if !ok {
+				return nil, fmt.Errorf("unable to convert entityArray to accounts")
+			}
+			items := []map[string]any{}
+			for _, account := range accounts {
+				item, err := schemaGen(account)
+				if err != nil {
+					return nil, fmt.Errorf("unable to transform data: %w", err)
+				}
+				items = append(items, item)
+			}
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {
+		items := []map[string]any{}
+		for _, cdcResponse := range cdc.CDCResponse {
+			for _, queryResponse := range cdcResponse.QueryResponse {
+				for _, cdcAccount := range queryResponse.Account {
+					if cdcAccount.Status == "Deleted" {
+						items = append(items, map[string]any{
+							"id":           cdcAccount.Id,
+							"__syncAction": fibery.REMOVE,
+						})
+					} else {
+						item, err := schemaGen(cdcAccount.Account)
+						if err != nil {
+							return nil, fmt.Errorf("unable to transform data: %w", err)
+						}
+						items = append(items, item)
+					}
+				}
+			}
+		}
+		return items, nil
+	},
 	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
 	},
 }

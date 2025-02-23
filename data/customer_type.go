@@ -1,6 +1,8 @@
 package data
 
 import (
+	"fmt"
+
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
@@ -45,16 +47,14 @@ var CustomerType = QuickBooksCDCType{
 				return nil, fmt.Errorf("unable to convert entity to CustomerType")
 			}
 
-			data := map[string]any{
+			return map[string]any{
 				"Id":           customerType.Id,
 				"QBOId":        customerType.Id,
 				"Name":         customerType.Name,
 				"SyncToken":    customerType.SyncToken,
 				"__syncAction": fibery.SET,
 				"Active":       customerType.Active,
-			}
-
-			return data, nil
+			}, nil
 		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},

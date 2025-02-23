@@ -69,40 +69,37 @@ var Entity = QuickBooksDualType{
 			},
 		},
 		schemaGen: func(entity any) (map[string]any, error) {
-			var data = map[string]any{}
 			switch dataType := entity.(type) {
 			case quickbooks.Customer:
-				data = map[string]any{
+				return map[string]any{
 					"Id":           fmt.Sprintf("c:%s", dataType.Id),
 					"QBOId":        dataType.Id,
 					"Name":         dataType.DisplayName,
 					"SyncToken":    dataType.SyncToken,
 					"__syncAction": fibery.SET,
 					"CustomerId":   dataType.Id,
-				}
+				}, nil
 			case quickbooks.Vendor:
-				data = map[string]any{
+				return map[string]any{
 					"Id":           fmt.Sprintf("v:%s", dataType.Id),
 					"QBOId":        dataType.Id,
 					"Name":         dataType.DisplayName,
 					"SyncToken":    dataType.SyncToken,
 					"__syncAction": fibery.SET,
 					"CustomerId":   dataType.Id,
-				}
+				}, nil
 			case quickbooks.Employee:
-				data = map[string]any{
+				return map[string]any{
 					"Id":           fmt.Sprintf("e:%s", dataType.Id),
 					"QBOId":        dataType.Id,
 					"Name":         dataType.DisplayName,
 					"SyncToken":    dataType.SyncToken,
 					"__syncAction": fibery.SET,
 					"CustomerId":   dataType.Id,
-				}
+				}, nil
 			default:
 				return nil, fmt.Errorf("enitity was not one of: Customer, Vendor, Employee")
 			}
-
-			return data, nil
 		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},

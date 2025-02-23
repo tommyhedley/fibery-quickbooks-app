@@ -12,8 +12,9 @@ import (
 
 type Request struct {
 	StartPosition     int
-	OperationId       string
+	PageSize          int
 	LastSynced        time.Time
+	OperationId       string
 	RequestedType     string
 	RequestedTypes    []string
 	RequestedCDCTypes []string
@@ -60,7 +61,7 @@ type CDCQueryable interface {
 }
 
 // DepCDCQueryable limits Types to those whos source can be queried using QuickBooks Change Data Capture
-type DepCDCQueryable interface {
+type DependentCDCQueryable interface {
 	DependentType
 	MapType(sourceArray any) (map[string]map[string]bool, error)
 	ProcessCDC(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache) ([]map[string]any, error)
@@ -72,7 +73,7 @@ type WHQueryable interface {
 	ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error
 }
 
-type DepWHQueryable interface {
+type DependentWHQueryable interface {
 	DependentType
 	ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error)
 }

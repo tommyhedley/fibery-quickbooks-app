@@ -1,6 +1,11 @@
 package data
 
-import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+import (
+	"fmt"
+
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
+)
 
 var Item = QuickBooksDualType{
 	QuickBooksType: QuickBooksType{
@@ -8,48 +13,52 @@ var Item = QuickBooksDualType{
 			id:   "Item",
 			name: "Item",
 			schema: map[string]fibery.Field{
-				"id": {
-					Name: "id",
+				"Id": {
+					Name: "ID",
 					Type: fibery.ID,
 				},
-				"qbo_id": {
+				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
-				"sync_token": {
-					Name:     "Sync Token",
-					Type:     fibery.Text,
-					ReadOnly: true,
-				},
-				"active": {
-					Name:    "Active",
-					Type:    fibery.Text,
-					SubType: fibery.Boolean,
-				},
-				"name": {
+				"Name": {
 					Name: "Name",
 					Type: fibery.Text,
 				},
-				"fully_qualified_name": {
+				"FullyQualifiedName": {
 					Name:    "Full Name",
 					Type:    fibery.Text,
 					SubType: fibery.Title,
 				},
-				"description": {
+				"SyncToken": {
+					Name:     "Sync Token",
+					Type:     fibery.Text,
+					ReadOnly: true,
+				},
+				"__syncAction": {
+					Type: fibery.Text,
+					Name: "Sync Action",
+				},
+				"Active": {
+					Name:    "Active",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"Description": {
 					Name:    "Description",
 					Type:    fibery.Text,
 					SubType: fibery.MD,
 				},
-				"purchase description": {
+				"PurchaseDesc": {
 					Name: "Purchase Description",
 					Type: fibery.Text,
 				},
-				"inv_start_date": {
+				"InvStartDate": {
 					Name:    "Inventory Start",
 					Type:    fibery.DateType,
 					SubType: fibery.Day,
 				},
-				"type": {
+				"Type": {
 					Name:     "Type",
 					Type:     fibery.Text,
 					SubType:  fibery.SingleSelect,
@@ -66,7 +75,7 @@ var Item = QuickBooksDualType{
 						},
 					},
 				},
-				"qty_on_hand": {
+				"QtyOnHand": {
 					Name: "Quantity On Hand",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -75,7 +84,7 @@ var Item = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"reorder_point": {
+				"ReorderPoint": {
 					Name: "Reorder Quantity",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -84,54 +93,26 @@ var Item = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"asset_account_id": {
-					Name: "Asset Account ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Asset Account",
-						TargetName:    "Items",
-						TargetType:    "Account",
-						TargetFieldID: "id",
-					},
-				},
-				"expense_account_id": {
-					Name: "Expense Account ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Expense Account",
-						TargetName:    "Items",
-						TargetType:    "Account",
-						TargetFieldID: "id",
-					},
-				},
-				"income_account_id": {
-					Name: "Income Account ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Income Account",
-						TargetName:    "Items",
-						TargetType:    "Account",
-						TargetFieldID: "id",
-					},
-				},
-				"sku": {
+				"SKU": {
 					Name: "SKU",
 					Type: fibery.Text,
 				},
-				"sales_tax_included": {
+				"Taxable": {
+					Name:    "Taxable",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"SalesTaxIncluded": {
 					Name:    "Sales Tax Included",
 					Type:    fibery.Text,
 					SubType: fibery.Boolean,
 				},
-				"purchase_tax_included": {
+				"PurchaseTaxIncluded": {
 					Name:    "Purchase Tax Included",
 					Type:    fibery.Text,
 					SubType: fibery.Boolean,
 				},
-				"sales_tax_code_id": {
+				"SalesTaxCodeId": {
 					Name: "Sales Tax Code ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -139,10 +120,10 @@ var Item = QuickBooksDualType{
 						Name:          "Sales Tax",
 						TargetName:    "Sales Tax On Items",
 						TargetType:    "TaxCode",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"purchase_tax_code_id": {
+				"PurchaseTaxCodeId": {
 					Name: "Purchase Tax Code ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -150,10 +131,10 @@ var Item = QuickBooksDualType{
 						Name:          "Purchase Tax",
 						TargetName:    "Purchase Tax On Items",
 						TargetType:    "TaxCode",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"class": {
+				"ClassId": {
 					Name: "Class ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -161,15 +142,10 @@ var Item = QuickBooksDualType{
 						Name:          "Class",
 						TargetName:    "Expense Account Line(s)",
 						TargetType:    "Class",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"taxable": {
-					Name:    "Taxable",
-					Type:    fibery.Text,
-					SubType: fibery.Boolean,
-				},
-				"preferred_vendor_id": {
+				"PrefVendorId": {
 					Name: "Preferred Vendor ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -177,10 +153,10 @@ var Item = QuickBooksDualType{
 						Name:          "Preferred Vendor",
 						TargetName:    "Primary Sale Items",
 						TargetType:    "Vendor",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"parent_id": {
+				"ParentId": {
 					Name: "Parent ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -188,10 +164,10 @@ var Item = QuickBooksDualType{
 						Name:          "Parent",
 						TargetName:    "Sub-Items",
 						TargetType:    "Item",
-						TargetFieldID: "id",
+						TargetFieldID: "Id",
 					},
 				},
-				"purchase_cost": {
+				"PurchaseCost": {
 					Name: "Purchase Cost",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -201,7 +177,7 @@ var Item = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"unit_price": {
+				"UnitPrice": {
 					Name: "Unit Price",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -211,9 +187,54 @@ var Item = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
+				"AssetAccountId": {
+					Name: "Asset Account ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Asset Account",
+						TargetName:    "Items",
+						TargetType:    "Account",
+						TargetFieldID: "Id",
+					},
+				},
+				"ExpenseAccountId": {
+					Name: "Expense Account ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Expense Account",
+						TargetName:    "Items",
+						TargetType:    "Account",
+						TargetFieldID: "Id",
+					},
+				},
+				"IncomeAccountId": {
+					Name: "Income Account ID",
+					Type: fibery.Text,
+					Relation: &fibery.Relation{
+						Cardinality:   fibery.MTO,
+						Name:          "Income Account",
+						TargetName:    "Items",
+						TargetType:    "Account",
+						TargetFieldID: "Id",
+					},
+				},
 			},
 		},
-		schemaGen:      func(entity any) (map[string]any, error) {},
+		schemaGen: func(entity any) (map[string]any, error) {
+			item, ok := entity.(quickbooks.Item)
+			if !ok {
+				return nil, fmt.Errorf("unable to convert entity to Item")
+			}
+
+			return map[string]any{
+				"Id": item.Id,
+				"QBOId": item.Id,
+				"Name": item.Name,
+				"FullyQualifiedName": 
+			}, nil
+		},
 		query:          func(req Request) (Response, error) {},
 		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
 	},
