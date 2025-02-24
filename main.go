@@ -46,10 +46,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	clientReq, err := NewClientRequest(discoveryAPI, http.DefaultClient)
+	if err != nil {
+		slog.Error("Error creating client request", "error", err)
+		os.Exit(1)
+	}
+
+	client, err := quickbooks.NewClient(clientReq)
+	if err != nil {
+		slog.Error("Error creating client", "error", err)
+		os.Exit(1)
+	}
+
 	integration := Integration{
-		cache:        c,
-		group:        &group,
-		discoveryAPI: discoveryAPI,
 		appConfig: fibery.AppConfig{
 			ID:          "qbo",
 			Name:        "QuickBooks Online",
@@ -84,7 +93,11 @@ func main() {
 				Type:    "ui",
 			},
 		},
-		types: data.Types,
+		types:        data.Types,
+		cache:        c,
+		group:        &group,
+		discoveryAPI: discoveryAPI,
+		client:       client,
 	}
 
 	for _, datatype := range data.Types {

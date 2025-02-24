@@ -23,12 +23,12 @@ import (
 )
 
 type Integration struct {
-	appConfig    fibery.AppConfig
-	syncConfig   fibery.SyncConfig
-	types        map[string]*data.Type
-	cache        *cache.Cache
-	group        *singleflight.Group
-	discoveryAPI *quickbooks.DiscoveryAPI
+	appConfig  fibery.AppConfig
+	syncConfig fibery.SyncConfig
+	types      map[string]*data.Type
+	client     *quickbooks.Client
+	cache      *cache.Cache
+	group      *singleflight.Group
 }
 
 func (i *Integration) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -51,19 +51,7 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	clientReq, err := NewClientRequest(i.discoveryAPI, &reqBody.Fields.BearerToken, reqBody.Fields.RealmID)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest struct: %w", err))
-		return
-	}
-
-	client, err := quickbooks.NewClient(clientReq)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
-		return
-	}
-
-	token := reqBody.Fields.BearerToken
+	token := &reqBody.Fields.BearerToken
 
 	secBeforeExp, err := strconv.Atoi(os.Getenv("TOKEN_REFRESH_BEFORE_EXPIRATION"))
 	if err != nil {
@@ -74,15 +62,21 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 	refreshNeeded := token.CheckExpiration(secBeforeExp)
 
 	if refreshNeeded {
-		newToken, err := client.RefreshToken(token.RefreshToken)
+		newToken, err := i.client.RefreshToken(token.RefreshToken)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to refresh token: %w", err))
 			return
 		}
-		token = *newToken
+		token = newToken
 	}
 
-	info, err := client.FindCompanyInfo()
+	params := quickbooks.RequestParameters{
+		Ctx:     r.Context(),
+		RealmId: reqBody.Fields.RealmID,
+		Token:   token,
+	}
+
+	info, err := i.client.FindCompanyInfo(params)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to find company info: %w", err))
 		return
@@ -91,7 +85,7 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 	RespondWithJSON(w, http.StatusOK, integrationAccountInfo{
 		Name:        info.CompanyName,
 		RealmID:     reqBody.Fields.RealmID,
-		BearerToken: token,
+		BearerToken: *token,
 	},
 	)
 }
@@ -180,16 +174,10 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientReq, err := NewClientRequest(i.discoveryAPI, &params.Account.BearerToken, params.Account.RealmID)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
-		return
-	}
-
-	client, err := quickbooks.NewClient(clientReq)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct new Client: %w", err))
-		return
+	reqParams := quickbooks.RequestParameters{
+		Ctx:     r.Context(),
+		RealmId: params.Account.RealmID,
+		Token:   &params.Account.BearerToken,
 	}
 
 	req := data.Request{
@@ -203,7 +191,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		Filter:            params.Filter,
 		Cache:             i.cache,
 		Group:             i.group,
-		Client:            client,
+		Client:            i.client,
 	}
 
 	var responseBody fibery.DataHandlerResponse
@@ -663,19 +651,13 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		batchRequest = append(batchRequest, req)
 	}
 
-	clientReq, err := NewClientRequest(i.discoveryAPI, &params.Account.BearerToken, params.Account.RealmID)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
-		return
+	reqParams := quickbooks.RequestParameters{
+		Ctx:     r.Context(),
+		RealmId: params.Account.RealmID,
+		Token:   &params.Account.BearerToken,
 	}
 
-	client, err := quickbooks.NewClient(clientReq)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
-		return
-	}
-
-	batchResponse, err := client.BatchRequest(batchRequest)
+	batchResponse, err := i.client.BatchRequest(reqParams, batchRequest)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to make batch request: %w", err))
 		return
@@ -714,19 +696,7 @@ func (i *Integration) Oauth2AuthorizeHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	clientReq, err := NewClientRequest(i.discoveryAPI, nil, "")
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
-		return
-	}
-
-	client, err := quickbooks.NewClient(clientReq)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error creating new client: %w", err))
-		return
-	}
-
-	redirectURI, err := client.FindAuthorizationUrl(os.Getenv("SCOPE"), reqBody.State, reqBody.CallbackURI)
+	redirectURI, err := i.client.FindAuthorizationUrl(os.Getenv("SCOPE"), reqBody.State, reqBody.CallbackURI)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error generating redirect uri: %w", err))
 		return
@@ -762,19 +732,7 @@ func (i *Integration) Oauth2TokenHandler(w http.ResponseWriter, r *http.Request)
 
 	realmId := reqBody.RealmID
 
-	clientReq, err := NewClientRequest(i.discoveryAPI, nil, realmId)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to construct ClientRequest: %w", err))
-		return
-	}
-
-	client, err := quickbooks.NewClient(clientReq)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to create new client: %w", err))
-		return
-	}
-
-	token, err := client.RetrieveBearerToken(reqBody.Code, reqBody.Fields.CallbackURI)
+	token, err := i.client.RetrieveBearerToken(reqBody.Code, reqBody.Fields.CallbackURI)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retreive bearer token: %w", err))
 		return

@@ -74,11 +74,10 @@ func ConvertToCDCTypes(types map[string]*data.Type, requestedTypes []string) []s
 	return CDCTypes
 }
 
-func NewClientRequest(discovery *quickbooks.DiscoveryAPI, token *quickbooks.BearerToken, realmId string) (quickbooks.ClientRequest, error) {
+func NewClientRequest(discovery *quickbooks.DiscoveryAPI, client *http.Client) (quickbooks.ClientRequest, error) {
 	clientRequest := quickbooks.ClientRequest{
+		Client:       client,
 		DiscoveryAPI: discovery,
-		Token:        token,
-		RealmId:      realmId,
 	}
 	switch os.Getenv("MODE") {
 	case "production":

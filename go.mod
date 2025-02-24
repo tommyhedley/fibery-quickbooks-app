@@ -13,5 +13,6 @@ require (
 
 require (
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/tommyhedley/quickbooks-go v0.0.0-20250223071031-3b6d1684bfa7 // indirect
+	github.com/tommyhedley/quickbooks-go v0.0.0-20250224061659-bd97a96c2653 // indirect
+	golang.org/x/time v0.10.0 // indirect
 )
