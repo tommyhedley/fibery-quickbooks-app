@@ -1,19 +1,17 @@
 package data
 
 import (
-	"fmt"
-
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var CustomerType = QuickBooksCDCType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "CustomerType",
-			name: "Customer Type",
-			schema: map[string]fibery.Field{
-				"Id": {
+var CustomerType = QuickBooksCDCType[quickbooks.CustomerType]{
+	QuickBooksType: QuickBooksType[quickbooks.CustomerType]{
+		BaseType: fibery.BaseType{
+			TypeId:   "CustomerType",
+			TypeName: "Customer Type",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
 					Type: fibery.Text,
 				},
@@ -22,8 +20,9 @@ var CustomerType = QuickBooksCDCType{
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
-					Type: fibery.Text,
+					Name:    "Name",
+					Type:    fibery.Text,
+					SubType: fibery.Title,
 				},
 				"SyncToken": {
 					Name:     "Sync Token",
@@ -41,23 +40,40 @@ var CustomerType = QuickBooksCDCType{
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			customerType, ok := entity.(quickbooks.CustomerType)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to CustomerType")
-			}
-
+		schemaGen: func(ct quickbooks.CustomerType) (map[string]any, error) {
 			return map[string]any{
-				"Id":           customerType.Id,
-				"QBOId":        customerType.Id,
-				"Name":         customerType.Name,
-				"SyncToken":    customerType.SyncToken,
+				"id":           ct.Id,
+				"QBOId":        ct.Id,
+				"Name":         ct.Name,
+				"SyncToken":    ct.SyncToken,
 				"__syncAction": fibery.SET,
-				"Active":       customerType.Active,
+				"Active":       ct.Active,
 			}, nil
 		},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		pageQuery: func(req Request) ([]quickbooks.CustomerType, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindCustomerTypesByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+	entityId: func(ct quickbooks.CustomerType) string {
+		return ct.Id
+	},
+	entityStatus: func(ct quickbooks.CustomerType) string {
+		return ct.Status
+	},
+}
+
+func init() {
+	registerType(&CustomerType)
 }

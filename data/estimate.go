@@ -8,23 +8,24 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Estimate = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Estimate",
-			name: "Estimate",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Estimate = QuickBooksDualType[quickbooks.Estimate]{
+	QuickBooksType: QuickBooksType[quickbooks.Estimate]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Estimate",
+			TypeName: "Estimate",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
-					Type: fibery.Text,
+					Name:    "Name",
+					Type:    fibery.Text,
+					SubType: fibery.Title,
 				},
 				"SyncToken": {
 					Name:     "Sync Token",
@@ -323,7 +324,7 @@ var Estimate = QuickBooksDualType{
 						Name:          "Class",
 						TargetName:    "Estimates",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"TaxCodeId": {
@@ -334,7 +335,7 @@ var Estimate = QuickBooksDualType{
 						Name:          "Sales Tax Rate",
 						TargetName:    "Estimates",
 						TargetType:    "TaxCode",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"TaxExemptionId": {
@@ -345,7 +346,7 @@ var Estimate = QuickBooksDualType{
 						Name:          "Tax Exemption",
 						TargetName:    "Estimates",
 						TargetType:    "TaxExemption",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"CustomerId": {
@@ -356,40 +357,35 @@ var Estimate = QuickBooksDualType{
 						Name:          "Customer",
 						TargetName:    "Estimates",
 						TargetType:    "Customer",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			estimate, ok := entity.(quickbooks.Estimate)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to estimate")
-			}
-
+		schemaGen: func(e quickbooks.Estimate) (map[string]any, error) {
 			var discountType = map[bool]string{
 				true:  "Percentage",
 				false: "Amount",
 			}
 			var discountLine *quickbooks.Line
 			var subtotalLine *quickbooks.Line
-			for _, line := range estimate.Line {
+			for _, line := range e.Line {
 				if line.DetailType == "DiscountLineDetail" {
 					if discountLine != nil {
-						return nil, fmt.Errorf("estimate %s has more than one discount line", estimate.Id)
+						return nil, fmt.Errorf("estimate %s has more than one discount line", e.Id)
 					}
 					discountLine = &line
 				}
 				if line.DetailType == "SubTotalLineDetail" {
 					if subtotalLine != nil {
-						return nil, fmt.Errorf("estimate %s has more than one subtotal line", estimate.Id)
+						return nil, fmt.Errorf("estimate %s has more than one subtotal line", e.Id)
 					}
 					subtotalLine = &line
 				}
 			}
 
 			if subtotalLine == nil {
-				return nil, fmt.Errorf("estimate %s has no subtotal lines", estimate.Id)
+				return nil, fmt.Errorf("estimate %s has no subtotal lines", e.Id)
 			}
 
 			var discountTypeValue string
@@ -408,112 +404,167 @@ var Estimate = QuickBooksDualType{
 			}
 
 			var emailSendTime string
-			if estimate.DeliveryInfo != nil && !estimate.DeliveryInfo.DeliveryTime.IsZero() {
-				emailSendTime = estimate.DeliveryInfo.DeliveryTime.Format(fibery.DateFormat)
+			if e.DeliveryInfo != nil && !e.DeliveryInfo.DeliveryTime.IsZero() {
+				emailSendTime = e.DeliveryInfo.DeliveryTime.Format(fibery.DateFormat)
 			}
 
 			var name string
-			if estimate.CustomerRef.Name == "" {
-				name = estimate.DocNumber
+			if e.CustomerRef.Name == "" {
+				name = e.DocNumber
 			} else {
-				name = estimate.DocNumber + " " + estimate.CustomerRef.Name
+				name = e.DocNumber + " - " + e.CustomerRef.Name
+			}
+
+			var shipAddr quickbooks.PhysicalAddress
+			if e.ShipAddr != nil {
+				shipAddr = *e.ShipAddr
+			}
+
+			var billAddr quickbooks.PhysicalAddress
+			if e.BillAddr != nil {
+				billAddr = *e.BillAddr
+			}
+
+			var acceptedDate string
+			if e.AcceptedDate != nil {
+				acceptedDate = e.AcceptedDate.Format(fibery.DateFormat)
+			}
+
+			var expirationDate string
+			if e.ExpirationDate != nil {
+				expirationDate = e.ExpirationDate.Format(fibery.DateFormat)
+			}
+
+			var billEmailCC string
+			if e.BillEmailCC != nil {
+				billEmailCC = e.BillEmailCC.Address
+			}
+
+			var billEmailBCC string
+			if e.BillEmailBCC != nil {
+				billEmailBCC = e.BillEmailCC.Address
+			}
+
+			var txnDate string
+			if e.TxnDate != nil {
+				txnDate = e.TxnDate.Format(fibery.DateFormat)
+			}
+
+			var totalTax json.Number
+			var taxCodeId string
+			if e.TxnTaxDetail != nil {
+				totalTax = e.TxnTaxDetail.TotalTax
+				taxCodeId = e.TxnTaxDetail.TxnTaxCodeRef.Value
+			}
+
+			var classId string
+			if e.ClassRef != nil {
+				classId = e.ClassRef.Value
+			}
+
+			var taxExemptionId string
+			if e.TaxExemptionRef != nil {
+				taxExemptionId = e.TaxExemptionRef.Value
 			}
 
 			return map[string]any{
-				"Id":                     estimate.Id,
-				"QBOId":                  estimate.Id,
+				"id":                     e.Id,
+				"QBOId":                  e.Id,
 				"Name":                   name,
-				"SyncToken":              estimate.SyncToken,
+				"SyncToken":              e.SyncToken,
 				"__syncAction":           fibery.SET,
-				"ShippingLine1":          estimate.ShipAddr.Line1,
-				"ShippingLine2":          estimate.ShipAddr.Line2,
-				"ShippingLine3":          estimate.ShipAddr.Line3,
-				"ShippingLine4":          estimate.ShipAddr.Line4,
-				"ShippingLine5":          estimate.ShipAddr.Line5,
-				"ShippingCity":           estimate.ShipAddr.City,
-				"ShippingState":          estimate.ShipAddr.CountrySubDivisionCode,
-				"ShippingPostalCode":     estimate.ShipAddr.PostalCode,
-				"ShippingCountry":        estimate.ShipAddr.Country,
-				"ShippingLat":            estimate.ShipAddr.Lat,
-				"ShippingLong":           estimate.ShipAddr.Long,
-				"ShippingFromLine1":      estimate.ShipFromAddr.Line1,
-				"ShippingFromLine2":      estimate.ShipFromAddr.Line2,
-				"ShippingFromLine3":      estimate.ShipFromAddr.Line3,
-				"ShippingFromLine4":      estimate.ShipFromAddr.Line4,
-				"ShippingFromLine5":      estimate.ShipFromAddr.Line5,
-				"ShippingFromCity":       estimate.ShipFromAddr.City,
-				"ShippingFromState":      estimate.ShipFromAddr.CountrySubDivisionCode,
-				"ShippingFromPostalCode": estimate.ShipFromAddr.PostalCode,
-				"ShippingFromCountry":    estimate.ShipFromAddr.Country,
-				"ShippingFromLat":        estimate.ShipFromAddr.Lat,
-				"ShippingFromLong":       estimate.ShipFromAddr.Long,
-				"BillingLine1":           estimate.BillAddr.Line1,
-				"BillingLine2":           estimate.BillAddr.Line2,
-				"BillingLine3":           estimate.BillAddr.Line3,
-				"BillingLine4":           estimate.BillAddr.Line4,
-				"BillingLine5":           estimate.BillAddr.Line5,
-				"BillingCity":            estimate.BillAddr.City,
-				"BillingState":           estimate.BillAddr.CountrySubDivisionCode,
-				"BillingPostalCode":      estimate.BillAddr.PostalCode,
-				"BillingCountry":         estimate.BillAddr.Country,
-				"BillingLat":             estimate.BillAddr.Lat,
-				"BillingLong":            estimate.BillAddr.Long,
-				"DocNumber":              estimate.DocNumber,
-				"TxnStatus":              estimate.TxnStatus,
-				"AcceptedBy":             estimate.AcceptedBy,
-				"AcceptedDate":           estimate.AcceptedDate.Format(fibery.DateFormat),
-				"ExpirationDate":         estimate.ExpirationDate.Format(fibery.DateFormat),
-				"Email":                  estimate.BillEmail.Address,
-				"EmailCC":                estimate.BillEmailCC.Address,
-				"EmailBCC":               estimate.BillEmailBCC.Address,
-				"EmailSendLater":         estimate.EmailStatus == "NeedToSend",
-				"EmailSent":              estimate.EmailStatus == "EmailSent",
+				"ShippingLine1":          shipAddr.Line1,
+				"ShippingLine2":          shipAddr.Line2,
+				"ShippingLine3":          shipAddr.Line3,
+				"ShippingLine4":          shipAddr.Line4,
+				"ShippingLine5":          shipAddr.Line5,
+				"ShippingCity":           shipAddr.City,
+				"ShippingState":          shipAddr.CountrySubDivisionCode,
+				"ShippingPostalCode":     shipAddr.PostalCode,
+				"ShippingCountry":        shipAddr.Country,
+				"ShippingLat":            shipAddr.Lat,
+				"ShippingLong":           shipAddr.Long,
+				"ShippingFromLine1":      e.ShipFromAddr.Line1,
+				"ShippingFromLine2":      e.ShipFromAddr.Line2,
+				"ShippingFromLine3":      e.ShipFromAddr.Line3,
+				"ShippingFromLine4":      e.ShipFromAddr.Line4,
+				"ShippingFromLine5":      e.ShipFromAddr.Line5,
+				"ShippingFromCity":       e.ShipFromAddr.City,
+				"ShippingFromState":      e.ShipFromAddr.CountrySubDivisionCode,
+				"ShippingFromPostalCode": e.ShipFromAddr.PostalCode,
+				"ShippingFromCountry":    e.ShipFromAddr.Country,
+				"ShippingFromLat":        e.ShipFromAddr.Lat,
+				"ShippingFromLong":       e.ShipFromAddr.Long,
+				"BillingLine1":           billAddr.Line1,
+				"BillingLine2":           billAddr.Line2,
+				"BillingLine3":           billAddr.Line3,
+				"BillingLine4":           billAddr.Line4,
+				"BillingLine5":           billAddr.Line5,
+				"BillingCity":            billAddr.City,
+				"BillingState":           billAddr.CountrySubDivisionCode,
+				"BillingPostalCode":      billAddr.PostalCode,
+				"BillingCountry":         billAddr.Country,
+				"BillingLat":             billAddr.Lat,
+				"BillingLong":            billAddr.Long,
+				"DocNumber":              e.DocNumber,
+				"TxnStatus":              e.TxnStatus,
+				"AcceptedBy":             e.AcceptedBy,
+				"AcceptedDate":           acceptedDate,
+				"ExpirationDate":         expirationDate,
+				"Email":                  e.BillEmail.Address,
+				"EmailCC":                billEmailCC,
+				"EmailBCC":               billEmailBCC,
+				"EmailSendLater":         e.EmailStatus == "NeedToSend",
+				"EmailSent":              e.EmailStatus == "EmailSent",
 				"EmailSendTime":          emailSendTime,
-				"TxnDate":                estimate.TxnDate.Format(fibery.DateFormat),
-				"PrivateNote":            estimate.PrivateNote,
-				"CustomerMemo":           estimate.CustomerMemo.Value,
-				"DiscountPosition":       estimate.ApplyTaxAfterDiscount,
+				"TxnDate":                txnDate,
+				"PrivateNote":            e.PrivateNote,
+				"CustomerMemo":           e.CustomerMemo.Value,
+				"DiscountPosition":       e.ApplyTaxAfterDiscount,
 				"DiscountType":           discountTypeValue,
 				"DiscountPercent":        discountPercent,
 				"DiscountAmount":         discountAmount,
-				"Tax":                    estimate.TxnTaxDetail.TotalTax,
+				"Tax":                    totalTax,
 				"SubtotalAmt":            subtotalAmount,
-				"TotalAmt":               estimate.TotalAmt,
-				"ClassId":                estimate.ClassRef.Value,
-				"TaxCodeId":              estimate.TxnTaxDetail.TxnTaxCodeRef.Value,
-				"TaxExemptionId":         estimate.TaxExemptionRef.Value,
-				"CustomerId":             estimate.CustomerRef.Value,
+				"TotalAmt":               e.TotalAmt,
+				"ClassId":                classId,
+				"TaxCodeId":              taxCodeId,
+				"TaxExemptionId":         taxExemptionId,
+				"CustomerId":             e.CustomerRef.Value,
 			}, nil
 		},
-		query: func(req Request) (Response, error) {
-			estimates, err := req.Client.FindEstimatesByPage(req.StartPosition, req.PageSize)
-			if err != nil {
-				return Response{}, fmt.Errorf("unable to find invoices: %w", err)
+		pageQuery: func(req Request) ([]quickbooks.Estimate, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
 			}
 
-			return Response{
-				Data:     estimates,
-				MoreData: len(estimates) >= req.PageSize,
-			}, nil
-		},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {
+			items, err := req.Client.FindEstimatesByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
 		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {
+	entityId: func(e quickbooks.Estimate) string {
+		return e.Id
 	},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityStatus: func(e quickbooks.Estimate) string {
+		return e.Status
 	},
 }
 
-var EstimateLine = DependentDualType{
-	dependentBaseType: dependentBaseType{
-		fiberyType: fiberyType{
-			id:   "EstimateLine",
-			name: "Estimate Line",
-			schema: map[string]fibery.Field{
-				"Id": {
+var EstimateLine = DependentDualType[quickbooks.Estimate]{
+	dependentBaseType: dependentBaseType[quickbooks.Estimate]{
+		BaseType: fibery.BaseType{
+			TypeId:   "EstimateLine",
+			TypeName: "Estimate Line",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
@@ -579,7 +630,7 @@ var EstimateLine = DependentDualType{
 						Name:          "Group",
 						TargetName:    "Lines",
 						TargetType:    "EstimateLine",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ItemId": {
@@ -590,7 +641,7 @@ var EstimateLine = DependentDualType{
 						Name:          "Item",
 						TargetName:    "Estimate Lines",
 						TargetType:    "Item",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ClassId": {
@@ -601,7 +652,7 @@ var EstimateLine = DependentDualType{
 						Name:          "Class",
 						TargetName:    "Expense Lines",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"EstimateId": {
@@ -612,93 +663,88 @@ var EstimateLine = DependentDualType{
 						Name:          "Estimate",
 						TargetName:    "Lines",
 						TargetType:    "Estimate",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity, source any) (map[string]any, error) {
-			line, ok := entity.(quickbooks.Line)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to line")
-			}
-
-			estimate, ok := source.(quickbooks.Estimate)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert source to Estimate")
-			}
-
-			if line.DetailType == quickbooks.GroupLine {
-				return map[string]any{
-					"Id":           fmt.Sprintf("%s:%s", estimate.Id, line.Id),
-					"QBOId":        line.Id,
-					"Description":  line.Description,
-					"__syncAction": fibery.SET,
-					"Qty":          line.GroupLineDetail.Quantity,
-					"LineNum":      line.LineNum,
-					"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
-					"estimateId":   estimate.Id,
-				}, nil
-			} else if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
-				return map[string]any{
-					"Id":           fmt.Sprintf("%s:%s", estimate.Id, line.Id),
-					"QBOId":        line.Id,
-					"Description":  line.Description,
-					"__syncAction": fibery.SET,
-					"LineNum":      line.LineNum,
-					"Taxed":        line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
-					"ServiceDate":  line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
-					"Qty":          line.GroupLineDetail.Quantity,
-					"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
-					"Amount":       line.Amount,
-					"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
-					"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
-					"EstimateId":   estimate.Id,
-				}, nil
-			}
-			return nil, nil
-		},
-		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-			estimates, ok := sourceArray.([]quickbooks.Estimate)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert sourceArray to Estimates")
-			}
+		schemaGen: func(e quickbooks.Estimate) ([]map[string]any, error) {
 			items := []map[string]any{}
-			for _, estimate := range estimates {
-				for _, line := range estimate.Line {
-					if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
-						item, err := schemaGen(line, estimate)
-						if err != nil {
-							return nil, fmt.Errorf("unable to transform Line data: %w", err)
+			for _, line := range e.Line {
+				if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
+					item := map[string]any{
+						"id":           fmt.Sprintf("%s:%s", e.Id, line.Id),
+						"QBOId":        line.Id,
+						"Description":  line.Description,
+						"__syncAction": fibery.SET,
+						"LineNum":      line.LineNum,
+						"Taxed":        line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
+						"ServiceDate":  line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
+						"Qty":          line.GroupLineDetail.Quantity,
+						"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
+						"Amount":       line.Amount,
+						"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+						"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
+						"EstimateId":   e.Id,
+					}
+					items = append(items, item)
+				}
+				if line.DetailType == quickbooks.GroupLine {
+					for _, groupLine := range line.GroupLineDetail.Line {
+						item := map[string]any{
+							"id":           fmt.Sprintf("%s:%s:%s", e.Id, line.Id, groupLine.Id),
+							"GroupLineId":  line.Id,
+							"QBOId":        line.Id,
+							"Description":  line.Description,
+							"__syncAction": fibery.SET,
+							"Qty":          line.GroupLineDetail.Quantity,
+							"LineNum":      line.LineNum,
+							"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+							"EstimateId":   e.Id,
 						}
 						items = append(items, item)
 					}
-					if line.DetailType == "GroupLineDetail" {
-						for _, groupLine := range line.GroupLineDetail.Line {
-							item, err := schemaGen(groupLine, estimate)
-							if err != nil {
-								return nil, fmt.Errorf("unable to transform Line data: %w", err)
-							}
-							item["Id"] = fmt.Sprintf("%s:%s:%s", estimate.Id, line.Id, groupLine.Id)
-							item["GroupLineId"] = line.Id
-							items = append(items, item)
-						}
-						item, err := schemaGen(line, estimate)
-						if err != nil {
-							return nil, fmt.Errorf("unable to transform Line data: %w", err)
-						}
-						items = append(items, item)
+					item := map[string]any{
+						"id":           fmt.Sprintf("%s:%s", e.Id, line.Id),
+						"QBOId":        line.Id,
+						"Description":  line.Description,
+						"__syncAction": fibery.SET,
+						"Qty":          line.GroupLineDetail.Quantity,
+						"LineNum":      line.LineNum,
+						"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+						"EstimateId":   e.Id,
 					}
+					items = append(items, item)
 				}
 			}
 			return items, nil
 		},
 	},
-	source:       Estimate,
-	sourceMapper: func(source any) (map[string]bool, error) {},
-	typeMapper:   func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceType: &Estimate,
+	sourceId: func(e quickbooks.Estimate) string {
+		return e.Id
 	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceStatus: func(e quickbooks.Estimate) string {
+		return e.Status
 	},
+	sourceMapper: func(e quickbooks.Estimate) map[string]struct{} {
+		sourceMap := map[string]struct{}{}
+		for _, line := range e.Line {
+			if line.DetailType == quickbooks.GroupLine {
+				for _, groupLine := range line.GroupLineDetail.Line {
+					sourceMap[fmt.Sprintf("%s:%s:%s", e.Id, line.Id, groupLine.Id)] = struct{}{}
+				}
+				sourceMap[fmt.Sprintf("%s:%s", e.Id, line.Id)] = struct{}{}
+			}
+			if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
+				sourceMap[fmt.Sprintf("%s:%s", e.Id, line.Id)] = struct{}{}
+			}
+		}
+		return sourceMap
+	},
+}
+
+func init() {
+	registerType(&Estimate)
+	registerType(&EstimateLine)
 }

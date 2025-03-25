@@ -4,7 +4,7 @@ import "time"
 
 // AppConfig defines the integration app
 type AuthField struct {
-	ID          string `json:"id"`
+	Id          string `json:"id"`
 	Title       string `json:"title"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
@@ -13,7 +13,7 @@ type AuthField struct {
 }
 
 type Authentication struct {
-	ID          string      `json:"id"`
+	Id          string      `json:"id"`
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
 	Fields      []AuthField `json:"fields,omitempty"`
@@ -25,7 +25,7 @@ type ResponsibleFor struct {
 }
 
 type ActionArg struct {
-	ID           string `json:"id"`
+	Id           string `json:"id"`
 	Name         string `json:"name"`
 	Description  string `json:"description,omitempty"`
 	Type         string `json:"type"`
@@ -40,7 +40,7 @@ type Action struct {
 }
 
 type AppConfig struct {
-	ID             string           `json:"id"`
+	Id             string           `json:"id"`
 	Name           string           `json:"name"`
 	Website        string           `json:"website,omitempty"`
 	Version        string           `json:"version"`
@@ -52,12 +52,12 @@ type AppConfig struct {
 }
 
 type SyncConfigTypes struct {
-	ID   string `json:"id"`
+	Id   string `json:"id"`
 	Name string `json:"name"`
 }
 
 type SyncFilter struct {
-	ID       string `json:"id"`
+	Id       string `json:"id"`
 	Title    string `json:"title"`
 	Type     string `json:"type"`
 	Datalist bool   `json:"datalist,omitempty"`
@@ -80,7 +80,7 @@ type SyncConfig struct {
 type FieldType string
 
 const (
-	ID        FieldType = "id"
+	Id        FieldType = "id"
 	Text      FieldType = "text"
 	Number    FieldType = "number"
 	DateType  FieldType = "date"
@@ -135,8 +135,8 @@ type Field struct {
 type SyncType string
 
 const (
-	DeltaSync SyncType = "delta"
-	FullSync  SyncType = "full"
+	Delta SyncType = "delta"
+	Full  SyncType = "full"
 )
 
 type SyncAction string
@@ -164,6 +164,30 @@ type DataHandlerResponse struct {
 const DateFormat = time.RFC3339
 
 type Webhook struct {
-	WebhookID   string `json:"id"`
-	WorkspaceID string `json:"workspaceId"`
+	WebhookId   string `json:"id"`
+	WorkspaceId string `json:"workspaceId"`
+}
+
+type WebhookData map[string][]map[string]any
+
+type WebhookTransformResponse struct {
+	Data WebhookData `json:"data"`
+}
+
+type BaseType struct {
+	TypeId     string
+	TypeName   string
+	TypeSchema map[string]Field
+}
+
+func (t *BaseType) Id() string {
+	return t.TypeId
+}
+
+func (t *BaseType) Name() string {
+	return t.TypeName
+}
+
+func (t *BaseType) Schema() map[string]Field {
+	return t.TypeSchema
 }

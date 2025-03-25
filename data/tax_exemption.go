@@ -1,107 +1,102 @@
 package data
 
 import (
-	"fmt"
-
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 )
 
-var TaxExemption = QuickBooksType{
-	fiberyType: fiberyType{
-		id:   "TaxExemption",
-		name: "Tax Exemption",
-		schema: map[string]fibery.Field{
+type TaxExemptionEntity struct {
+	Id   string
+	Name string
+}
+
+var TaxExemption = QuickBooksType[TaxExemptionEntity]{
+	BaseType: fibery.BaseType{
+		TypeId:   "TaxExemption",
+		TypeName: "Tax Exemption",
+		TypeSchema: map[string]fibery.Field{
 			"id": {
-				Name: "id",
-				Type: fibery.ID,
+				Name: "ID",
+				Type: fibery.Id,
 			},
-			"name": {
-				Name: "Name",
-				Type: fibery.Text,
+			"Name": {
+				Name:    "Name",
+				Type:    fibery.Text,
+				SubType: fibery.Title,
 			},
 		},
 	},
-	schemaGen: func(entity any) (map[string]any, error) {
-		qualifiedEntity, ok := entity.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("entity is not in the format map[string]any")
-		}
-		return qualifiedEntity, nil
+	schemaGen: func(te TaxExemptionEntity) (map[string]any, error) {
+		return map[string]any{
+			"id":   te.Id,
+			"Name": te.Name,
+		}, nil
 	},
-	query: func(req Request) (Response, error) {
-		taxExemptions := []map[string]any{
+	pageQuery: func(req Request) ([]TaxExemptionEntity, error) {
+		return []TaxExemptionEntity{
 			{
-				"id":   "1",
-				"name": "Federal government",
+				Id:   "1",
+				Name: "Federal government",
 			},
 			{
-				"id":   "2",
-				"name": "State government",
+				Id:   "2",
+				Name: "State government",
 			},
 			{
-				"id":   "3",
-				"name": "Local government",
+				Id:   "3",
+				Name: "Local government",
 			},
 			{
-				"id":   "4",
-				"name": "Tribal government",
+				Id:   "4",
+				Name: "Tribal government",
 			},
 			{
-				"id":   "5",
-				"name": "Charitable organization",
+				Id:   "5",
+				Name: "Charitable organization",
 			},
 			{
-				"id":   "6",
-				"name": "Religious organization",
+				Id:   "6",
+				Name: "Religious organization",
 			},
 			{
-				"id":   "7",
-				"name": "Educational organization",
+				Id:   "7",
+				Name: "Educational organization",
 			},
 			{
-				"id":   "8",
-				"name": "Hospital",
+				Id:   "8",
+				Name: "Hospital",
 			},
 			{
-				"id":   "9",
-				"name": "Resale",
+				Id:   "9",
+				Name: "Resale",
 			},
 			{
-				"id":   "10",
-				"name": "Direct pay permit",
+				Id:   "10",
+				Name: "Direct pay permit",
 			},
 			{
-				"id":   "11",
-				"name": "Multiple points of use",
+				Id:   "11",
+				Name: "Multiple points of use",
 			},
 			{
-				"id":   "12",
-				"name": "Direct mail",
+				Id:   "12",
+				Name: "Direct mail",
 			},
 			{
-				"id":   "13",
-				"name": "Agricultural production",
+				Id:   "13",
+				Name: "Agricultural production",
 			},
 			{
-				"id":   "14",
-				"name": "Industrial production / manufacturing",
+				Id:   "14",
+				Name: "Industrial production / manufacturing",
 			},
 			{
-				"id":   "15",
-				"name": "Foreign diplomat",
+				Id:   "15",
+				Name: "Foreign diplomat",
 			},
-		}
-		return Response{Data: taxExemptions, MoreData: false}, nil
-	},
-	queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {
-		entities, ok := entityArray.([]map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("entityArray is not in the format []map[string]any")
-		}
-		return entities, nil
+		}, nil
 	},
 }
 
 func init() {
-	RegisterType(TaxExemption)
+	registerType(&TaxExemption)
 }

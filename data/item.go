@@ -1,28 +1,26 @@
 package data
 
 import (
-	"fmt"
-
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Item = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Item",
-			name: "Item",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Item = QuickBooksDualType[quickbooks.Item]{
+	QuickBooksType: QuickBooksType[quickbooks.Item]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Item",
+			TypeName: "Item",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
+					Name: "Base Name",
 					Type: fibery.Text,
 				},
 				"FullyQualifiedName": {
@@ -120,7 +118,7 @@ var Item = QuickBooksDualType{
 						Name:          "Sales Tax",
 						TargetName:    "Sales Tax On Items",
 						TargetType:    "TaxCode",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"PurchaseTaxCodeId": {
@@ -131,7 +129,7 @@ var Item = QuickBooksDualType{
 						Name:          "Purchase Tax",
 						TargetName:    "Purchase Tax On Items",
 						TargetType:    "TaxCode",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ClassId": {
@@ -142,7 +140,7 @@ var Item = QuickBooksDualType{
 						Name:          "Class",
 						TargetName:    "Expense Account Line(s)",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"PrefVendorId": {
@@ -153,7 +151,7 @@ var Item = QuickBooksDualType{
 						Name:          "Preferred Vendor",
 						TargetName:    "Primary Sale Items",
 						TargetType:    "Vendor",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ParentId": {
@@ -164,7 +162,7 @@ var Item = QuickBooksDualType{
 						Name:          "Parent",
 						TargetName:    "Sub-Items",
 						TargetType:    "Item",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"PurchaseCost": {
@@ -195,7 +193,7 @@ var Item = QuickBooksDualType{
 						Name:          "Asset Account",
 						TargetName:    "Items",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ExpenseAccountId": {
@@ -206,7 +204,7 @@ var Item = QuickBooksDualType{
 						Name:          "Expense Account",
 						TargetName:    "Items",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"IncomeAccountId": {
@@ -217,28 +215,105 @@ var Item = QuickBooksDualType{
 						Name:          "Income Account",
 						TargetName:    "Items",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			item, ok := entity.(quickbooks.Item)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Item")
+		schemaGen: func(i quickbooks.Item) (map[string]any, error) {
+			var itemType string
+			switch i.Type {
+			case "Inventory":
+				itemType = "Inventory"
+			case "Service":
+				itemType = "Service"
+			case "NonInventory":
+				itemType = "Non-Inventory"
+			}
+
+			var salesTaxCodeId string
+			if i.SalesTaxCodeRef != nil {
+				salesTaxCodeId = i.SalesTaxCodeRef.Value
+			}
+
+			var purchaseTaxCodeId string
+			if i.PurchaseTaxCodeRef != nil {
+				purchaseTaxCodeId = i.PurchaseTaxCodeRef.Value
+			}
+
+			var classId string
+			if i.ClassRef != nil {
+				classId = i.ClassRef.Value
+			}
+
+			var vendorId string
+			if i.PrefVendorRef != nil {
+				vendorId = i.PrefVendorRef.Value
+			}
+
+			var parentId string
+			if i.ParentRef != nil {
+				parentId = i.ParentRef.Value
+			}
+
+			var expenseAccountId string
+			if i.ExpenseAccountRef != nil {
+				expenseAccountId = i.ExpenseAccountRef.Value
 			}
 
 			return map[string]any{
-				"Id": item.Id,
-				"QBOId": item.Id,
-				"Name": item.Name,
-				"FullyQualifiedName": 
+				"id":                  i.Id,
+				"QBOId":               i.Id,
+				"Name":                i.Name,
+				"FullyQualifiedName":  i.FullyQualifiedName,
+				"SyncToken":           i.SyncToken,
+				"__syncAction":        fibery.SET,
+				"Active":              i.Active,
+				"Description":         i.Description,
+				"PurchaseDesc":        i.PurchaseDesc,
+				"InvStartDate":        i.InvStartDate.Format(fibery.DateFormat),
+				"Type":                itemType,
+				"QtyOnHand":           i.QtyOnHand,
+				"ReorderPoint":        i.ReorderPoint,
+				"SKU":                 i.SKU,
+				"Taxable":             i.Taxable,
+				"SalesTaxIncluded":    i.SalesTaxIncluded,
+				"PurchaseTaxIncluded": i.PurchaseTaxIncluded,
+				"SalesTaxCodeId":      salesTaxCodeId,
+				"PurchaseTaxCodeId":   purchaseTaxCodeId,
+				"ClassId":             classId,
+				"PrefVendorId":        vendorId,
+				"ParentId":            parentId,
+				"PurchaseCost":        i.PurchaseCost,
+				"UnitPrice":           i.UnitPrice,
+				"AssetAccountId":      i.AssetAccountRef.Value,
+				"ExpenseAccountId":    expenseAccountId,
+				"IncomeAccountId":     i.IncomeAccountRef.Value,
 			}, nil
 		},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		pageQuery: func(req Request) ([]quickbooks.Item, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindItemsByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityId: func(i quickbooks.Item) string {
+		return i.Id
 	},
+	entityStatus: func(i quickbooks.Item) string {
+		return i.Status
+	},
+}
+
+func init() {
+	registerType(&Item)
 }

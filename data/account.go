@@ -1,29 +1,26 @@
 package data
 
 import (
-	"fmt"
-
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Account = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Account",
-			name: "Account",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Account = QuickBooksDualType[quickbooks.Account]{
+	QuickBooksType: QuickBooksType[quickbooks.Account]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Account",
+			TypeName: "Account",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
+					Name: "Base Name",
 					Type: fibery.Text,
 				},
 				"FullyQualifiedName": {
@@ -994,89 +991,58 @@ var Account = QuickBooksDualType{
 						Name:          "Parent Account",
 						TargetName:    "Sub-Accounts",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			account, ok := entity.(quickbooks.Account)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Account")
+		schemaGen: func(a quickbooks.Account) (map[string]any, error) {
+			var parentAccountId string
+			if a.ParentRef != nil {
+				parentAccountId = a.ParentRef.Value
 			}
 
-			data := map[string]any{
-				"Id":                            account.Id,
-				"QBOId":                         account.Id,
-				"Name":                          account.Name,
-				"FullyQualifiedName":            account.FullyQualifiedName,
-				"SyncToken":                     account.SyncToken,
+			return map[string]any{
+				"id":                            a.Id,
+				"QBOId":                         a.Id,
+				"Name":                          a.Name,
+				"FullyQualifiedName":            a.FullyQualifiedName,
+				"SyncToken":                     a.SyncToken,
 				"__syncAction":                  fibery.SET,
-				"Active":                        account.Active,
-				"Description":                   account.Description,
-				"AcctNum":                       account.AcctNum,
-				"CurrentBalance":                account.CurrentBalance,
-				"CurrentBalanceWithSubAccounts": account.CurrentBalanceWithSubAccounts,
-				"Classification":                account.Classification,
-				"AccountType":                   account.AccountType,
-				"AccountSubType":                account.AccountSubType,
-			}
-
-			if account.ParentRef != nil {
-				data["ParentAccountId"] = account.ParentRef.Value
-			}
-
-			return data, nil
-		},
-		query: func(req Request) (Response, error) {
-			accounts, err := req.Client.FindInvoicesByPage(req.StartPosition, req.PageSize)
-			if err != nil {
-				return Response{}, fmt.Errorf("unable to find invoices: %w", err)
-			}
-
-			return Response{
-				Data:     accounts,
-				MoreData: len(accounts) >= quickbooks.QueryPageSize,
+				"Active":                        a.Active,
+				"Description":                   a.Description,
+				"AcctNum":                       a.AcctNum,
+				"CurrentBalance":                a.CurrentBalance,
+				"CurrentBalanceWithSubAccounts": a.CurrentBalanceWithSubAccounts,
+				"Classification":                a.Classification,
+				"AccountType":                   a.AccountType,
+				"AccountSubType":                a.AccountSubType,
+				"ParentAccountId":               parentAccountId,
 			}, nil
 		},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {
-			accounts, ok := entityArray.([]quickbooks.Account)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entityArray to accounts")
+		pageQuery: func(req Request) ([]quickbooks.Account, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
 			}
-			items := []map[string]any{}
-			for _, account := range accounts {
-				item, err := schemaGen(account)
-				if err != nil {
-					return nil, fmt.Errorf("unable to transform data: %w", err)
-				}
-				items = append(items, item)
+
+			items, err := req.Client.FindAccountsByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
 			}
+
 			return items, nil
 		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {
-		items := []map[string]any{}
-		for _, cdcResponse := range cdc.CDCResponse {
-			for _, queryResponse := range cdcResponse.QueryResponse {
-				for _, cdcAccount := range queryResponse.Account {
-					if cdcAccount.Status == "Deleted" {
-						items = append(items, map[string]any{
-							"id":           cdcAccount.Id,
-							"__syncAction": fibery.REMOVE,
-						})
-					} else {
-						item, err := schemaGen(cdcAccount.Account)
-						if err != nil {
-							return nil, fmt.Errorf("unable to transform data: %w", err)
-						}
-						items = append(items, item)
-					}
-				}
-			}
-		}
-		return items, nil
+	entityId: func(a quickbooks.Account) string {
+		return a.Id
 	},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityStatus: func(a quickbooks.Account) string {
+		return a.Status
 	},
+}
+
+func init() {
+	registerType(&Account)
 }

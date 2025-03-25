@@ -2,12 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/tommyhedley/fibery-quickbooks-app/data"
-	"github.com/tommyhedley/quickbooks-go"
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/tommyhedley/quickbooks-go"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, err error) {
@@ -23,7 +24,7 @@ func RespondWithError(w http.ResponseWriter, code int, err error) {
 	})
 }
 
-func RespondWithRequestLimit(w http.ResponseWriter, code int, err error) {
+func RespondWithRateLimit(w http.ResponseWriter, code int, err error) {
 	if code >= 500 {
 		slog.Error(err.Error(), "StatusCode", code)
 	}
@@ -49,29 +50,20 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(dat)
 }
 
-func ConvertToCDCTypes(types map[string]*data.Type, requestedTypes []string) []string {
-	typeSet := make(map[string]struct{})
-	var CDCTypes []string
-
-	for _, reqType := range requestedTypes {
-		if typePointer, ok := types[reqType]; ok {
-			datatype := *typePointer
-			if cdcType, ok := datatype.(data.CDCQueryable); ok {
-				if _, exists := typeSet[cdcType.GetId()]; !exists {
-					typeSet[cdcType.GetId()] = struct{}{}
-					CDCTypes = append(CDCTypes, cdcType.GetId())
-				}
-			}
-			if depCDCType, ok := datatype.(data.DepCDCQueryable); ok {
-				if _, exists := typeSet[depCDCType.GetSourceId()]; !exists {
-					typeSet[depCDCType.GetSourceId()] = struct{}{}
-					CDCTypes = append(CDCTypes, depCDCType.GetSourceId())
-				}
-			}
-		}
+func HandleRequestError(w http.ResponseWriter, code int, errMsg string, err error) {
+	var responseError error
+	if errMsg == "" {
+		responseError = err
+	} else {
+		responseError = fmt.Errorf("%s: %w", errMsg, err)
 	}
 
-	return CDCTypes
+	var rateLimitError *quickbooks.RateLimitError
+	if errors.As(err, &rateLimitError) {
+		RespondWithRateLimit(w, http.StatusTooManyRequests, responseError)
+	} else {
+		RespondWithError(w, code, responseError)
+	}
 }
 
 func NewClientRequest(discovery *quickbooks.DiscoveryAPI, client *http.Client) (quickbooks.ClientRequest, error) {

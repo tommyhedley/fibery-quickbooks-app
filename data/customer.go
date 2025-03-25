@@ -1,21 +1,19 @@
 package data
 
 import (
-	"fmt"
-
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Customer = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Customer",
-			name: "Customer",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Customer = QuickBooksDualType[quickbooks.Customer]{
+	QuickBooksType: QuickBooksType[quickbooks.Customer]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Customer",
+			TypeName: "Customer",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
@@ -242,7 +240,7 @@ var Customer = QuickBooksDualType{
 						Name:          "Tax Exemption",
 						TargetName:    "Customers",
 						TargetType:    "TaxExemption",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"DefaultTaxCodeId": {
@@ -253,7 +251,7 @@ var Customer = QuickBooksDualType{
 						Name:          "Default Tax Code",
 						TargetName:    "Customers",
 						TargetType:    "TaxCode",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"CustomerTypeId": {
@@ -264,7 +262,7 @@ var Customer = QuickBooksDualType{
 						Name:          "Customer Type",
 						TargetName:    "Customers",
 						TargetType:    "CustomerType",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"SalesTermId": {
@@ -275,7 +273,7 @@ var Customer = QuickBooksDualType{
 						Name:          "Sales Term",
 						TargetName:    "Customers",
 						TargetType:    "SalesTerm",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"PaymentMethodId": {
@@ -286,7 +284,7 @@ var Customer = QuickBooksDualType{
 						Name:          "Payment Method",
 						TargetName:    "Customers",
 						TargetType:    "PaymentMethod",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ParentId": {
@@ -297,82 +295,161 @@ var Customer = QuickBooksDualType{
 						Name:          "Parent",
 						TargetName:    "Jobs",
 						TargetType:    "Customer",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			customer, ok := entity.(quickbooks.Customer)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Customer")
+		schemaGen: func(c quickbooks.Customer) (map[string]any, error) {
+			var email string
+			if c.PrimaryEmailAddr != nil {
+				email = c.PrimaryEmailAddr.Address
+			}
+
+			var primaryPhone string
+			if c.PrimaryPhone != nil {
+				primaryPhone = c.PrimaryPhone.FreeFormNumber
+			}
+
+			var alternatePhone string
+			if c.AlternatePhone != nil {
+				alternatePhone = c.AlternatePhone.FreeFormNumber
+			}
+
+			var mobile string
+			if c.Mobile != nil {
+				mobile = c.Mobile.FreeFormNumber
+			}
+
+			var fax string
+			if c.Fax != nil {
+				fax = c.Fax.FreeFormNumber
+			}
+
+			var website string
+			if c.WebAddr != nil {
+				website = c.WebAddr.URI
+			}
+
+			var shipAddr quickbooks.PhysicalAddress
+			if c.ShipAddr != nil {
+				shipAddr = *c.ShipAddr
+			}
+
+			var billAddr quickbooks.PhysicalAddress
+			if c.BillAddr != nil {
+				billAddr = *c.BillAddr
 			}
 
 			job := false
-			if customer.Job.Valid {
-				job = customer.Job.Bool
+			if c.Job.Valid {
+				job = c.Job.Bool
+			}
+
+			var defaultTaxCodeId string
+			if c.DefaultTaxCodeRef != nil {
+				defaultTaxCodeId = c.DefaultTaxCodeRef.Value
+			}
+
+			var customerTypeId string
+			if c.CustomerTypeRef != nil {
+				customerTypeId = c.CustomerTypeRef.Value
+			}
+
+			var salesTermId string
+			if c.SalesTermRef != nil {
+				salesTermId = c.SalesTermRef.Value
+			}
+
+			var paymentMethodId string
+			if c.PaymentMethodRef != nil {
+				paymentMethodId = c.PaymentMethodRef.Value
+			}
+
+			var parentId string
+			if c.ParentRef != nil {
+				parentId = c.ParentRef.Value
 			}
 
 			return map[string]any{
-				"Id":                 customer.Id,
-				"QBOId":              customer.Id,
-				"DisplayName":        customer.DisplayName,
-				"SyncToken":          customer.SyncToken,
+				"id":                 c.Id,
+				"QBOId":              c.Id,
+				"DisplayName":        c.DisplayName,
+				"SyncToken":          c.SyncToken,
 				"__syncAction":       fibery.SET,
-				"Active":             customer.Active,
-				"Title":              customer.Title,
-				"GivenName":          customer.GivenName,
-				"MiddleName":         customer.MiddleName,
-				"FamilyName":         customer.FamilyName,
-				"Suffix":             customer.Suffix,
-				"CompanyName":        customer.CompanyName,
-				"PrimaryEmail":       customer.PrimaryEmailAddr,
-				"Taxable":            customer.Taxable,
-				"ResaleNum":          customer.ResaleNum,
-				"PrimaryPhone":       customer.PrimaryPhone.FreeFormNumber,
-				"AlternatePhone":     customer.AlternatePhone.FreeFormNumber,
-				"Mobile":             customer.Mobile.FreeFormNumber,
-				"Fax":                customer.Fax.FreeFormNumber,
+				"Active":             c.Active,
+				"Title":              c.Title,
+				"GivenName":          c.GivenName,
+				"MiddleName":         c.MiddleName,
+				"FamilyName":         c.FamilyName,
+				"Suffix":             c.Suffix,
+				"CompanyName":        c.CompanyName,
+				"PrimaryEmail":       email,
+				"Taxable":            c.Taxable,
+				"ResaleNum":          c.ResaleNum,
+				"PrimaryPhone":       primaryPhone,
+				"AlternatePhone":     alternatePhone,
+				"Mobile":             mobile,
+				"Fax":                fax,
 				"Job":                job,
-				"BillWithParent":     customer.BillWithParent,
-				"Notes":              customer.Notes,
-				"Website":            customer.WebAddr.URI,
-				"Balance":            customer.Balance,
-				"BalanceWithJobs":    customer.BalanceWithJobs,
-				"ShippingLine1":      customer.ShipAddr.Line1,
-				"ShippingLine2":      customer.ShipAddr.Line2,
-				"ShippingLine3":      customer.ShipAddr.Line3,
-				"ShippingLine4":      customer.ShipAddr.Line4,
-				"ShippingLine5":      customer.ShipAddr.Line5,
-				"ShippingCity":       customer.ShipAddr.City,
-				"ShippingState":      customer.ShipAddr.CountrySubDivisionCode,
-				"ShippingPostalCode": customer.ShipAddr.PostalCode,
-				"ShippingCountry":    customer.ShipAddr.Country,
-				"ShippingLat":        customer.ShipAddr.Lat,
-				"ShippingLong":       customer.ShipAddr.Long,
-				"BillingLine1":       customer.BillAddr.Line1,
-				"BillingLine2":       customer.BillAddr.Line2,
-				"BillingLine3":       customer.BillAddr.Line3,
-				"BillingLine4":       customer.BillAddr.Line4,
-				"BillingLine5":       customer.BillAddr.Line5,
-				"BillingCity":        customer.BillAddr.City,
-				"BillingState":       customer.BillAddr.CountrySubDivisionCode,
-				"BillingPostalCode":  customer.BillAddr.PostalCode,
-				"BillingCountry":     customer.BillAddr.Country,
-				"BillingLat":         customer.BillAddr.Lat,
-				"BillingLong":        customer.BillAddr.Long,
-				"TaxExemptionId":     customer.TaxExemptionReasonId,
-				"DefaultTaxCodeId":   customer.DefaultTaxCodeRef.Value,
-				"CustomerTypeId":     customer.CustomerTypeRef.Value,
-				"SalesTermId":        customer.SalesTermRef.Value,
-				"PaymentMethodId":    customer.PaymentMethodRef.Value,
-				"ParentId":           customer.ParentRef.Value,
+				"BillWithParent":     c.BillWithParent,
+				"Notes":              c.Notes,
+				"Website":            website,
+				"Balance":            c.Balance,
+				"BalanceWithJobs":    c.BalanceWithJobs,
+				"ShippingLine1":      shipAddr.Line1,
+				"ShippingLine2":      shipAddr.Line2,
+				"ShippingLine3":      shipAddr.Line3,
+				"ShippingLine4":      shipAddr.Line4,
+				"ShippingLine5":      shipAddr.Line5,
+				"ShippingCity":       shipAddr.City,
+				"ShippingState":      shipAddr.CountrySubDivisionCode,
+				"ShippingPostalCode": shipAddr.PostalCode,
+				"ShippingCountry":    shipAddr.Country,
+				"ShippingLat":        shipAddr.Lat,
+				"ShippingLong":       shipAddr.Long,
+				"BillingLine1":       billAddr.Line1,
+				"BillingLine2":       billAddr.Line2,
+				"BillingLine3":       billAddr.Line3,
+				"BillingLine4":       billAddr.Line4,
+				"BillingLine5":       billAddr.Line5,
+				"BillingCity":        billAddr.City,
+				"BillingState":       billAddr.CountrySubDivisionCode,
+				"BillingPostalCode":  billAddr.PostalCode,
+				"BillingCountry":     billAddr.Country,
+				"BillingLat":         billAddr.Lat,
+				"BillingLong":        billAddr.Long,
+				"TaxExemptionId":     c.TaxExemptionReasonId,
+				"DefaultTaxCodeId":   defaultTaxCodeId,
+				"CustomerTypeId":     customerTypeId,
+				"SalesTermId":        salesTermId,
+				"PaymentMethodId":    paymentMethodId,
+				"ParentId":           parentId,
 			}, nil
 		},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		pageQuery: func(req Request) ([]quickbooks.Customer, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindCustomersByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityId: func(c quickbooks.Customer) string {
+		return c.Id
 	},
+	entityStatus: func(c quickbooks.Customer) string {
+		return c.Status
+	},
+}
+
+func init() {
+	registerType(&Customer)
 }

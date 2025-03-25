@@ -1,21 +1,19 @@
 package data
 
 import (
-	"fmt"
-
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Employee = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Employee",
-			name: "Employee",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Employee = QuickBooksDualType[quickbooks.Employee]{
+	QuickBooksType: QuickBooksType[quickbooks.Employee]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Employee",
+			TypeName: "Employee",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
@@ -78,6 +76,13 @@ var Employee = QuickBooksDualType{
 				},
 				"PrimaryPhone": {
 					Name: "Phone",
+					Type: fibery.Text,
+					Format: map[string]any{
+						"format": "phone",
+					},
+				},
+				"Mobile": {
+					Name: "Mobile",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
@@ -153,48 +158,78 @@ var Employee = QuickBooksDualType{
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			employee, ok := entity.(quickbooks.Employee)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Employee")
+		schemaGen: func(e quickbooks.Employee) (map[string]any, error) {
+			var email string
+			if e.PrimaryEmailAddr != nil {
+				email = e.PrimaryEmailAddr.Address
+			}
+
+			var primaryPhone string
+			if e.PrimaryPhone != nil {
+				primaryPhone = e.PrimaryPhone.FreeFormNumber
+			}
+
+			var mobile string
+			if e.Mobile != nil {
+				mobile = e.Mobile.FreeFormNumber
 			}
 
 			return map[string]any{
-				"Id":                employee.Id,
-				"QBOId":             employee.Id,
-				"DisplayName":       employee.DisplayName,
-				"SyncToken":         employee.SyncToken,
+				"id":                e.Id,
+				"QBOId":             e.Id,
+				"DisplayName":       e.DisplayName,
+				"SyncToken":         e.SyncToken,
 				"__syncAction":      fibery.SET,
-				"Active":            employee.Active,
-				"Title":             employee.Title,
-				"GivenName":         employee.GivenName,
-				"MiddleName":        employee.MiddleName,
-				"FamilyName":        employee.FamilyName,
-				"Suffix":            employee.Suffix,
-				"PrimaryEmailAddr":  employee.PrimaryEmailAddr,
-				"BillableTime":      employee.BillableTime,
-				"BirthDate":         employee.BirthDate.Format(fibery.DateFormat),
-				"PrimaryPhone":      employee.PrimaryPhone.FreeFormNumber,
-				"CostRate":          employee.CostRate,
-				"BillRate":          employee.BillRate,
-				"EmployeeNumber":    employee.EmployeeNumber,
-				"AddressLine1":      employee.PrimaryAddr.Line1,
-				"AddressLine2":      employee.PrimaryAddr.Line2,
-				"AddressLine3":      employee.PrimaryAddr.Line3,
-				"AddressLine4":      employee.PrimaryAddr.Line4,
-				"AddressLine5":      employee.PrimaryAddr.Line1,
-				"AddressCity":       employee.PrimaryAddr.City,
-				"AddressState":      employee.PrimaryAddr.CountrySubDivisionCode,
-				"AddressPostalCode": employee.PrimaryAddr.PostalCode,
-				"AddressCountry":    employee.PrimaryAddr.Country,
-				"AddressLat":        employee.PrimaryAddr.Lat,
-				"AddressLong":       employee.PrimaryAddr.Long,
+				"Active":            e.Active,
+				"Title":             e.Title,
+				"GivenName":         e.GivenName,
+				"MiddleName":        e.MiddleName,
+				"FamilyName":        e.FamilyName,
+				"Suffix":            e.Suffix,
+				"PrimaryEmailAddr":  email,
+				"BillableTime":      e.BillableTime,
+				"BirthDate":         e.BirthDate.Format(fibery.DateFormat),
+				"PrimaryPhone":      primaryPhone,
+				"Mobile":            mobile,
+				"CostRate":          e.CostRate,
+				"BillRate":          e.BillRate,
+				"EmployeeNumber":    e.EmployeeNumber,
+				"AddressLine1":      e.PrimaryAddr.Line1,
+				"AddressLine2":      e.PrimaryAddr.Line2,
+				"AddressLine3":      e.PrimaryAddr.Line3,
+				"AddressLine4":      e.PrimaryAddr.Line4,
+				"AddressLine5":      e.PrimaryAddr.Line1,
+				"AddressCity":       e.PrimaryAddr.City,
+				"AddressState":      e.PrimaryAddr.CountrySubDivisionCode,
+				"AddressPostalCode": e.PrimaryAddr.PostalCode,
+				"AddressCountry":    e.PrimaryAddr.Country,
+				"AddressLat":        e.PrimaryAddr.Lat,
+				"AddressLong":       e.PrimaryAddr.Long,
 			}, nil
 		},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		pageQuery: func(req Request) ([]quickbooks.Employee, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindEmployeesByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityId: func(e quickbooks.Employee) string {
+		return e.Id
 	},
+	entityStatus: func(e quickbooks.Employee) string {
+		return e.Status
+	},
+}
+
+func init() {
+	registerType(&Employee)
 }

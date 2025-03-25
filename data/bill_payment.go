@@ -1,24 +1,30 @@
 package data
 
-import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+import (
+	"fmt"
 
-var BillPayment = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "BillPayment",
-			name: "Bill Payement",
-			schema: map[string]fibery.Field{
-				"Id": {
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
+)
+
+var BillPayment = QuickBooksDualType[quickbooks.BillPayment]{
+	QuickBooksType: QuickBooksType[quickbooks.BillPayment]{
+		BaseType: fibery.BaseType{
+			TypeId:   "BillPayment",
+			TypeName: "Bill Payment",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
-					Type: fibery.Text,
+					Name:    "Name",
+					Type:    fibery.Text,
+					SubType: fibery.Title,
 				},
 				"SyncToken": {
 					Name:     "Sync Token",
@@ -75,7 +81,7 @@ var BillPayment = QuickBooksDualType{
 						Name:          "Vendor",
 						TargetName:    "Bill Payments",
 						TargetType:    "Vendor",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"PaymentAccountId": {
@@ -86,37 +92,83 @@ var BillPayment = QuickBooksDualType{
 						Name:          "Payment Account",
 						TargetName:    "Bill Payments",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen:      func(entity any) (map[string]any, error) {},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		schemaGen: func(bp quickbooks.BillPayment) (map[string]any, error) {
+			var paymentAccountId string
+			if bp.APAccountRef != nil {
+				paymentAccountId = bp.APAccountRef.Value
+			}
+
+			var payType string
+			switch bp.PayType {
+			case quickbooks.CreditCardPaymentType:
+				payType = "Credit Card"
+				paymentAccountId = bp.CreditCardPayment.CCAccountRef.Value
+			case quickbooks.CheckPaymentType:
+				payType = "Check"
+				paymentAccountId = bp.CheckPayment.BankAccountRef.Value
+			}
+
+			return map[string]any{
+				"id":               bp.Id,
+				"QBOId":            bp.Id,
+				"Name":             bp.VendorRef.Name,
+				"SyncToken":        bp.SyncToken,
+				"__syncAction":     fibery.SET,
+				"DocNumber":        bp.DocNumber,
+				"TxnDate":          bp.TxnDate.Format(fibery.DateFormat),
+				"PrivateNote":      bp.PrivateNote,
+				"TotalAmt":         bp.TotalAmt,
+				"PayType":          payType,
+				"VendorId":         bp.VendorRef.Value,
+				"PaymentAccountId": paymentAccountId,
+			}, nil
+		},
+		pageQuery: func(req Request) ([]quickbooks.BillPayment, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindBillPaymentsByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityId: func(bp quickbooks.BillPayment) string {
+		return bp.Id
+	},
+	entityStatus: func(bp quickbooks.BillPayment) string {
+		return bp.Status
 	},
 }
 
-var BillPaymentLine = DependentDualType{
-	dependentBaseType: dependentBaseType{
-		fiberyType: fiberyType{
-			id:   "BillPaymentLine",
-			name: "Bill Payment Line",
-			schema: map[string]fibery.Field{
-				"Id": {
+var BillPaymentLine = DependentDualType[quickbooks.BillPayment]{
+	dependentBaseType: dependentBaseType[quickbooks.BillPayment]{
+		BaseType: fibery.BaseType{
+			TypeId:   "BillPaymentLine",
+			TypeName: "Bill Payment Line",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.Text,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
-				"Name": {
-					Name: "Name",
-					Type: fibery.Text,
+				"Description": {
+					Name:    "Description",
+					Type:    fibery.Text,
+					SubType: fibery.Title,
 				},
 				"__syncAction": {
 					Type: fibery.Text,
@@ -140,7 +192,7 @@ var BillPaymentLine = DependentDualType{
 						Name:          "Bill",
 						TargetName:    "Bill Payment Lines",
 						TargetType:    "Bill",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"VendorCreditId": {
@@ -151,7 +203,7 @@ var BillPaymentLine = DependentDualType{
 						Name:          "Vendor Credit",
 						TargetName:    "Bill Payment Lines",
 						TargetType:    "VendorCredit",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"DepositId": {
@@ -162,19 +214,58 @@ var BillPaymentLine = DependentDualType{
 						Name:          "Deposit",
 						TargetName:    "Bill Payment Lines",
 						TargetType:    "Deposit",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen:      func(entity, source any) (map[string]any, error) {},
-		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {},
+		schemaGen: func(bp quickbooks.BillPayment) ([]map[string]any, error) {
+			items := []map[string]any{}
+			for _, line := range bp.Line {
+				var description string
+				var billId string
+				var vendorCreditId string
+				switch line.LinkedTxn[0].TxnType {
+				case "Bill":
+					description = "Bill Payment"
+					billId = line.LinkedTxn[0].TxnId
+				case "VendorCredit":
+					description = "Vendor Credit"
+					vendorCreditId = line.LinkedTxn[0].TxnId
+				}
+
+				item := map[string]any{
+					"id":             fmt.Sprintf("%s:%s", bp.Id, line.Id),
+					"QBOId":          line.Id,
+					"Description":    description,
+					"__syncAction":   fibery.SET,
+					"Amount":         line.Amount,
+					"BillId":         billId,
+					"VendorCreditId": vendorCreditId,
+				}
+
+				items = append(items, item)
+			}
+			return items, nil
+		},
 	},
-	source:       BillPayment,
-	sourceMapper: func(source any) (map[string]bool, error) {},
-	typeMapper:   func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceType: &BillPayment,
+	sourceId: func(bp quickbooks.BillPayment) string {
+		return bp.Id
 	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceStatus: func(bp quickbooks.BillPayment) string {
+		return bp.Status
 	},
+	sourceMapper: func(bp quickbooks.BillPayment) map[string]struct{} {
+		sourceMap := map[string]struct{}{}
+		for _, line := range bp.Line {
+			sourceMap[fmt.Sprintf("%s:%s", bp.Id, line.Id)] = struct{}{}
+		}
+		return sourceMap
+	},
+}
+
+func init() {
+	registerType(&BillPayment)
+	registerType(&BillPaymentLine)
 }

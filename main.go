@@ -11,23 +11,53 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/data"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
-	"golang.org/x/sync/singleflight"
 )
 
 var version = "dev"
 
+type Integration struct {
+	appConfig  fibery.AppConfig
+	syncConfig fibery.SyncConfig
+	client     *quickbooks.Client
+	dataCache  *data.Cache
+	idCache    *data.IdCache
+}
+
+func NewIntegration(appConfig fibery.AppConfig, syncConfig fibery.SyncConfig, client *quickbooks.Client) *Integration {
+	dataCache := data.NewDataCache(30 * time.Second)
+	idCache := data.NewIdCache(24 * time.Hour)
+	integration := &Integration{
+		appConfig:  appConfig,
+		syncConfig: syncConfig,
+		client:     client,
+		dataCache:  dataCache,
+		idCache:    idCache,
+	}
+	integration.StartCacheCleaner()
+	return integration
+}
+
+func (i *Integration) Cleanup() {
+	i.dataCache.CleanupExpired()
+	i.idCache.CleanupExpired()
+}
+
+func (i *Integration) StartCacheCleaner() {
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		defer ticker.Stop()
+		for range ticker.C {
+			i.Cleanup()
+		}
+	}()
+}
+
 func main() {
 	godotenv.Load()
 	port := os.Getenv("PORT")
-	loggerLevel := os.Getenv("LOGGER_LEVEL")
-	loggerStyle := os.Getenv("LOGGER_STYLE")
-
-	c := cache.New(12*time.Hour, 12*time.Hour)
-	var group singleflight.Group
 
 	var discoveryUrl string
 	switch os.Getenv("MODE") {
@@ -58,62 +88,59 @@ func main() {
 		os.Exit(1)
 	}
 
-	integration := Integration{
-		appConfig: fibery.AppConfig{
-			ID:          "qbo",
-			Name:        "QuickBooks Online",
-			Website:     "https://quickbooks.intuit.com",
-			Version:     version,
-			Description: "Integrate QuickBooks Online data with Fibery",
-			Authentication: []fibery.Authentication{
-				{
-					ID:          "oauth2",
-					Name:        "OAuth v2 Authentication",
-					Description: "OAuth v2-based authentication and authorization for access to QuickBooks Online",
-					Fields: []fibery.AuthField{
-						{
-							ID:          "callback_uri",
-							Title:       "callback_uri",
-							Description: "OAuth post-auth redirect URI",
-							Type:        "oauth",
-						},
+	appConfig := fibery.AppConfig{
+		Id:          "qbo",
+		Name:        "QuickBooks Online",
+		Website:     "https://quickbooks.intuit.com",
+		Version:     version,
+		Description: "Integrate QuickBooks Online data with Fibery",
+		Authentication: []fibery.Authentication{
+			{
+				Id:          "oauth2",
+				Name:        "OAuth v2 Authentication",
+				Description: "OAuth v2-based authentication and authorization for access to QuickBooks Online",
+				Fields: []fibery.AuthField{
+					{
+						Id:          "callback_uri",
+						Title:       "callback_uri",
+						Description: "OAuth post-auth redirect URI",
+						Type:        "oauth",
 					},
 				},
 			},
-			Sources: []string{},
-			ResponsibleFor: fibery.ResponsibleFor{
-				DataSynchronization: true,
-			},
 		},
-		syncConfig: fibery.SyncConfig{
-			Types:   []fibery.SyncConfigTypes{},
-			Filters: []fibery.SyncFilter{},
-			Webhooks: fibery.SyncConfigWebhook{
-				Enabled: true,
-				Type:    "ui",
-			},
+		Sources: []string{},
+		ResponsibleFor: fibery.ResponsibleFor{
+			DataSynchronization: true,
 		},
-		types:        data.Types,
-		cache:        c,
-		group:        &group,
-		discoveryAPI: discoveryAPI,
-		client:       client,
 	}
 
-	for _, datatype := range data.Types {
-		integration.syncConfig.Types = append(integration.syncConfig.Types, fibery.SyncConfigTypes{
-			ID:   (*datatype).GetId(),
-			Name: (*datatype).GetName(),
+	syncConfig := fibery.SyncConfig{
+		Types:   []fibery.SyncConfigTypes{},
+		Filters: []fibery.SyncFilter{},
+		Webhooks: fibery.SyncConfigWebhook{
+			Enabled: true,
+			Type:    "ui",
+		},
+	}
+
+	for _, typ := range data.Types.All {
+		syncConfig.Types = append(syncConfig.Types, fibery.SyncConfigTypes{
+			Id:   (*typ).Id(),
+			Name: (*typ).Name(),
 		})
 	}
 
+	integration := NewIntegration(appConfig, syncConfig, client)
+	loggerLevel := os.Getenv("LOGGER_LEVEL")
+	loggerStyle := os.Getenv("LOGGER_STYLE")
 	SlogConfig := newSlogConfig(loggerLevel, loggerStyle)
 	logger := SlogConfig.Create()
 	slog.SetDefault(logger)
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      NewServer(&integration),
+		Handler:      NewIntegrationHandler(integration),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,

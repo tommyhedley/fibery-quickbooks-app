@@ -1,66 +1,73 @@
 package data
 
-import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+import (
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
+)
 
-var Vendor = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Vendor",
-			name: "Vendor",
-			schema: map[string]fibery.Field{
+var Vendor = QuickBooksDualType[quickbooks.Vendor]{
+	QuickBooksType: QuickBooksType[quickbooks.Vendor]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Vendor",
+			TypeName: "Vendor",
+			TypeSchema: map[string]fibery.Field{
 				"id": {
-					Name: "id",
-					Type: fibery.ID,
+					Name: "ID",
+					Type: fibery.Id,
 				},
-				"qbo_id": {
+				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
-				"sync_token": {
-					Name:     "Sync Token",
-					Type:     fibery.Text,
-					ReadOnly: true,
-				},
-				"active": {
-					Name:    "Active",
-					Type:    fibery.Text,
-					SubType: fibery.Boolean,
-				},
-				"display_name": {
+				"DisplayName": {
 					Name:    "Display Name",
 					Type:    fibery.Text,
 					SubType: fibery.Title,
 				},
-				"title": {
+				"SyncToken": {
+					Name:     "Sync Token",
+					Type:     fibery.Text,
+					ReadOnly: true,
+				},
+				"__syncAction": {
+					Type: fibery.Text,
+					Name: "Sync Action",
+				},
+				"Active": {
+					Name:    "Active",
+					Type:    fibery.Text,
+					SubType: fibery.Boolean,
+				},
+				"Title": {
 					Name: "Title",
 					Type: fibery.Text,
 				},
-				"given_name": {
+				"GivenName": {
 					Name: "First Name",
 					Type: fibery.Text,
 				},
-				"middle_name": {
+				"MiddleName": {
 					Name: "Middle Name",
 					Type: fibery.Text,
 				},
-				"family_name": {
+				"FamilyName": {
 					Name: "Last Name",
 					Type: fibery.Text,
 				},
-				"suffix": {
+				"Suffix": {
 					Name: "Suffix",
 					Type: fibery.Text,
 				},
-				"company_name": {
+				"CompanyName": {
 					Name: "Company Name",
 					Type: fibery.Text,
 				},
-				"primary_email": {
+				"PrimaryEmail": {
 					Name:    "Email",
 					Type:    fibery.Text,
 					SubType: fibery.Email,
 				},
-				"sales_term_id": {
+				"SalesTermId": {
 					Name: "Sales Term ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
@@ -71,28 +78,28 @@ var Vendor = QuickBooksDualType{
 						TargetFieldID: "id",
 					},
 				},
-				"primary_phone": {
+				"PrimaryPhone": {
 					Name: "Phone",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"alt_phone": {
+				"AlternatePhone": {
 					Name: "Alternate Phone",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"mobile": {
+				"Mobile": {
 					Name: "Mobile",
 					Type: fibery.Text,
 					Format: map[string]any{
 						"format": "phone",
 					},
 				},
-				"fax": {
+				"Fax": {
 					Name: "Fax",
 					Type: fibery.Text,
 					Format: map[string]any{
@@ -105,7 +112,7 @@ var Vendor = QuickBooksDualType{
 					SubType:     fibery.Boolean,
 					Description: "Is the Vendor a 1099 contractor?",
 				},
-				"cost_rate": {
+				"CostRate": {
 					Name:        "Cost Rate",
 					Type:        fibery.Number,
 					Description: "Default cost rate of the Vendor",
@@ -116,7 +123,7 @@ var Vendor = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"bill_rate": {
+				"BillRate": {
 					Name:        "Bill Rate",
 					Type:        fibery.Number,
 					Description: "Default billing rate of the Vendor",
@@ -127,17 +134,17 @@ var Vendor = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"website": {
+				"Website": {
 					Name:    "Website",
 					Type:    fibery.Text,
 					SubType: fibery.URL,
 				},
-				"account_number": {
+				"AccountNumber": {
 					Name:        "Account Number",
 					Type:        fibery.Text,
 					Description: "Name or number of the account associated with this vendor",
 				},
-				"balance": {
+				"Balance": {
 					Name: "Balance",
 					Type: fibery.Number,
 					Format: map[string]any{
@@ -147,66 +154,154 @@ var Vendor = QuickBooksDualType{
 						"precision":            2,
 					},
 				},
-				"billing_address": {
+				"BillingAddress": {
 					Name:    "Billing Address",
 					Type:    fibery.Text,
 					SubType: fibery.MD,
 				},
-				"billing_line_1": {
+				"BillingLine1": {
 					Name: "Billing Line 1",
 					Type: fibery.Text,
 				},
-				"billing_line_2": {
+				"BillingLine2": {
 					Name: "Billing Line 2",
 					Type: fibery.Text,
 				},
-				"billing_line_3": {
+				"BillingLine3": {
 					Name: "Billing Line 3",
 					Type: fibery.Text,
 				},
-				"billing_line_4": {
+				"BillingLine4": {
 					Name: "Billing Line 4",
 					Type: fibery.Text,
 				},
-				"billing_line_5": {
+				"BillingLine5": {
 					Name: "Billing Line 5",
 					Type: fibery.Text,
 				},
-				"billing_city": {
+				"BillingCity": {
 					Name: "Billing City",
 					Type: fibery.Text,
 				},
-				"billing_state": {
+				"BillingState": {
 					Name: "Billing State",
 					Type: fibery.Text,
 				},
-				"billing_postal_code": {
+				"BillingPostalCode": {
 					Name: "Billing Postal Code",
 					Type: fibery.Text,
 				},
-				"billing_country": {
+				"BillingCountry": {
 					Name: "Billing Country",
 					Type: fibery.Text,
 				},
-				"billing_lat": {
+				"BillingLat": {
 					Name: "Billing Latitude",
 					Type: fibery.Text,
 				},
-				"billing_long": {
+				"BillingLong": {
 					Name: "Billing Longitude",
 					Type: fibery.Text,
 				},
-				"__syncAction": {
-					Type: fibery.Text,
-					Name: "Sync Action",
-				},
 			},
 		},
-		schemaGen:      func(entity any) (map[string]any, error) {},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		schemaGen: func(v quickbooks.Vendor) (map[string]any, error) {
+			var email string
+			if v.PrimaryEmailAddr != nil {
+				email = v.PrimaryEmailAddr.Address
+			}
+
+			var primaryPhone string
+			if v.PrimaryPhone != nil {
+				primaryPhone = v.PrimaryPhone.FreeFormNumber
+			}
+
+			var alternatePhone string
+			if v.AlternatePhone != nil {
+				alternatePhone = v.AlternatePhone.FreeFormNumber
+			}
+
+			var mobile string
+			if v.Mobile != nil {
+				mobile = v.Mobile.FreeFormNumber
+			}
+
+			var fax string
+			if v.Fax != nil {
+				fax = v.Fax.FreeFormNumber
+			}
+
+			var website string
+			if v.WebAddr != nil {
+				website = v.WebAddr.URI
+			}
+
+			var billAddr quickbooks.PhysicalAddress
+			if v.BillAddr != nil {
+				billAddr = *v.BillAddr
+			}
+
+			var termId string
+			if v.TermRef != nil {
+				termId = v.TermRef.Value
+			}
+
+			return map[string]any{
+				"id":                v.Id,
+				"QBOId":             v.Id,
+				"DisplayName":       v.DisplayName,
+				"SyncToken":         v.SyncToken,
+				"__syncAction":      fibery.SET,
+				"Active":            v.Active,
+				"Title":             v.Title,
+				"GivenName":         v.GivenName,
+				"MiddleName":        v.MiddleName,
+				"FamilyName":        v.FamilyName,
+				"Suffix":            v.Suffix,
+				"CompanyName":       v.CompanyName,
+				"PrimaryEmail":      email,
+				"SalesTermId":       termId,
+				"PrimaryPhone":      primaryPhone,
+				"AlternatePhone":    alternatePhone,
+				"Mobile":            mobile,
+				"Fax":               fax,
+				"1099":              v.Vendor1099,
+				"CostRate":          v.CostRate,
+				"BillRate":          v.BillRate,
+				"Website":           website,
+				"Balance":           v.Balance,
+				"BillingLine1":      billAddr.Line1,
+				"BillingLine2":      billAddr.Line2,
+				"BillingLine3":      billAddr.Line3,
+				"BillingLine4":      billAddr.Line4,
+				"BillingLine5":      billAddr.Line5,
+				"BillingCity":       billAddr.City,
+				"BillingState":      billAddr.CountrySubDivisionCode,
+				"BillingPostalCode": billAddr.PostalCode,
+				"BillingCountry":    billAddr.Country,
+				"BillingLat":        billAddr.Lat,
+				"BillingLong":       billAddr.Long,
+			}, nil
+		},
+		pageQuery: func(req Request) ([]quickbooks.Vendor, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindVendorsByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityId: func(v quickbooks.Vendor) string {
+		return v.Id
+	},
+	entityStatus: func(v quickbooks.Vendor) string {
+		return v.Status
 	},
 }

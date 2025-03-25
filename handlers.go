@@ -15,20 +15,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/data"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
-	"golang.org/x/sync/singleflight"
 )
 
-type Integration struct {
-	appConfig  fibery.AppConfig
-	syncConfig fibery.SyncConfig
-	types      map[string]*data.Type
-	client     *quickbooks.Client
-	cache      *cache.Cache
-	group      *singleflight.Group
+type QuickBooksAccountInfo struct {
+	Name    string `json:"name,omitempty"`
+	RealmID string `json:"realmId,omitempty"`
+	quickbooks.BearerToken
 }
 
 func (i *Integration) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +34,7 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 	type requestBody struct {
 		Id     string `json:"id"`
 		Fields struct {
-			integrationAccountInfo
+			QuickBooksAccountInfo
 		} `json:"fields"`
 	}
 
@@ -78,11 +73,11 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 
 	info, err := i.client.FindCompanyInfo(params)
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to find company info: %w", err))
+		HandleRequestError(w, http.StatusInternalServerError, "unable to find company info", err)
 		return
 	}
 
-	RespondWithJSON(w, http.StatusOK, integrationAccountInfo{
+	RespondWithJSON(w, http.StatusOK, QuickBooksAccountInfo{
 		Name:        info.CompanyName,
 		RealmID:     reqBody.Fields.RealmID,
 		BearerToken: *token,
@@ -96,9 +91,9 @@ func (i *Integration) SyncConfigHandler(w http.ResponseWriter, r *http.Request) 
 
 func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) {
 	type request struct {
-		Types   []string               `json:"types"`
-		Filter  fibery.SyncFilter      `json:"filter"`
-		Account integrationAccountInfo `json:"account"`
+		Types   []string              `json:"types"`
+		Filter  fibery.SyncFilter     `json:"filter"`
+		Account QuickBooksAccountInfo `json:"account"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -112,13 +107,13 @@ func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) 
 	requestedSchemas := make(map[string]map[string]fibery.Field)
 
 	for _, t := range req.Types {
-		typePointer, ok := i.types[t]
+		typePointer, ok := data.Types.All[t]
 		if !ok {
 			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("type %s not found in registered types", t))
 			return
 		}
 		datatype := *typePointer
-		requestedSchemas[t] = datatype.GetSchema()
+		requestedSchemas[t] = datatype.Schema()
 	}
 
 	RespondWithJSON(w, http.StatusOK, requestedSchemas)
@@ -130,7 +125,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		OperationID       string                               `json:"operationId"`
 		Types             []string                             `json:"types"`
 		Filter            map[string]any                       `json:"filter"`
-		Account           integrationAccountInfo               `json:"account"`
+		Account           QuickBooksAccountInfo                `json:"account"`
 		LastSyncronizedAt string                               `json:"lastSynchronizedAt"`
 		Pagination        fibery.NextPageConfig                `json:"pagination"`
 		Schema            map[string]map[string]map[string]any `json:"schema"`
@@ -150,13 +145,13 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		startPosition = 1
 	}
 
-	if params.RequestedType == "" {
-		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requestedType is required"))
+	if params.OperationID == "" {
+		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("operationId is required"))
 		return
 	}
 
-	if params.OperationID == "" {
-		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("operationId is required"))
+	if params.RequestedType == "" {
+		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requestedType is required"))
 		return
 	}
 
@@ -165,291 +160,117 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		lastSynced, err = time.Parse(fibery.DateFormat, params.LastSyncronizedAt)
 		if err != nil {
 			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to convert lastSynchronizedAt value: %w", err))
+			return
 		}
 	}
 
-	typePointer, ok := data.Types[params.RequestedType]
-	if !ok {
-		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type was not found: %s", params.RequestedType))
-		return
-	}
+	opCache, exists := i.dataCache.Get(params.OperationID)
+	if !exists {
+		slog.Debug("opCache does not exist")
+		requestedTypes := make(map[string]bool)
+		syncTypes := make(map[string]fibery.SyncType)
+		deltaRequestTypes := []string{}
+		for _, rt := range params.Types {
+			requestedTypes[rt] = false
+			storedType := (*data.Types.All[rt])
+			if !lastSynced.IsZero() {
+				switch storedType.(type) {
+				case data.CDCQueryable:
+					syncTypes[rt] = fibery.Delta
+					deltaRequestTypes = append(deltaRequestTypes, storedType.Id())
+				case data.DepCDCQueryable:
+					if _, ok := i.idCache.Get(params.Account.RealmID, storedType.Id()); ok {
+						syncTypes[rt] = fibery.Delta
+						deltaRequestTypes = append(deltaRequestTypes, storedType.Id())
+					} else {
+						syncTypes[rt] = fibery.Full
+					}
+				}
+			} else {
+				syncTypes[rt] = fibery.Full
+			}
+		}
 
-	reqParams := quickbooks.RequestParameters{
-		Ctx:     r.Context(),
-		RealmId: params.Account.RealmID,
-		Token:   &params.Account.BearerToken,
+		opCache = data.NewOperationCache(requestedTypes, syncTypes)
+		i.dataCache.Set(params.OperationID, opCache)
+
+		if len(deltaRequestTypes) > 0 {
+			go func() {
+				cdcParams := quickbooks.RequestParameters{
+					Ctx:     r.Context(),
+					RealmId: params.Account.RealmID,
+					Token:   &params.Account.BearerToken,
+				}
+
+				cdc, err := i.client.ChangeDataCapture(cdcParams, deltaRequestTypes, lastSynced)
+				if err != nil {
+					slog.Error("CDC request failed", "error", err)
+				} else {
+					opCache.Lock()
+					opCache.Results["cdc"] = &data.CacheEntry{
+						Data: make(chan any, 1),
+					}
+					opCache.Results["cdc"].Data <- cdc
+					opCache.Unlock()
+				}
+
+			}()
+		}
 	}
 
 	req := data.Request{
-		StartPosition:     startPosition,
-		PageSize:          quickbooks.QueryPageSize,
-		OperationId:       params.OperationID,
-		LastSynced:        lastSynced,
-		RequestedType:     params.RequestedType,
-		RequestedTypes:    params.Types,
-		RequestedCDCTypes: ConvertToCDCTypes(i.types, params.Types),
-		Filter:            params.Filter,
-		Cache:             i.cache,
-		Group:             i.group,
-		Client:            i.client,
+		Filter:        params.Filter,
+		LastSynced:    lastSynced,
+		Ctx:           r.Context(),
+		Types:         params.Types,
+		RealmId:       params.Account.RealmID,
+		StartPosition: startPosition,
+		PageSize:      quickbooks.QueryPageSize,
+		OpCache:       opCache,
+		IdCache:       i.idCache,
+		Client:        i.client,
+		Token:         &params.Account.BearerToken,
 	}
 
-	var responseBody fibery.DataHandlerResponse
-	types := *typePointer
-
-	switch datatype := types.(type) {
-	case data.DependentCDCQueryable:
-		cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, req.RequestedType)
-		cacheEntry, found := i.cache.Get(cacheKey)
-		if req.LastSynced.IsZero() || !found {
-			groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, datatype.GetSourceId(), req.StartPosition)
-			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-				data, err := datatype.Query(req)
-				if err != nil {
-					return nil, err
-				}
-				return data, nil
-			})
-
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve parent data: %w", err))
-				return
-			}
-
-			dataResponse := res.(data.Response)
-
-			idMap, err := datatype.MapType(dataResponse.Data)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to map ids: %w", err))
-				return
-			}
-
-			if !found {
-				idEntry := data.IdCache{
-					OperationId: req.OperationId,
-					Entries:     idMap,
-				}
-				err = req.Cache.Add(cacheKey, &idEntry, data.IdCacheLifetime)
-				if err != nil {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to add cache entry: %w", err))
-					return
-				}
-			} else {
-				cacheEntry, ok := cacheEntry.(*data.IdCache)
-				if !ok {
-					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
-					return
-				}
-				cacheEntry.Mu.Lock()
-				defer cacheEntry.Mu.Unlock()
-				if cacheEntry.OperationId == req.OperationId {
-					for sourceId, sourceMap := range idMap {
-						cacheEntry.Entries[sourceId] = sourceMap
-					}
-					req.Cache.Set(cacheKey, cacheEntry, data.IdCacheLifetime)
-				} else {
-					newCacheEntry := data.IdCache{
-						OperationId: req.OperationId,
-						Entries:     idMap,
-					}
-					req.Cache.Set(cacheKey, &newCacheEntry, data.IdCacheLifetime)
-				}
-			}
-			items, err := datatype.ProcessQuery(dataResponse.Data)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
-				return
-			}
-			responseBody = fibery.DataHandlerResponse{
-				Items: items,
-				Pagination: fibery.Pagination{
-					HasNext: dataResponse.MoreData,
-					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-					},
-				},
-				SynchronizationType: fibery.FullSync,
-			}
-		} else {
-			groupKey := params.OperationID
-			cacheEntry, ok := cacheEntry.(*data.IdCache)
-			if !ok {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
-				return
-			}
-			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-				data, err := client.ChangeDataCapture(req.RequestedCDCTypes, req.LastSynced)
-				if err != nil {
-					return nil, err
-				}
-
-				return data, nil
-			})
-
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to get change data capture: %w", err))
-				return
-			}
-
-			items, err := datatype.ProcessCDC(res.(quickbooks.ChangeDataCapture), cacheEntry)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process change data capture: %w", err))
-				return
-			}
-
-			responseBody = fibery.DataHandlerResponse{
-				Items: items,
-				Pagination: fibery.Pagination{
-					HasNext: false,
-					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-					},
-				},
-				SynchronizationType: fibery.DeltaSync,
-			}
-		}
-	case data.DependentType:
-		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, datatype.GetSourceId(), req.StartPosition)
-		res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-			data, err := datatype.Query(req)
-			if err != nil {
-				return nil, err
-			}
-			return data, nil
-		})
-
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve parent data: %w", err))
-			return
-		}
-
-		dataResponse := res.(data.Response)
-
-		items, err := datatype.ProcessQuery(dataResponse.Data)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
-			return
-		}
-		responseBody = fibery.DataHandlerResponse{
-			Items: items,
-			Pagination: fibery.Pagination{
-				HasNext: dataResponse.MoreData,
-				NextPageConfig: fibery.NextPageConfig{
-					StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-				},
-			},
-			SynchronizationType: fibery.FullSync,
-		}
-	case data.CDCQueryable:
-		if req.LastSynced.IsZero() {
-			groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, params.RequestedType, req.StartPosition)
-			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-				data, err := datatype.Query(req)
-				if err != nil {
-					return nil, err
-				}
-				return data, nil
-			})
-
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve data: %w", err))
-				return
-			}
-
-			dataResponse := res.(data.Response)
-
-			items, err := datatype.ProcessQuery(dataResponse.Data)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
-				return
-			}
-			responseBody = fibery.DataHandlerResponse{
-				Items: items,
-				Pagination: fibery.Pagination{
-					HasNext: dataResponse.MoreData,
-					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-					},
-				},
-				SynchronizationType: fibery.FullSync,
-			}
-		} else {
-			groupKey := params.OperationID
-			res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-				data, err := client.ChangeDataCapture(req.RequestedCDCTypes, req.LastSynced)
-				if err != nil {
-					return nil, err
-				}
-				return data, nil
-			})
-
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to get change data capture: %w", err))
-				return
-			}
-
-			items, err := datatype.ProcessCDC(res.(quickbooks.ChangeDataCapture))
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process change data capture: %w", err))
-				return
-			}
-
-			responseBody = fibery.DataHandlerResponse{
-				Items: items,
-				Pagination: fibery.Pagination{
-					HasNext: false,
-					NextPageConfig: fibery.NextPageConfig{
-						StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-					},
-				},
-				SynchronizationType: fibery.DeltaSync,
-			}
-		}
-	default:
-		groupKey := fmt.Sprintf("%s:%s:%d", req.OperationId, params.RequestedType, req.StartPosition)
-		res, err, _ := i.group.Do(groupKey, func() (interface{}, error) {
-			data, err := datatype.Query(req)
-			if err != nil {
-				return nil, err
-			}
-			return data, nil
-		})
-
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to retrieve data: %w", err))
-			return
-		}
-
-		dataResponse := res.(data.Response)
-
-		items, err := datatype.ProcessQuery(dataResponse.Data)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process data: %w", err))
-			return
-		}
-		responseBody = fibery.DataHandlerResponse{
-			Items: items,
-			Pagination: fibery.Pagination{
-				HasNext: dataResponse.MoreData,
-				NextPageConfig: fibery.NextPageConfig{
-					StartPosition: req.StartPosition + quickbooks.QueryPageSize,
-				},
-			},
-			SynchronizationType: fibery.FullSync,
-		}
+	requestType, ok := data.Types.All[params.RequestedType]
+	if !ok {
+		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requestedType was not found in i.types"))
+		return
 	}
 
-	slog.Info(fmt.Sprintf("Getting data for %s", params.RequestedType))
+	slog.Debug("getting data")
 
-	RespondWithJSON(w, http.StatusOK, responseBody)
+	resp, err := (*requestType).GetData(req)
+	if err != nil {
+		HandleRequestError(w, http.StatusInternalServerError, "data request failed", err)
+		return
+	}
+
+	slog.Debug("data request completed")
+
+	opCache.Lock()
+	allComplete := true
+	for _, complete := range opCache.RequestedTypes {
+		if !complete {
+			allComplete = false
+			break
+		}
+	}
+	opCache.Unlock()
+
+	if allComplete {
+		i.dataCache.Delete(params.OperationID)
+	}
+
+	RespondWithJSON(w, http.StatusOK, resp)
 }
 
 func (Integration) WebhookInitHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
-		Account integrationAccountInfo `json:"account"`
-		Types   []string               `json:"types"`
-		Filter  map[string]any         `json:"filter"`
-		Webhook fibery.Webhook         `json:"webhook"`
+		Account QuickBooksAccountInfo `json:"account"`
+		Types   []string              `json:"types"`
+		Filter  map[string]any        `json:"filter"`
+		Webhook fibery.Webhook        `json:"webhook"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -461,7 +282,7 @@ func (Integration) WebhookInitHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	webhookID := uuid.New().String()
-	RespondWithJSON(w, http.StatusOK, fibery.Webhook{WebhookID: webhookID, WorkspaceID: params.Account.RealmID})
+	RespondWithJSON(w, http.StatusOK, fibery.Webhook{WebhookId: webhookID, WorkspaceId: params.Account.RealmID})
 }
 
 func (Integration) WebhookPreProcessHandler(w http.ResponseWriter, r *http.Request) {
@@ -552,10 +373,9 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			AcceptEncoding                  string    `json:"accept-encoding"`
 			Authorization                   string    `json:"authorization"`
 		} `json:"params"`
-		Types  []string `json:"types"`
-		Filter struct {
-		} `json:"filter"`
-		Account integrationAccountInfo `json:"account"`
+		Types   []string              `json:"types"`
+		Filter  map[string]any        `json:"filter"`
+		Account QuickBooksAccountInfo `json:"account"`
 		Payload struct {
 			EventNotifications []struct {
 				RealmID         string `json:"realmId"`
@@ -569,10 +389,6 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 				} `json:"dataChangeEvent"`
 			} `json:"eventNotifications"`
 		} `json:"payload"`
-	}
-
-	type responseBody struct {
-		Data map[string][]map[string]any `json:"data"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -591,7 +407,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			continue
 		}
 		for _, e := range event.DataChangeEvent.Entities {
-			if _, ok := i.types[e.Name]; ok {
+			if _, ok := data.Types.All[e.Name]; ok {
 				switch e.Operation {
 				case "Create", "Update", "Emailed", "Void":
 					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
@@ -602,41 +418,40 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	var response responseBody
-	response.Data = map[string][]map[string]any{}
+	response := fibery.WebhookTransformResponse{
+		Data: make(fibery.WebhookData),
+	}
 
-	for typ, ids := range deleteEntities {
+	for typeId, ids := range deleteEntities {
 		for _, id := range ids {
-			response.Data[typ] = append(response.Data[typ], map[string]any{
+			response.Data[typeId] = append(response.Data[typeId], map[string]any{
 				"id":           id,
 				"__syncAction": fibery.REMOVE,
 			})
 		}
-		if dependents, ok := data.SourceDependents[typ]; ok {
-			for _, dependentPtr := range dependents {
-				dependent := *dependentPtr
-				cacheKey := fmt.Sprintf("%s:%s", params.Account.RealmID, dependent.GetId())
-				if cacheEntry, found := i.cache.Get(cacheKey); found {
-					cacheEntry, ok := cacheEntry.(*data.IdCache)
-					if !ok {
-						RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert cache entry to IdCache"))
-						return
-					}
-
-					cacheEntry.Mu.Lock()
-					defer cacheEntry.Mu.Unlock()
-					for _, id := range ids {
-						cachedIds := cacheEntry.Entries[id]
-						for cachedId := range cachedIds {
-							response.Data[dependent.GetId()] = append(response.Data[dependent.GetId()], map[string]any{
-								"id":           cachedId,
-								"__syncAction": fibery.REMOVE,
-							})
+		if depTypes, ok := data.Types.DepWHReceivable[typeId]; ok {
+			for _, depPtr := range depTypes {
+				for _, selectedType := range params.Types {
+					if depType := *depPtr; depType.Id() == selectedType {
+						idSet, exists := i.idCache.Get(params.Account.RealmID, depType.Id())
+						if !exists {
+							RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("no idCache exists for: %s, please full sync to build idCache", depType.Id()))
+							return
 						}
-						delete(cacheEntry.Entries, id)
+						for _, parentId := range ids {
+							if depIds, exists := idSet[parentId]; exists {
+								for _, depId := range depIds {
+									response.Data[depType.Id()] = append(response.Data[depType.Id()], map[string]any{
+										"id":           depId,
+										"__syncAction": fibery.REMOVE,
+									})
+								}
+								i.idCache.RemoveSource(params.Account.RealmID, depType.Id(), parentId)
+							}
+						}
 					}
+					continue
 				}
-
 			}
 		}
 	}
@@ -663,14 +478,29 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	req := data.Request{
+		Filter:  params.Filter,
+		Ctx:     r.Context(),
+		Types:   params.Types,
+		RealmId: params.Account.RealmID,
+		IdCache: i.idCache,
+		Client:  i.client,
+		Token:   &params.Account.BearerToken,
+	}
+
 	for _, itemResponse := range batchResponse {
-		datatype := *i.types[itemResponse.BID]
-		whDatatype, ok := datatype.(data.WHQueryable)
-		if !ok {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to convert datatype to WHQueryable"))
+		if faultType := itemResponse.Fault.FaultType; faultType != "" {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("batch request error: %s", faultType))
 			return
 		}
-		err := whDatatype.ProcessWHBatch(itemResponse, &response.Data, i.cache, params.Account.RealmID)
+
+		datatype, ok := (*data.Types.All[itemResponse.BID]).(data.WHReceivable)
+		if !ok {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("requested datatype does not implement WHQueryable, please review you datatype implementations"))
+			return
+		}
+
+		err = datatype.ProcessWH(req, &itemResponse, &response.Data)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process webhook batch: %w", err))
 			return
@@ -738,7 +568,7 @@ func (i *Integration) Oauth2TokenHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	RespondWithJSON(w, http.StatusOK, integrationAccountInfo{
+	RespondWithJSON(w, http.StatusOK, QuickBooksAccountInfo{
 		RealmID:     realmId,
 		BearerToken: *token,
 	})

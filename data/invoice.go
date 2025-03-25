@@ -4,28 +4,28 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Invoice = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Invoice",
-			name: "Invoice",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Invoice = QuickBooksDualType[quickbooks.Invoice]{
+	QuickBooksType: QuickBooksType[quickbooks.Invoice]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Invoice",
+			TypeName: "Invoice",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
-					Type: fibery.Text,
+					Name:    "Name",
+					Type:    fibery.Text,
+					SubType: fibery.Title,
 				},
 				"SyncToken": {
 					Name:     "Sync Token",
@@ -325,7 +325,7 @@ var Invoice = QuickBooksDualType{
 						Name:          "Class",
 						TargetName:    "Invoices",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"SalesTermId": {
@@ -336,7 +336,7 @@ var Invoice = QuickBooksDualType{
 						Name:          "Terms",
 						TargetName:    "Invoices",
 						TargetType:    "Term",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"TaxCodeId": {
@@ -347,7 +347,7 @@ var Invoice = QuickBooksDualType{
 						Name:          "Sales Tax Rate",
 						TargetName:    "Invoices",
 						TargetType:    "TaxCode",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"TaxExemptionId": {
@@ -358,18 +358,7 @@ var Invoice = QuickBooksDualType{
 						Name:          "Tax Exemption",
 						TargetName:    "Invoices",
 						TargetType:    "TaxExemption",
-						TargetFieldID: "Id",
-					},
-				},
-				"DepositAccountId": {
-					Name: "Deposit Account ID",
-					Type: fibery.Text,
-					Relation: &fibery.Relation{
-						Cardinality:   fibery.MTO,
-						Name:          "Deposit Account",
-						TargetName:    "Invoice Deposits",
-						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"CustomerId": {
@@ -380,40 +369,35 @@ var Invoice = QuickBooksDualType{
 						Name:          "Customer",
 						TargetName:    "Estimates",
 						TargetType:    "Customer",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			invoice, ok := entity.(quickbooks.Invoice)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to invoice")
-			}
-
+		schemaGen: func(i quickbooks.Invoice) (map[string]any, error) {
 			var discountType = map[bool]string{
 				true:  "Percentage",
 				false: "Amount",
 			}
 			var discountLine *quickbooks.Line
 			var subtotalLine *quickbooks.Line
-			for _, line := range invoice.Line {
+			for _, line := range i.Line {
 				if line.DetailType == "DiscountLineDetail" {
 					if discountLine != nil {
-						return nil, fmt.Errorf("invoice %s has more than one discount line", invoice.Id)
+						return nil, fmt.Errorf("invoice %s has more than one discount line", i.Id)
 					}
 					discountLine = &line
 				}
 				if line.DetailType == "SubTotalLineDetail" {
 					if subtotalLine != nil {
-						return nil, fmt.Errorf("invoice %s has more than one subtotal line", invoice.Id)
+						return nil, fmt.Errorf("invoice %s has more than one subtotal line", i.Id)
 					}
 					subtotalLine = &line
 				}
 			}
 
 			if subtotalLine == nil {
-				return nil, fmt.Errorf("estimate %s has no subtotal lines", invoice.Id)
+				return nil, fmt.Errorf("estimate %s has no subtotal lines", i.Id)
 			}
 
 			var discountTypeValue string
@@ -432,176 +416,163 @@ var Invoice = QuickBooksDualType{
 			}
 
 			var emailSendTime string
-			if invoice.DeliveryInfo != nil && !invoice.DeliveryInfo.DeliveryTime.IsZero() {
-				emailSendTime = invoice.DeliveryInfo.DeliveryTime.Format(fibery.DateFormat)
+			if i.DeliveryInfo != nil && !i.DeliveryInfo.DeliveryTime.IsZero() {
+				emailSendTime = i.DeliveryInfo.DeliveryTime.Format(fibery.DateFormat)
 			}
 
 			var name string
-			if invoice.CustomerRef.Name == "" {
-				name = invoice.DocNumber
+			if i.CustomerRef.Name == "" {
+				name = i.DocNumber
 			} else {
-				name = invoice.DocNumber + " " + invoice.CustomerRef.Name
+				name = i.DocNumber + " - " + i.CustomerRef.Name
+			}
+
+			var shipAddr quickbooks.PhysicalAddress
+			if i.ShipAddr != nil {
+				shipAddr = *i.ShipAddr
+			}
+
+			var billAddr quickbooks.PhysicalAddress
+			if i.BillAddr != nil {
+				billAddr = *i.BillAddr
+			}
+
+			var billEmailCC string
+			if i.BillEmailCC != nil {
+				billEmailCC = i.BillEmailCC.Address
+			}
+
+			var billEmailBCC string
+			if i.BillEmailBCC != nil {
+				billEmailBCC = i.BillEmailCC.Address
+			}
+
+			var txnDate string
+			if i.TxnDate != nil {
+				txnDate = i.TxnDate.Format(fibery.DateFormat)
+			}
+
+			var dueDate string
+			if i.DueDate != nil {
+				txnDate = i.DueDate.Format(fibery.DateFormat)
+			}
+
+			var totalTax json.Number
+			var taxCodeId string
+			if i.TxnTaxDetail != nil {
+				totalTax = i.TxnTaxDetail.TotalTax
+				taxCodeId = i.TxnTaxDetail.TxnTaxCodeRef.Value
+			}
+
+			var classId string
+			if i.ClassRef != nil {
+				classId = i.ClassRef.Value
+			}
+
+			var taxExemptionId string
+			if i.TaxExemptionRef != nil {
+				taxExemptionId = i.TaxExemptionRef.Value
 			}
 
 			return map[string]any{
-				"Id":                     invoice.Id,
-				"QBOId":                  invoice.Id,
+				"id":                     i.Id,
+				"QBOId":                  i.Id,
 				"Name":                   name,
-				"SyncToken":              invoice.SyncToken,
+				"SyncToken":              i.SyncToken,
 				"__syncAction":           fibery.SET,
-				"ShippingLine1":          invoice.ShipAddr.Line1,
-				"ShippingLine2":          invoice.ShipAddr.Line2,
-				"ShippingLine3":          invoice.ShipAddr.Line3,
-				"ShippingLine4":          invoice.ShipAddr.Line4,
-				"ShippingLine5":          invoice.ShipAddr.Line5,
-				"ShippingCity":           invoice.ShipAddr.City,
-				"ShippingState":          invoice.ShipAddr.CountrySubDivisionCode,
-				"ShippingPostalCode":     invoice.ShipAddr.PostalCode,
-				"ShippingCountry":        invoice.ShipAddr.Country,
-				"ShippingLat":            invoice.ShipAddr.Lat,
-				"ShippingLong":           invoice.ShipAddr.Long,
-				"ShippingFromLine1":      invoice.ShipFromAddr.Line1,
-				"ShippingFromLine2":      invoice.ShipFromAddr.Line2,
-				"ShippingFromLine3":      invoice.ShipFromAddr.Line3,
-				"ShippingFromLine4":      invoice.ShipFromAddr.Line4,
-				"ShippingFromLine5":      invoice.ShipFromAddr.Line5,
-				"ShippingFromCity":       invoice.ShipFromAddr.City,
-				"ShippingFromState":      invoice.ShipFromAddr.CountrySubDivisionCode,
-				"ShippingFromPostalCode": invoice.ShipFromAddr.PostalCode,
-				"ShippingFromCountry":    invoice.ShipFromAddr.Country,
-				"ShippingFromLat":        invoice.ShipFromAddr.Lat,
-				"ShippingFromLong":       invoice.ShipFromAddr.Long,
-				"BillingLine1":           invoice.BillAddr.Line1,
-				"BillingLine2":           invoice.BillAddr.Line2,
-				"BillingLine3":           invoice.BillAddr.Line3,
-				"BillingLine4":           invoice.BillAddr.Line4,
-				"BillingLine5":           invoice.BillAddr.Line5,
-				"BillingCity":            invoice.BillAddr.City,
-				"BillingState":           invoice.BillAddr.CountrySubDivisionCode,
-				"BillingPostalCode":      invoice.BillAddr.PostalCode,
-				"BillingCountry":         invoice.BillAddr.Country,
-				"BillingLat":             invoice.BillAddr.Lat,
-				"BillingLong":            invoice.BillAddr.Long,
-				"DocNumber":              invoice.DocNumber,
-				"Email":                  invoice.BillEmail.Address,
-				"EmailCC":                invoice.BillEmailCC.Address,
-				"EmailBCC":               invoice.BillEmailBCC.Address,
-				"EmailSendLater":         invoice.EmailStatus == "NeedToSend",
-				"EmailSent":              invoice.EmailStatus == "EmailSent",
+				"ShippingLine1":          shipAddr.Line1,
+				"ShippingLine2":          shipAddr.Line2,
+				"ShippingLine3":          shipAddr.Line3,
+				"ShippingLine4":          shipAddr.Line4,
+				"ShippingLine5":          shipAddr.Line5,
+				"ShippingCity":           shipAddr.City,
+				"ShippingState":          shipAddr.CountrySubDivisionCode,
+				"ShippingPostalCode":     shipAddr.PostalCode,
+				"ShippingCountry":        shipAddr.Country,
+				"ShippingLat":            shipAddr.Lat,
+				"ShippingLong":           shipAddr.Long,
+				"ShippingFromLine1":      i.ShipFromAddr.Line1,
+				"ShippingFromLine2":      i.ShipFromAddr.Line2,
+				"ShippingFromLine3":      i.ShipFromAddr.Line3,
+				"ShippingFromLine4":      i.ShipFromAddr.Line4,
+				"ShippingFromLine5":      i.ShipFromAddr.Line5,
+				"ShippingFromCity":       i.ShipFromAddr.City,
+				"ShippingFromState":      i.ShipFromAddr.CountrySubDivisionCode,
+				"ShippingFromPostalCode": i.ShipFromAddr.PostalCode,
+				"ShippingFromCountry":    i.ShipFromAddr.Country,
+				"ShippingFromLat":        i.ShipFromAddr.Lat,
+				"ShippingFromLong":       i.ShipFromAddr.Long,
+				"BillingLine1":           billAddr.Line1,
+				"BillingLine2":           billAddr.Line2,
+				"BillingLine3":           billAddr.Line3,
+				"BillingLine4":           billAddr.Line4,
+				"BillingLine5":           billAddr.Line5,
+				"BillingCity":            billAddr.City,
+				"BillingState":           billAddr.CountrySubDivisionCode,
+				"BillingPostalCode":      billAddr.PostalCode,
+				"BillingCountry":         billAddr.Country,
+				"BillingLat":             billAddr.Lat,
+				"BillingLong":            billAddr.Long,
+				"DocNumber":              i.DocNumber,
+				"Email":                  i.BillEmail.Address,
+				"EmailCC":                billEmailCC,
+				"EmailBCC":               billEmailBCC,
+				"EmailSendLater":         i.EmailStatus == "NeedToSend",
+				"EmailSent":              i.EmailStatus == "EmailSent",
 				"EmailSendTime":          emailSendTime,
-				"TxnDate":                invoice.TxnDate.Format(fibery.DateFormat),
-				"DueDate":                invoice.DueDate.Format(fibery.DateFormat),
-				"PrivateNote":            invoice.PrivateNote,
-				"CustomerMemo":           invoice.CustomerMemo.Value,
-				"DiscountPosition":       invoice.ApplyTaxAfterDiscount,
-				"DepositField":           invoice.Deposit,
+				"TxnDate":                txnDate,
+				"DueDate":                dueDate,
+				"PrivateNote":            i.PrivateNote,
+				"CustomerMemo":           i.CustomerMemo.Value,
+				"DiscountPosition":       i.ApplyTaxAfterDiscount,
+				"DepositField":           i.Deposit,
 				"DiscountType":           discountTypeValue,
 				"DiscountPercent":        discountPercent,
 				"DiscountAmount":         discountAmount,
-				"Tax":                    invoice.TxnTaxDetail.TotalTax,
+				"Tax":                    totalTax,
 				"SubtotalAmt":            subtotalAmount,
-				"TotalAmt":               invoice.TotalAmt,
-				"Balance":                invoice.Balance,
-				"AllowACH":               invoice.AllowOnlineACHPayment,
-				"AllowCC":                invoice.AllowOnlineCreditCardPayment,
-				"ClassId":                invoice.ClassRef.Value,
-				"TaxCodeId":              invoice.TxnTaxDetail.TxnTaxCodeRef.Value,
-				"TaxExemptionId":         invoice.TaxExemptionRef.Value,
-				"DepositAccountId":       invoice.DepartmentRef.Value,
-				"CustomerId":             invoice.CustomerRef.Value,
+				"TotalAmt":               i.TotalAmt,
+				"Balance":                i.Balance,
+				"AllowACH":               i.AllowOnlineACHPayment,
+				"AllowCC":                i.AllowOnlineCreditCardPayment,
+				"ClassId":                classId,
+				"TaxCodeId":              taxCodeId,
+				"TaxExemptionId":         taxExemptionId,
+				"CustomerId":             i.CustomerRef.Value,
 			}, nil
 		},
-		query: func(req Request) (Response, error) {
-			invoices, err := req.Client.FindInvoicesByPage(req.StartPosition, req.PageSize)
-			if err != nil {
-				return Response{}, fmt.Errorf("unable to find invoices: %w", err)
+		pageQuery: func(req Request) ([]quickbooks.Invoice, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
 			}
 
-			return Response{
-				Data:     invoices,
-				MoreData: len(invoices) >= quickbooks.QueryPageSize,
-			}, nil
-		},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {
-			invoices, ok := entityArray.([]quickbooks.Invoice)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entityArray to invoices")
+			items, err := req.Client.FindInvoicesByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
 			}
-			items := []map[string]any{}
-			for _, invoice := range invoices {
-				item, err := schemaGen(invoice)
-				if err != nil {
-					return nil, fmt.Errorf("unable to transform data: %w", err)
-				}
-				items = append(items, item)
-			}
+
 			return items, nil
 		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {
-		items := []map[string]any{}
-		for _, cdcResponse := range cdc.CDCResponse {
-			for _, queryResponse := range cdcResponse.QueryResponse {
-				for _, cdcInvoice := range queryResponse.Invoice {
-					if cdcInvoice.Status == "Deleted" {
-						items = append(items, map[string]any{
-							"id":           cdcInvoice.Id,
-							"__syncAction": fibery.REMOVE,
-						})
-					} else {
-						item, err := schemaGen(cdcInvoice.Invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to transform data: %w", err)
-						}
-						items = append(items, item)
-					}
-				}
-			}
-		}
-		return items, nil
+	entityId: func(i quickbooks.Invoice) string {
+		return i.Id
 	},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
-		if len(itemResponse.Fault.Faults) > 0 {
-			return fmt.Errorf("batch request failed: %v", itemResponse.Fault.Faults)
-		}
-		if invoices := itemResponse.QueryResponse.Invoice; invoices != nil {
-			invoiceData, err := queryProcessor(invoices, schemaGen)
-			if err != nil {
-				return fmt.Errorf("unable to process invoice query data: %w", err)
-			}
-			(*response)[typeId] = append((*response)[typeId], invoiceData...)
-			if dependents, ok := SourceDependents[typeId]; ok {
-				for _, dependentPointer := range dependents {
-					// change type assertion to WHType
-					dependent := (*dependentPointer).(DependentWHQueryable)
-					cacheKey := fmt.Sprintf("%s:%s", realmId, dependent.GetId())
-					if cacheEntry, found := cache.Get(cacheKey); found {
-						cacheEntry, ok := cacheEntry.(*IdCache)
-						if !ok {
-							return fmt.Errorf("unable to convert cache entry to IdCache")
-						}
-						dependentData, err := dependent.ProcessWHBatch(invoices, cacheEntry)
-						if err != nil {
-							return fmt.Errorf("unable to process dependent %s query data: %w", dependent.GetId(), err)
-						}
-						(*response)[dependent.GetId()] = append((*response)[dependent.GetId()], dependentData...)
-					}
-				}
-			}
-		}
-		return nil
+	entityStatus: func(i quickbooks.Invoice) string {
+		return i.Status
 	},
 }
 
-var InvoiceLine = DependentDualType{
-	dependentBaseType: dependentBaseType{
-		fiberyType: fiberyType{
-			id:   "InvoiceLine",
-			name: "Invoice Line",
-			schema: map[string]fibery.Field{
-				"Id": {
+var InvoiceLine = DependentDualType[quickbooks.Invoice]{
+	dependentBaseType: dependentBaseType[quickbooks.Invoice]{
+		BaseType: fibery.BaseType{
+			TypeId:   "InvoiceLine",
+			TypeName: "Invoice Line",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
@@ -667,7 +638,7 @@ var InvoiceLine = DependentDualType{
 						Name:          "Group",
 						TargetName:    "Lines",
 						TargetType:    "EstimateLine",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ItemId": {
@@ -678,7 +649,7 @@ var InvoiceLine = DependentDualType{
 						Name:          "Item",
 						TargetName:    "Estimate Lines",
 						TargetType:    "Item",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ClassId": {
@@ -689,7 +660,7 @@ var InvoiceLine = DependentDualType{
 						Name:          "Class",
 						TargetName:    "Expense Lines",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"InvoiceId": {
@@ -700,257 +671,88 @@ var InvoiceLine = DependentDualType{
 						Name:          "Invoice",
 						TargetName:    "Lines",
 						TargetType:    "Invoice",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any, source any) (map[string]any, error) {
-			line, ok := entity.(quickbooks.Line)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Line")
-			}
-
-			invoice, ok := source.(quickbooks.Invoice)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert source to Invoice")
-			}
-
-			if line.DetailType == quickbooks.GroupLine {
-				return map[string]any{
-					"Id":           fmt.Sprintf("%s:%s", invoice.Id, line.Id),
-					"QBOId":        line.Id,
-					"Description":  line.Description,
-					"__syncAction": fibery.SET,
-					"Qty":          line.GroupLineDetail.Quantity,
-					"LineNum":      line.LineNum,
-					"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
-					"InvoiceId":    invoice.Id,
-				}, nil
-			} else if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
-				return map[string]any{
-					"Id":           fmt.Sprintf("%s:%s", invoice.Id, line.Id),
-					"QBOId":        line.Id,
-					"Description":  line.Description,
-					"__syncAction": fibery.SET,
-					"LineNum":      line.LineNum,
-					"Taxed":        line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
-					"ServiceDate":  line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
-					"Qty":          line.GroupLineDetail.Quantity,
-					"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
-					"Amount":       line.Amount,
-					"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
-					"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
-					"InvoiceId":    invoice.Id,
-				}, nil
-			}
-			return nil, nil
-		},
-		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-			invoices, ok := sourceArray.([]quickbooks.Invoice)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert sourceArray to Invoices")
-			}
+		schemaGen: func(i quickbooks.Invoice) ([]map[string]any, error) {
 			items := []map[string]any{}
-			for _, invoice := range invoices {
-				for _, line := range invoice.Line {
-					if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
-						item, err := schemaGen(line, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to transform Line data: %w", err)
+			for _, line := range i.Line {
+				if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
+					item := map[string]any{
+						"id":           fmt.Sprintf("%s:%s", i.Id, line.Id),
+						"QBOId":        line.Id,
+						"Description":  line.Description,
+						"__syncAction": fibery.SET,
+						"LineNum":      line.LineNum,
+						"Taxed":        line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
+						"ServiceDate":  line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
+						"Qty":          line.GroupLineDetail.Quantity,
+						"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
+						"Amount":       line.Amount,
+						"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+						"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
+						"InvoiceId":    i.Id,
+					}
+					items = append(items, item)
+				}
+				if line.DetailType == quickbooks.GroupLine {
+					for _, groupLine := range line.GroupLineDetail.Line {
+						item := map[string]any{
+							"id":           fmt.Sprintf("%s:%s:%s", i.Id, line.Id, groupLine.Id),
+							"GroupLineId":  line.Id,
+							"QBOId":        line.Id,
+							"Description":  line.Description,
+							"__syncAction": fibery.SET,
+							"Qty":          line.GroupLineDetail.Quantity,
+							"LineNum":      line.LineNum,
+							"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+							"InvoiceId":    i.Id,
 						}
 						items = append(items, item)
 					}
-					if line.DetailType == quickbooks.GroupLine {
-						for _, groupLine := range line.GroupLineDetail.Line {
-							item, err := schemaGen(groupLine, invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to transform Line data: %w", err)
-							}
-							item["Id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
-							item["GroupLineId"] = line.Id
-							items = append(items, item)
-						}
-						item, err := schemaGen(line, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to transform Line data: %w", err)
-						}
-						items = append(items, item)
+					item := map[string]any{
+						"id":           fmt.Sprintf("%s:%s", i.Id, line.Id),
+						"QBOId":        line.Id,
+						"Description":  line.Description,
+						"__syncAction": fibery.SET,
+						"Qty":          line.GroupLineDetail.Quantity,
+						"LineNum":      line.LineNum,
+						"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+						"InvoiceId":    i.Id,
 					}
+					items = append(items, item)
 				}
 			}
 			return items, nil
 		},
 	},
-	source: Invoice,
-	sourceMapper: func(source any) (map[string]bool, error) {
-		invoice, ok := source.(quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert source to invoice")
-		}
-		sourceMap := map[string]bool{}
-		for _, line := range invoice.Line {
+	sourceType: &Invoice,
+	sourceId: func(i quickbooks.Invoice) string {
+		return i.Id
+	},
+	sourceStatus: func(i quickbooks.Invoice) string {
+		return i.Status
+	},
+	sourceMapper: func(i quickbooks.Invoice) map[string]struct{} {
+		sourceMap := map[string]struct{}{}
+		for _, line := range i.Line {
 			if line.DetailType == "GroupLineDetail" {
 				for _, groupLine := range line.GroupLineDetail.Line {
-					sourceMap[fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)] = true
+					sourceMap[fmt.Sprintf("%s:%s:%s", i.Id, line.Id, groupLine.Id)] = struct{}{}
 				}
-				sourceMap[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
+				sourceMap[fmt.Sprintf("%s:%s", i.Id, line.Id)] = struct{}{}
 			}
 			if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-				sourceMap[fmt.Sprintf("%s:%s", invoice.Id, line.Id)] = true
+				sourceMap[fmt.Sprintf("%s:%s", i.Id, line.Id)] = struct{}{}
 			}
 		}
-		return sourceMap, nil
-	},
-	typeMapper: func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {
-		invoices, ok := sourceArray.([]quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert sourceArray to invoices")
-		}
-		idMap := map[string]map[string]bool{}
-		for _, invoice := range invoices {
-			sourceMap, err := sourceMapper(invoice)
-			if err != nil {
-				return nil, fmt.Errorf("unable to map source: %w", err)
-			}
-			idMap[invoice.Id] = sourceMap
-		}
-		return idMap, nil
-	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-		items := []map[string]any{}
-		cacheEntry.Mu.Lock()
-		defer cacheEntry.Mu.Unlock()
-		for _, cdcResponse := range cdc.CDCResponse {
-			for _, queryResponse := range cdcResponse.QueryResponse {
-				for _, cdcInvoice := range queryResponse.Invoice {
-					// map lines in cdc response
-					cdcItemIds, err := sourceMapper(cdcInvoice.Invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to map source: %w", err)
-					}
-
-					// handle lines on deleted invoices
-					if cdcInvoice.Status == "Deleted" {
-						cachedIds := cacheEntry.Entries[cdcInvoice.Id]
-						for cachedId := range cachedIds {
-							items = append(items, map[string]any{
-								"id":           cachedId,
-								"__syncAction": fibery.REMOVE,
-							})
-						}
-						delete(cacheEntry.Entries, cdcInvoice.Id)
-						continue
-					}
-
-					// transform line data on added or updated invoices
-					for _, line := range cdcInvoice.Line {
-						if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-							item, err := schemaGen(line, cdcInvoice.Invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-							}
-							items = append(items, item)
-						}
-						if line.DetailType == "GroupLineDetail" {
-							for _, groupLine := range line.GroupLineDetail.Line {
-								item, err := schemaGen(groupLine, cdcInvoice.Invoice)
-								if err != nil {
-									return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-								}
-								item["id"] = fmt.Sprintf("%s:%s:%s", cdcInvoice.Id, line.Id, groupLine.Id)
-								item["group_line_id"] = line.Id
-								items = append(items, item)
-							}
-							item, err := schemaGen(line, cdcInvoice.Invoice)
-							if err != nil {
-								return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-							}
-							items = append(items, item)
-						}
-					}
-
-					// check for lines in cache but not in cdc response
-					if _, ok := cacheEntry.Entries[cdcInvoice.Id]; ok {
-						cachedIds := cacheEntry.Entries[cdcInvoice.Id]
-						for cachedId := range cachedIds {
-							if !cdcItemIds[cachedId] {
-								items = append(items, map[string]any{
-									"id":           cachedId,
-									"__syncAction": fibery.REMOVE,
-								})
-							}
-						}
-					}
-
-					// update cache with new line ids
-					cacheEntry.Entries[cdcInvoice.Id] = cdcItemIds
-				}
-			}
-		}
-		return items, nil
-	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
-		invoices, ok := sourceArray.([]quickbooks.Invoice)
-		if !ok {
-			return nil, fmt.Errorf("unable to convert sourceArray to []qbo.Invoice")
-		}
-		items := []map[string]any{}
-		cacheEntry.Mu.Lock()
-		defer cacheEntry.Mu.Unlock()
-		for _, invoice := range invoices {
-			sourceItemIds, err := sourceMapper(invoice)
-			if err != nil {
-				return nil, fmt.Errorf("unable to map source: %w", err)
-			}
-
-			for _, line := range invoice.Line {
-				if line.DetailType == "DescriptionOnly" || line.DetailType == "SalesItemLineDetail" {
-					item, err := schemaGen(line, invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-					}
-					items = append(items, item)
-				}
-				if line.DetailType == "GroupLineDetail" {
-					for _, groupLine := range line.GroupLineDetail.Line {
-						item, err := schemaGen(groupLine, invoice)
-						if err != nil {
-							return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-						}
-						item["id"] = fmt.Sprintf("%s:%s:%s", invoice.Id, line.Id, groupLine.Id)
-						item["group_line_id"] = line.Id
-						items = append(items, item)
-					}
-					item, err := schemaGen(line, invoice)
-					if err != nil {
-						return nil, fmt.Errorf("unable to invoice line transform data: %w", err)
-					}
-					items = append(items, item)
-				}
-			}
-
-			// check for lines in cache but not in cdc response
-			if _, ok := cacheEntry.Entries[invoice.Id]; ok {
-				cachedIds := cacheEntry.Entries[invoice.Id]
-				for cachedId := range cachedIds {
-					if !sourceItemIds[cachedId] {
-						items = append(items, map[string]any{
-							"id":           cachedId,
-							"__syncAction": fibery.REMOVE,
-						})
-					}
-				}
-			}
-
-			// update cache with new line ids
-			cacheEntry.Entries[invoice.Id] = sourceItemIds
-		}
-		return items, nil
+		return sourceMap
 	},
 }
 
 func init() {
-	RegisterType(Invoice)
-	RegisterType(InvoiceLine)
+	registerType(&Invoice)
+	registerType(&InvoiceLine)
 }

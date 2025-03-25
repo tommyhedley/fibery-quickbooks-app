@@ -7,23 +7,24 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var Bill = QuickBooksDualType{
-	QuickBooksType: QuickBooksType{
-		fiberyType: fiberyType{
-			id:   "Bill",
-			name: "Bill",
-			schema: map[string]fibery.Field{
-				"Id": {
+var Bill = QuickBooksDualType[quickbooks.Bill]{
+	QuickBooksType: QuickBooksType[quickbooks.Bill]{
+		BaseType: fibery.BaseType{
+			TypeId:   "Bill",
+			TypeName: "Bill",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
 					Type: fibery.Text,
 				},
 				"Name": {
-					Name: "Name",
-					Type: fibery.Text,
+					Name:    "Name",
+					Type:    fibery.Text,
+					SubType: fibery.Title,
 				},
 				"SyncToken": {
 					Name:     "Sync Token",
@@ -81,7 +82,7 @@ var Bill = QuickBooksDualType{
 						Name:          "Vendor",
 						TargetName:    "Bills",
 						TargetType:    "Vendor",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"APAccountId": {
@@ -92,7 +93,7 @@ var Bill = QuickBooksDualType{
 						Name:          "AP Account",
 						TargetName:    "Bills",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"SalesTermId": {
@@ -103,61 +104,71 @@ var Bill = QuickBooksDualType{
 						Name:          "Terms",
 						TargetName:    "Bills",
 						TargetType:    "SalesTerm",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity any) (map[string]any, error) {
-			bill, ok := entity.(quickbooks.Bill)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to bill")
+		schemaGen: func(b quickbooks.Bill) (map[string]any, error) {
+			var apAccountId string
+			if b.APAccountRef != nil {
+				apAccountId = b.APAccountRef.Value
 			}
 
-			var name string
-
-			if bill.VendorRef.Name != "" {
-				if !bill.TxnDate.IsZero() {
-					name = bill.VendorRef.Name + " - " + bill.TxnDate.Format(fibery.DateFormat)
-				} else {
-					name = bill.VendorRef.Name
-				}
+			var salesTermId string
+			if b.SalesTermRef != nil {
+				salesTermId = b.SalesTermRef.Value
 			}
-			data := map[string]any{
-				"Id":           bill.Id,
-				"QBOId":        bill.Id,
-				"Name":         name,
-				"SyncToken":    bill.SyncToken,
+
+			return map[string]any{
+				"id":           b.Id,
+				"QBOId":        b.Id,
+				"Name":         b.PrivateNote,
+				"SyncToken":    b.SyncToken,
 				"__syncAction": fibery.SET,
-				"DocNumber":    bill.DocNumber,
-				"TxnDate":      bill.TxnDate.Format(fibery.DateFormat),
-				"DueDate":      bill.DueDate.Format(fibery.DateFormat),
-				"PrivateNote":  bill.PrivateNote,
-				"TotalAmt":     bill.TotalAmt,
-				"Balance":      bill.Balance,
-				"VendorId":     bill.VendorRef.Value,
-				"APAccountId":  bill.APAccountRef.Value,
-				"SalesTermId":  bill.SalesTermRef.Value,
-			}
-			return data, nil
+				"DocNumber":    b.DocNumber,
+				"TxnDate":      b.TxnDate.Format(fibery.DateFormat),
+				"DueDate":      b.DueDate.Format(fibery.DateFormat),
+				"PrivateNote":  b.PrivateNote,
+				"TotalAmt":     b.TotalAmt,
+				"Balance":      b.Balance,
+				"VendorId":     b.VendorRef.Value,
+				"APAccountId":  apAccountId,
+				"SalesTermId":  salesTermId,
+			}, nil
 		},
-		query:          func(req Request) (Response, error) {},
-		queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+		pageQuery: func(req Request) ([]quickbooks.Bill, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     req.Ctx,
+				RealmId: req.RealmId,
+				Token:   req.Token,
+			}
+
+			items, err := req.Client.FindBillsByPage(params, req.StartPosition, req.PageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
 	},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error) {},
-	whBatchProcessor: func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error {
+	entityId: func(b quickbooks.Bill) string {
+		return b.Id
+	},
+	entityStatus: func(b quickbooks.Bill) string {
+		return b.Status
 	},
 }
 
-var BillItemLine = DependentDualType{
-	dependentBaseType: dependentBaseType{
-		fiberyType: fiberyType{
-			id:   "BillItemLine",
-			name: "Bill Item Line",
-			schema: map[string]fibery.Field{
-				"Id": {
+var BillItemLine = DependentDualType[quickbooks.Bill]{
+	dependentBaseType: dependentBaseType[quickbooks.Bill]{
+		BaseType: fibery.BaseType{
+			TypeId:   "BillItemLine",
+			TypeName: "Bill Item Line",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
@@ -236,7 +247,7 @@ var BillItemLine = DependentDualType{
 						Name:          "Bill",
 						TargetName:    "Item Lines",
 						TargetType:    "Bill",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ItemId": {
@@ -247,7 +258,7 @@ var BillItemLine = DependentDualType{
 						Name:          "Item",
 						TargetName:    "Bill Item Lines",
 						TargetType:    "Item",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"CustomerId": {
@@ -258,7 +269,7 @@ var BillItemLine = DependentDualType{
 						Name:          "Customer",
 						TargetName:    "Bill Item Lines",
 						TargetType:    "Customer",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ClassId": {
@@ -269,7 +280,7 @@ var BillItemLine = DependentDualType{
 						Name:          "Class",
 						TargetName:    "Bill Item Lines",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"MarkupAccountId": {
@@ -280,84 +291,87 @@ var BillItemLine = DependentDualType{
 						Name:          "Markup Income Account",
 						TargetName:    "Bill Item Line Markup",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity, source any) (map[string]any, error) {
-			line, ok := entity.(quickbooks.Line)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Line")
-			}
+		schemaGen: func(b quickbooks.Bill) ([]map[string]any, error) {
+			items := []map[string]any{}
+			for _, line := range b.Line {
+				if line.DetailType == quickbooks.ItemExpenseLine {
+					tax := false
+					if line.ItemBasedExpenseLineDetail.TaxCodeRef.Value == "TAX" {
+						tax = true
+					}
 
-			bill, ok := source.(quickbooks.Bill)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert source to Bill")
-			}
+					var billable bool
+					switch line.ItemBasedExpenseLineDetail.BillableStatus {
+					case quickbooks.BillableStatusType:
+						billable = true
+					case quickbooks.HasBeenBilledStatusType:
+						billable = true
+					default:
+						billable = false
+					}
 
-			tax := false
-			if line.ItemBasedExpenseLineDetail.TaxCodeRef.Value == "TAX" {
-				tax = true
-			}
+					billed := false
+					if line.ItemBasedExpenseLineDetail.BillableStatus == quickbooks.HasBeenBilledStatusType {
+						billed = true
+					}
 
-			var billable bool
-			switch line.ItemBasedExpenseLineDetail.BillableStatus {
-			case quickbooks.BillableStatusType:
-				billable = true
-			case quickbooks.HasBeenBilledStatusType:
-				billable = true
-			default:
-				billable = false
+					item := map[string]any{
+						"id":              fmt.Sprintf("%s:i:%s", b.Id, line.Id),
+						"QBOId":           line.Id,
+						"Description":     line.Description,
+						"__syncAction":    fibery.SET,
+						"LineNum":         line.LineNum,
+						"Tax":             tax,
+						"Billable":        billable,
+						"Billed":          billed,
+						"Qty":             line.ItemBasedExpenseLineDetail.Qty,
+						"UnitPrice":       line.ItemBasedExpenseLineDetail.UnitPrice,
+						"MarkupPercent":   line.ItemBasedExpenseLineDetail.MarkupInfo.Percent,
+						"Amount":          line.Amount,
+						"BillId":          b.Id,
+						"ItemId":          line.ItemBasedExpenseLineDetail.ItemRef.Value,
+						"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
+						"ClassId":         line.ItemBasedExpenseLineDetail.ClassRef.Value,
+						"MarkupAccountId": line.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+					}
+					items = append(items, item)
+				}
 			}
-
-			billed := false
-			if line.ItemBasedExpenseLineDetail.BillableStatus == quickbooks.HasBeenBilledStatusType {
-				billed = true
-			}
-
-			data := map[string]any{
-				"Id":              fmt.Sprintf("%s:i:%s", bill.Id, line.Id),
-				"QBOId":           line.Id,
-				"Description":     line.Description,
-				"__syncAction":    fibery.SET,
-				"LineNum":         line.LineNum,
-				"Tax":             tax,
-				"Billable":        billable,
-				"Billed":          billed,
-				"Qty":             line.ItemBasedExpenseLineDetail.Qty,
-				"UnitPrice":       line.ItemBasedExpenseLineDetail.UnitPrice,
-				"MarkupPercent":   line.ItemBasedExpenseLineDetail.MarkupInfo.Percent,
-				"Amount":          line.Amount,
-				"BillId":          bill.Id,
-				"ItemId":          line.ItemBasedExpenseLineDetail.ItemRef.Value,
-				"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
-				"ClassId":         line.ItemBasedExpenseLineDetail.ClassRef.Value,
-				"MarkupAccountId": line.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
-			}
-
-			return data, nil
+			return items, nil
 		},
-		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {},
 	},
-	source:       Bill,
-	sourceMapper: func(source any) (map[string]bool, error) {},
-	typeMapper:   func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceType: &Bill,
+	sourceId: func(b quickbooks.Bill) string {
+		return b.Id
 	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceStatus: func(b quickbooks.Bill) string {
+		return b.Status
+	},
+	sourceMapper: func(b quickbooks.Bill) map[string]struct{} {
+		sourceMap := map[string]struct{}{}
+		for _, line := range b.Line {
+			if line.DetailType == quickbooks.ItemExpenseLine {
+				sourceMap[fmt.Sprintf("%s:%s", b.Id, line.Id)] = struct{}{}
+			}
+		}
+		return sourceMap
 	},
 }
 
-var BillAccountLine = DependentDualType{
-	dependentBaseType: dependentBaseType{
-		fiberyType: fiberyType{
-			id:   "BillAccountLine",
-			name: "Bill Account Line",
-			schema: map[string]fibery.Field{
-				"Id": {
+var BillAccountLine = DependentDualType[quickbooks.Bill]{
+	dependentBaseType: dependentBaseType[quickbooks.Bill]{
+		BaseType: fibery.BaseType{
+			TypeId:   "BillAccountLine",
+			TypeName: "Bill Account Line",
+			TypeSchema: map[string]fibery.Field{
+				"id": {
 					Name: "ID",
-					Type: fibery.ID,
+					Type: fibery.Id,
 				},
 				"QBOId": {
 					Name: "QBO ID",
@@ -417,18 +431,18 @@ var BillAccountLine = DependentDualType{
 						Name:          "Bill",
 						TargetName:    "Item Lines",
 						TargetType:    "Bill",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"AccountId": {
-					Name: "Item ID",
+					Name: "Account ID",
 					Type: fibery.Text,
 					Relation: &fibery.Relation{
 						Cardinality:   fibery.MTO,
 						Name:          "Category",
 						TargetName:    "Bill Account Lines",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"CustomerId": {
@@ -439,7 +453,7 @@ var BillAccountLine = DependentDualType{
 						Name:          "Customer",
 						TargetName:    "Bill Item Lines",
 						TargetType:    "Customer",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"ClassId": {
@@ -450,7 +464,7 @@ var BillAccountLine = DependentDualType{
 						Name:          "Class",
 						TargetName:    "Bill Item Lines",
 						TargetType:    "Class",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 				"MarkupAccountId": {
@@ -461,67 +475,79 @@ var BillAccountLine = DependentDualType{
 						Name:          "Markup Income Account",
 						TargetName:    "Bill Item Line Markup",
 						TargetType:    "Account",
-						TargetFieldID: "Id",
+						TargetFieldID: "id",
 					},
 				},
 			},
 		},
-		schemaGen: func(entity, source any) (map[string]any, error) {
-			line, ok := entity.(quickbooks.Line)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert entity to Line")
-			}
+		schemaGen: func(b quickbooks.Bill) ([]map[string]any, error) {
+			items := []map[string]any{}
+			for _, line := range b.Line {
+				if line.DetailType == quickbooks.AccountExpenseLine {
+					tax := false
+					if line.AccountBasedExpenseLineDetail.TaxCodeRef.Value == "TAX" {
+						tax = true
+					}
 
-			bill, ok := source.(quickbooks.Bill)
-			if !ok {
-				return nil, fmt.Errorf("unable to convert source to Bill")
-			}
+					var billable bool
+					switch line.AccountBasedExpenseLineDetail.BillableStatus {
+					case quickbooks.BillableStatusType:
+						billable = true
+					case quickbooks.HasBeenBilledStatusType:
+						billable = true
+					default:
+						billable = false
+					}
 
-			tax := false
-			if line.AccountBasedExpenseLineDetail.TaxCodeRef.Value == "TAX" {
-				tax = true
-			}
+					billed := false
+					if line.AccountBasedExpenseLineDetail.BillableStatus == quickbooks.HasBeenBilledStatusType {
+						billed = true
+					}
 
-			var billable bool
-			switch line.AccountBasedExpenseLineDetail.BillableStatus {
-			case quickbooks.BillableStatusType:
-				billable = true
-			case quickbooks.HasBeenBilledStatusType:
-				billable = true
-			default:
-				billable = false
-			}
+					item := map[string]any{
+						"id":              fmt.Sprintf("%s:a:%s", b.Id, line.Id),
+						"QBOId":           line.Id,
+						"Description":     line.Description,
+						"__syncAction":    fibery.SET,
+						"LineNum":         line.LineNum,
+						"Tax":             tax,
+						"Billable":        billable,
+						"Billed":          billed,
+						"MarkupPercent":   line.AccountBasedExpenseLineDetail.MarkupInfo.Percent,
+						"Amount":          line.Amount,
+						"BillId":          b.Id,
+						"AccountId":       line.AccountBasedExpenseLineDetail.AccountRef.Value,
+						"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
+						"ClassId":         line.AccountBasedExpenseLineDetail.ClassRef.Value,
+						"MarkupAccountId": line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+					}
 
-			billed := false
-			if line.AccountBasedExpenseLineDetail.BillableStatus == quickbooks.HasBeenBilledStatusType {
-				billed = true
+					items = append(items, item)
+				}
 			}
-
-			return map[string]any{
-				"Id":              fmt.Sprintf("%s:a:%s", bill.Id, line.Id),
-				"QBOId":           line.Id,
-				"Description":     line.Description,
-				"__syncAction":    fibery.SET,
-				"LineNum":         line.LineNum,
-				"Tax":             tax,
-				"Billable":        billable,
-				"Billed":          billed,
-				"MarkupPercent":   line.AccountBasedExpenseLineDetail.MarkupInfo.Percent,
-				"Amount":          line.Amount,
-				"BillId":          bill.Id,
-				"AccountId":       line.AccountBasedExpenseLineDetail.AccountRef.Value,
-				"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
-				"ClassId":         line.AccountBasedExpenseLineDetail.ClassRef.Value,
-				"MarkupAccountId": line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
-			}, nil
+			return items, nil
 		},
-		queryProcessor: func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error) {},
 	},
-	source:       Bill,
-	sourceMapper: func(source any) (map[string]bool, error) {},
-	typeMapper:   func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error) {},
-	cdcProcessor: func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceType: &Bill,
+	sourceId: func(b quickbooks.Bill) string {
+		return b.Id
 	},
-	whBatchProcessor: func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error) {
+	sourceStatus: func(b quickbooks.Bill) string {
+		return b.Status
 	},
+	sourceMapper: func(b quickbooks.Bill) map[string]struct{} {
+		sourceMap := map[string]struct{}{}
+		for _, line := range b.Line {
+			if line.DetailType == quickbooks.AccountExpenseLine {
+				sourceMap[fmt.Sprintf("%s:%s", b.Id, line.Id)] = struct{}{}
+			}
+		}
+		return sourceMap
+	},
+}
+
+func init() {
+	registerType(&Bill)
+	registerType(&BillItemLine)
+	registerType(&BillAccountLine)
 }

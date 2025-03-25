@@ -2,35 +2,37 @@ package data
 
 import (
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
+	"github.com/tommyhedley/quickbooks-go"
 )
 
-var TaxRate = QuickBooksType{
-	fiberyType: fiberyType{
-		id:   "TaxRate",
-		name: "Tax Rate",
-		schema: map[string]fibery.Field{
+var TaxRate = QuickBooksType[quickbooks.TaxRate]{
+	BaseType: fibery.BaseType{
+		TypeId:   "TaxRate",
+		TypeName: "Tax Rate",
+		TypeSchema: map[string]fibery.Field{
 			"id": {
-				Name: "id",
-				Type: fibery.ID,
+				Name: "Id",
+				Type: fibery.Id,
 			},
-			"qbo_id": {
+			"QBOId": {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"name": {
-				Name: "Name",
-				Type: fibery.Text,
+			"Name": {
+				Name:    "Name",
+				Type:    fibery.Text,
+				SubType: fibery.Title,
 			},
-			"description": {
+			"Description": {
 				Name: "Description",
 				Type: fibery.Text,
 			},
-			"sync_token": {
+			"SyncToken": {
 				Name:     "Sync Token",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			"rate_value": {
+			"RateValue": {
 				Name: "Rate",
 				Type: fibery.Number,
 				Format: map[string]any{
@@ -38,14 +40,40 @@ var TaxRate = QuickBooksType{
 					"precision": 2,
 				},
 			},
-			"active": {
+			"Active": {
 				Name:    "Active",
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
 		},
 	},
-	schemaGen:      func(entity any) (map[string]any, error) {},
-	query:          func(req Request) (Response, error) {},
-	queryProcessor: func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error) {},
+	schemaGen: func(tr quickbooks.TaxRate) (map[string]any, error) {
+		return map[string]any{
+			"id":          tr.Id,
+			"QBOId":       tr.Id,
+			"Name":        tr.Name,
+			"Description": tr.Description,
+			"SyncToken":   tr.SyncToken,
+			"RateValue":   tr.RateValue,
+			"Active":      tr.Active,
+		}, nil
+	},
+	pageQuery: func(req Request) ([]quickbooks.TaxRate, error) {
+		params := quickbooks.RequestParameters{
+			Ctx:     req.Ctx,
+			RealmId: req.RealmId,
+			Token:   req.Token,
+		}
+
+		items, err := req.Client.FindTaxRatesByPage(params, req.StartPosition, req.PageSize)
+		if err != nil {
+			return nil, err
+		}
+
+		return items, nil
+	},
+}
+
+func init() {
+	registerType(&TaxRate)
 }

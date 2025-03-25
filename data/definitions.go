@@ -1,285 +1,759 @@
 package data
 
 import (
-	"sync"
+	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
-	"golang.org/x/sync/singleflight"
 )
 
 type Request struct {
-	StartPosition     int
-	PageSize          int
-	LastSynced        time.Time
-	OperationId       string
-	RequestedType     string
-	RequestedTypes    []string
-	RequestedCDCTypes []string
-	Filter            map[string]any
-	Cache             *cache.Cache
-	Group             *singleflight.Group
-	Client            *quickbooks.Client
+	Filter        map[string]any
+	LastSynced    time.Time
+	Ctx           context.Context
+	Types         []string
+	RealmId       string
+	StartPosition int
+	PageSize      int
+	OpCache       *OperationCache
+	IdCache       *IdCache
+	Client        *quickbooks.Client
+	Token         *quickbooks.BearerToken
 }
 
-type Response struct {
-	Data     any
-	MoreData bool
-}
-
-type IdCache struct {
-	Mu          sync.Mutex
-	OperationId string
-	Entries     map[string]map[string]bool
-}
-
-const IdCacheLifetime = 4 * time.Hour
-
-// These interfaces group datatypes by what queries can be performed on them
-
-// Type defines the most basic requirements for a datatype to be synced between QuickBooks and Fibery
 type Type interface {
-	GetId() string
-	GetName() string
-	GetSchema() map[string]fibery.Field
-	Query(req Request) (Response, error)
-	ProcessQuery(array any) ([]map[string]any, error)
+	Id() string
+	Name() string
+	Schema() map[string]fibery.Field
+	GetData(req Request) (fibery.DataHandlerResponse, error)
 }
 
-// DependentType limits Types that are not individually queryable in QuickBooks (ex. invoice lines) but need to be seperated into their own Fibery type for proper structure
-type DependentType interface {
-	Type
-	GetSourceId() string
-}
-
-// CDCQueryable limits Types to those that can be queried using QuickBooks Change Data Capture
 type CDCQueryable interface {
 	Type
-	ProcessCDC(cdc quickbooks.ChangeDataCapture) ([]map[string]any, error)
+	processCDC(cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error)
 }
 
-// DepCDCQueryable limits Types to those whos source can be queried using QuickBooks Change Data Capture
-type DependentCDCQueryable interface {
-	DependentType
-	MapType(sourceArray any) (map[string]map[string]bool, error)
-	ProcessCDC(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache) ([]map[string]any, error)
-}
-
-// WHQueryable limits Types to those that can send a Webhook notification on update
-type WHQueryable interface {
+type DepCDCQueryable interface {
 	Type
-	ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error
+	processCDC(req Request, cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error)
 }
 
-type DependentWHQueryable interface {
-	DependentType
-	ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error)
+type WHReceivable interface {
+	Type
+	ProcessWH(req Request, batchResponse *quickbooks.BatchItemResponse, resp *fibery.WebhookData) error
 }
 
-// FiberyType establishes the base information required to create a datatype in Fibery
-type fiberyType struct {
-	id     string
-	name   string
-	schema map[string]fibery.Field
+type DepWHReceivable interface {
+	Type
+	sourceTypeId() string
+	processWH(req Request, sourceData any) ([]map[string]any, error)
 }
 
-func (f fiberyType) GetId() string {
-	return f.id
+type schemaGenFunc[T any] func(T) (map[string]any, error)
+type pageQueryFunc[T any] func(req Request) ([]T, error)
+type entityFieldValueFunc[T, V any] func(T) V
+
+type depSchemaGenFunc[ST any] func(ST) ([]map[string]any, error)
+type sourceMapperFunc[ST any] func(ST) map[string]struct{}
+
+func createResponse(items []map[string]any, req Request, syncType fibery.SyncType) fibery.DataHandlerResponse {
+	return fibery.DataHandlerResponse{
+		Items: items,
+		Pagination: fibery.Pagination{
+			HasNext: len(items) == req.PageSize,
+			NextPageConfig: fibery.NextPageConfig{
+				StartPosition: req.StartPosition + req.PageSize,
+			},
+		},
+		SynchronizationType: syncType,
+	}
 }
 
-func (f fiberyType) GetName() string {
-	return f.name
+func getFullData[T any](req Request, typeId string, pageQuery pageQueryFunc[T], process func(data []T) ([]map[string]any, error)) (fibery.DataHandlerResponse, error) {
+	key := fmt.Sprintf("%s:%d", typeId, req.StartPosition)
+	opCache := req.OpCache
+	var data []T
+
+	opCache.Lock()
+	entry, exists := opCache.Results[key]
+	if exists {
+		slog.Debug(fmt.Sprintf("opCache exists for: %s", key))
+
+		opCache.RefreshAccessTime()
+		opCache.Unlock()
+		var cacheData any
+		select {
+		case cacheData = <-entry.Data:
+			var ok bool
+			data, ok = cacheData.([]T)
+			if !ok {
+				return fibery.DataHandlerResponse{}, fmt.Errorf("cacheData type mismatch")
+			}
+		case <-opCache.ctx.Done():
+			return fibery.DataHandlerResponse{}, nil
+		}
+	} else {
+		slog.Debug(fmt.Sprintf("opCache does not exist for: %s", key))
+
+		entry = &CacheEntry{Data: make(chan any, 1)}
+		opCache.Results[key] = entry
+		opCache.Unlock()
+
+		slog.Debug("querying page")
+
+		d, err := pageQuery(req)
+		if err != nil {
+			opCache.Lock()
+			delete(opCache.Results, key)
+			opCache.Unlock()
+			return fibery.DataHandlerResponse{}, err
+		}
+
+		slog.Debug("data returned")
+
+		entry.Data <- d
+		data = d
+
+		slog.Debug("data set")
+	}
+
+	slog.Debug("processing data")
+
+	items, err := process(data)
+	if err != nil {
+		return fibery.DataHandlerResponse{}, fmt.Errorf("error processing data: %w", err)
+	}
+
+	slog.Debug("data processed")
+
+	resp := createResponse(items, req, fibery.Full)
+
+	slog.Debug("response created")
+
+	if !resp.Pagination.HasNext {
+		opCache.MarkTypeComplete(typeId)
+	}
+
+	slog.Debug("response ready")
+
+	return resp, nil
 }
 
-func (f fiberyType) GetSchema() map[string]fibery.Field {
-	return f.schema
+func getFullDataDep[ST any](req Request, typeId string, pageQuery func(req Request) ([]ST, error), process func(data []ST) ([]map[string]any, error), update func(data []ST)) (fibery.DataHandlerResponse, error) {
+	key := fmt.Sprintf("%s:%d", typeId, req.StartPosition)
+	opCache := req.OpCache
+	var data []ST
+
+	opCache.Lock()
+	entry, exists := opCache.Results[key]
+	if exists {
+		opCache.RefreshAccessTime()
+		opCache.Unlock()
+		var cacheData any
+		select {
+		case cacheData = <-entry.Data:
+			var ok bool
+			data, ok = cacheData.([]ST)
+			if !ok {
+				return fibery.DataHandlerResponse{}, fmt.Errorf("cacheData type mismatch")
+			}
+		case <-opCache.ctx.Done():
+			return fibery.DataHandlerResponse{}, nil
+		}
+	} else {
+		entry = &CacheEntry{Data: make(chan any, 1)}
+		opCache.Results[key] = entry
+		opCache.Unlock()
+
+		d, err := pageQuery(req)
+		if err != nil {
+			opCache.Lock()
+			delete(opCache.Results, key)
+			opCache.Unlock()
+			return fibery.DataHandlerResponse{}, err
+		}
+		entry.Data <- d
+		data = d
+	}
+
+	if update != nil {
+		update(data)
+	}
+
+	items, err := process(data)
+	if err != nil {
+		return fibery.DataHandlerResponse{}, fmt.Errorf("error processing data: %w", err)
+	}
+
+	resp := createResponse(items, req, fibery.Full)
+	if !resp.Pagination.HasNext {
+		opCache.MarkTypeComplete(typeId)
+	}
+	return resp, nil
 }
 
-// QuickBooksType establishes the base functions required to retreive, process, and convert a QuickBooks entity to a Fibery entity
-type QuickBooksType struct {
-	fiberyType
-	schemaGen      schemaGenFunc
-	query          func(req Request) (Response, error)
-	queryProcessor queryProcessorFunc
+func getDeltaData(req Request, key string, process func(cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error)) (fibery.DataHandlerResponse, error) {
+	opCache := req.OpCache
+	var cdc quickbooks.ChangeDataCapture
+	opCache.Lock()
+	entry, exists := opCache.Results[key]
+	if exists {
+		opCache.RefreshAccessTime()
+		opCache.Unlock()
+		var cacheData any
+		select {
+		case cacheData = <-entry.Data:
+			var ok bool
+			cdc, ok = cacheData.(quickbooks.ChangeDataCapture)
+			if !ok {
+				return fibery.DataHandlerResponse{}, fmt.Errorf("cacheData is not quickbooks.ChangeDataCapture type")
+			}
+		case <-opCache.ctx.Done():
+			return fibery.DataHandlerResponse{}, nil
+		}
+	} else {
+		opCache.Unlock()
+		return fibery.DataHandlerResponse{}, fmt.Errorf("delta key not found in cache")
+	}
+
+	items, err := process(&cdc)
+	if err != nil {
+		return fibery.DataHandlerResponse{}, fmt.Errorf("error processing delta data: %w", err)
+	}
+
+	return fibery.DataHandlerResponse{
+		Items:               items,
+		Pagination:          fibery.Pagination{HasNext: false},
+		SynchronizationType: fibery.Delta,
+	}, nil
 }
 
-type schemaGenFunc func(entity any) (map[string]any, error)
+func getDeltaDataDep(req Request, key string, process func(req Request, cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error)) (fibery.DataHandlerResponse, error) {
+	opCache := req.OpCache
+	var cdc quickbooks.ChangeDataCapture
+	opCache.Lock()
+	entry, exists := opCache.Results[key]
+	if exists {
+		opCache.RefreshAccessTime()
+		opCache.Unlock()
+		var cacheData any
+		select {
+		case cacheData = <-entry.Data:
+			var ok bool
+			cdc, ok = cacheData.(quickbooks.ChangeDataCapture)
+			if !ok {
+				return fibery.DataHandlerResponse{}, fmt.Errorf("cacheData is not quickbooks.ChangeDataCapture type")
+			}
+		case <-opCache.ctx.Done():
+			return fibery.DataHandlerResponse{}, nil
+		}
+	} else {
+		opCache.Unlock()
+		return fibery.DataHandlerResponse{}, fmt.Errorf("delta key not found in cache")
+	}
 
-type queryProcessorFunc func(entityArray any, schemaGen schemaGenFunc) ([]map[string]any, error)
+	items, err := process(req, &cdc)
+	if err != nil {
+		return fibery.DataHandlerResponse{}, fmt.Errorf("error processing delta data: %w", err)
+	}
 
-// Query requests Type data from QuickBooks based on the Request parameters
-func (t QuickBooksType) Query(req Request) (Response, error) {
-	return t.query(req)
+	return fibery.DataHandlerResponse{
+		Items:               items,
+		Pagination:          fibery.Pagination{HasNext: false},
+		SynchronizationType: fibery.Delta,
+	}, nil
 }
 
-// ProcessQuery takes an array of QuickBooks entities and returns them as an array of corresponding Fibery entities
-func (t QuickBooksType) ProcessQuery(array any) ([]map[string]any, error) {
-	return t.queryProcessor(array, t.schemaGen)
+type QuickBooksType[T any] struct {
+	fibery.BaseType
+	schemaGen schemaGenFunc[T]
+	pageQuery pageQueryFunc[T]
 }
 
-type cdcProcessorFunc func(cdc quickbooks.ChangeDataCapture, schemaGen schemaGenFunc) ([]map[string]any, error)
-
-// QuickBooksCDCType established the additional function(s) required to process Change Data Capture responses
-type QuickBooksCDCType struct {
-	QuickBooksType
-	cdcProcessor cdcProcessorFunc
+func (t QuickBooksType[T]) processQuery(entities []T) ([]map[string]any, error) {
+	items := []map[string]any{}
+	for _, entity := range entities {
+		item, err := t.schemaGen(entity)
+		if err != nil {
+			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
 
-// ProcessCDC takes a non-specific Change Data Capture response and returns entities of the relevant type converted to Fibery schema
-func (t QuickBooksCDCType) ProcessCDC(cdc quickbooks.ChangeDataCapture) ([]map[string]any, error) {
-	return t.cdcProcessor(cdc, t.schemaGen)
+func (t QuickBooksType[T]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
+
+	switch syncType {
+	case fibery.Full:
+		return getFullData(req, t.Id(), t.pageQuery, t.processQuery)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
+
 }
 
-type whBatchProcessorFunc func(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string, queryProcessor queryProcessorFunc, schemaGen schemaGenFunc, typeId string) error
+type QuickBooksCDCType[T any] struct {
+	QuickBooksType[T]
+	entityId     entityFieldValueFunc[T, string]
+	entityStatus entityFieldValueFunc[T, string]
+}
+
+func (t QuickBooksCDCType[T]) processCDC(cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error) {
+	entities := quickbooks.CDCQueryExtractor[T](cdc)
+	items := []map[string]any{}
+	for _, entity := range entities {
+		if t.entityStatus(entity) == "Deleted" {
+			item := map[string]any{
+				"id":           t.entityId(entity),
+				"__syncAction": fibery.REMOVE,
+			}
+			items = append(items, item)
+		} else {
+			item, err := t.schemaGen(entity)
+			if err != nil {
+				return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+			}
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+func (t QuickBooksCDCType[T]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
+
+	switch syncType {
+	case fibery.Delta:
+		return getDeltaData(req, "cdc", t.processCDC)
+	case fibery.Full:
+		return getFullData(req, t.Id(), t.pageQuery, t.processQuery)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
+}
 
 // QuickBooksWHType established the additional function(s) required to process a webhook notifcation
-type QuickBooksWHType struct {
-	QuickBooksType
-	whBatchProcessor whBatchProcessorFunc
+type QuickBooksWHType[T any] struct {
+	QuickBooksType[T]
+	entityId entityFieldValueFunc[T, string]
 }
 
-func (t QuickBooksWHType) ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
-	return t.whBatchProcessor(itemResponse, response, cache, realmId, t.queryProcessor, t.schemaGen, t.GetId())
+func (t QuickBooksWHType[T]) ProcessWH(req Request, batchResponse *quickbooks.BatchItemResponse, resp *fibery.WebhookData) error {
+	entities := quickbooks.BatchQueryExtractor[T](batchResponse)
+	items, err := t.processQuery(entities)
+	if err != nil {
+		return fmt.Errorf("unable to process %s query", t.Id())
+	}
+	(*resp)[t.Id()] = append((*resp)[t.Id()], items...)
+	if dependents, ok := Types.DepWHReceivable[t.Id()]; ok {
+		for _, depPtr := range dependents {
+			for _, selectedType := range req.Types {
+				if depType := *depPtr; depType.Id() == selectedType {
+					depItems, err := depType.processWH(req, entities)
+					if err != nil {
+						return fmt.Errorf("unable to process data for dependent: %s", depType.Id())
+					}
+					(*resp)[depType.Id()] = append((*resp)[depType.Id()], depItems...)
+				}
+				continue
+			}
+
+		}
+	}
+	return nil
 }
 
 // QuickBooksDualType requires the functions from both QuickBooksCDCType and QuickBooksWHType
-type QuickBooksDualType struct {
-	QuickBooksType
-	cdcProcessor     cdcProcessorFunc
-	whBatchProcessor whBatchProcessorFunc
+type QuickBooksDualType[T any] struct {
+	QuickBooksType[T]
+	entityId     entityFieldValueFunc[T, string]
+	entityStatus entityFieldValueFunc[T, string]
 }
 
-// ProcessCDC takes a non-specific Change Data Capture response and returns entities of the relevant type converted to Fibery schema
-func (t QuickBooksDualType) ProcessCDC(cdc quickbooks.ChangeDataCapture) ([]map[string]any, error) {
-	return t.cdcProcessor(cdc, t.schemaGen)
+func (t QuickBooksDualType[T]) ProcessWH(req Request, batchResponse *quickbooks.BatchItemResponse, resp *fibery.WebhookData) error {
+	entities := quickbooks.BatchQueryExtractor[T](batchResponse)
+	items, err := t.processQuery(entities)
+	if err != nil {
+		return fmt.Errorf("unable to process %s query", t.Id())
+	}
+	(*resp)[t.Id()] = append((*resp)[t.Id()], items...)
+	if dependents, ok := Types.DepWHReceivable[t.Id()]; ok {
+		for _, depPtr := range dependents {
+			for _, selectedType := range req.Types {
+				if depType := *depPtr; depType.Id() == selectedType {
+					depItems, err := depType.processWH(req, entities)
+					if err != nil {
+						return fmt.Errorf("unable to process data for dependent: %s", depType.Id())
+					}
+					(*resp)[depType.Id()] = append((*resp)[depType.Id()], depItems...)
+				}
+				continue
+			}
+
+		}
+	}
+	return nil
 }
 
-func (t QuickBooksDualType) ProcessWHBatch(itemResponse quickbooks.BatchItemResponse, response *map[string][]map[string]any, cache *cache.Cache, realmId string) error {
-	return t.whBatchProcessor(itemResponse, response, cache, realmId, t.queryProcessor, t.schemaGen, t.GetId())
+func (t QuickBooksDualType[T]) processCDC(cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error) {
+	entities := quickbooks.CDCQueryExtractor[T](cdc)
+	items := []map[string]any{}
+	for _, entity := range entities {
+		if t.entityStatus(entity) == "Deleted" {
+			item := map[string]any{
+				"id":           t.entityId(entity),
+				"__syncAction": fibery.REMOVE,
+			}
+			items = append(items, item)
+		} else {
+			item, err := t.schemaGen(entity)
+			if err != nil {
+				return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+			}
+			items = append(items, item)
+		}
+	}
+	return items, nil
 }
 
-type depSchemaGenFunc func(entity any, source any) (map[string]any, error)
+func (t QuickBooksDualType[T]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
+
+	switch syncType {
+	case fibery.Delta:
+		return getDeltaData(req, "cdc", t.processCDC)
+	case fibery.Full:
+		return getFullData(req, t.Id(), t.pageQuery, t.processQuery)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
+}
 
 // DependentBaseType established the base functions required to process, extract, and convert dependent data from an array of source entities
-type dependentBaseType struct {
-	fiberyType
-	schemaGen      depSchemaGenFunc
-	queryProcessor func(sourceArray any, schemaGen depSchemaGenFunc) ([]map[string]any, error)
+type dependentBaseType[ST any] struct {
+	fibery.BaseType
+	schemaGen depSchemaGenFunc[ST]
 }
 
-func (t dependentBaseType) ProcessQuery(array any) ([]map[string]any, error) {
-	return t.queryProcessor(array, t.schemaGen)
+func (t dependentBaseType[ST]) processQuery(sourceEntities []ST) ([]map[string]any, error) {
+	items := []map[string]any{}
+	for _, source := range sourceEntities {
+		itemSlice, err := t.schemaGen(source)
+		if err != nil {
+			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+		}
+		items = append(items, itemSlice...)
+	}
+	return items, nil
 }
 
 // DependentDataType corresponds to a QuickBooksType which can only be requested through a query or read operation
-type DependentDataType struct {
-	dependentBaseType
-	source QuickBooksType
+type DependentDataType[ST any] struct {
+	dependentBaseType[ST]
+	sourceType *QuickBooksType[ST]
 }
 
-func (t DependentDataType) Query(req Request) (Response, error) {
-	return t.source.Query(req)
+func (t DependentDataType[ST]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
+
+	switch syncType {
+	case fibery.Full:
+		return getFullData(req, t.Id(), t.sourceType.pageQuery, t.processQuery)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
 }
 
-func (t DependentDataType) GetSourceId() string {
-	return t.source.GetId()
+type DependentCDCType[ST any] struct {
+	dependentBaseType[ST]
+	sourceType   *QuickBooksCDCType[ST]
+	sourceId     entityFieldValueFunc[ST, string]
+	sourceStatus entityFieldValueFunc[ST, string]
+	sourceMapper sourceMapperFunc[ST]
 }
 
-// sourceMapperFunc maps the dependent Ids of a single corresponding source entity
-type sourceMapperFunc func(source any) (map[string]bool, error)
+func (t DependentCDCType[ST]) processCDC(req Request, cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error) {
+	sourceEntities := quickbooks.CDCQueryExtractor[ST](cdc)
+	items := []map[string]any{}
+	idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+	if !exists {
+		return nil, fmt.Errorf("no id cache entry found for %s:%s, perform full sync to populate cache", req.RealmId, t.Id())
+	}
 
-// typeMapperFunc maps an array of source entities using the sourceMapperFunc for each source entity
-type typeMapperFunc func(sourceArray any, sourceMapper sourceMapperFunc) (map[string]map[string]bool, error)
+	for _, source := range sourceEntities {
+		sourceId := t.sourceId(source)
+		cachedIds := idSet[sourceId]
+		newIds := t.sourceMapper(source)
 
-type depCDCProcessorFunc func(cdc quickbooks.ChangeDataCapture, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error)
+		if t.sourceStatus(source) == "Deleted" {
+			for cachedId := range cachedIds {
+				items = append(items, map[string]any{
+					"id":           cachedId,
+					"__syncAction": fibery.REMOVE,
+				})
+			}
+			req.IdCache.RemoveSource(req.RealmId, t.Id(), sourceId)
+			continue
+		}
 
-type DependentCDCType struct {
-	dependentBaseType
-	source       QuickBooksCDCType
-	sourceMapper sourceMapperFunc
-	typeMapper   typeMapperFunc
-	cdcProcessor depCDCProcessorFunc
+		itemSlice, err := t.schemaGen(source)
+		if err != nil {
+			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+		}
+		items = append(items, itemSlice...)
+
+		for cachedId := range cachedIds {
+			if _, ok := newIds[cachedId]; !ok {
+				items = append(items, map[string]any{
+					"id":           cachedId,
+					"__syncAction": fibery.REMOVE,
+				})
+			}
+		}
+
+		idSet[sourceId] = newIds
+	}
+
+	req.IdCache.Set(req.RealmId, t.Id(), idSet)
+	return items, nil
 }
 
-func (t DependentCDCType) Query(req Request) (Response, error) {
-	return t.source.Query(req)
+func (t DependentCDCType[ST]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
+
+	switch syncType {
+	case fibery.Delta:
+		return getDeltaDataDep(req, "cdc", t.processCDC)
+	case fibery.Full:
+		cacheUpdateFunc := func(sourceEntities []ST) {
+			idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+			if !exists {
+				idSet = make(IdSet)
+			}
+			for _, source := range sourceEntities {
+				sId := t.sourceId(source)
+				newIds := t.sourceMapper(source)
+				idSet[sId] = newIds
+			}
+			req.IdCache.Set(req.RealmId, t.Id(), idSet)
+		}
+		return getFullDataDep(req, t.sourceType.Id(), t.sourceType.pageQuery, t.processQuery, cacheUpdateFunc)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
 }
 
-func (t DependentCDCType) GetSourceId() string {
-	return t.source.GetId()
+type DependentWHType[ST any] struct {
+	dependentBaseType[ST]
+	sourceType   *QuickBooksWHType[ST]
+	sourceId     entityFieldValueFunc[ST, string]
+	sourceMapper sourceMapperFunc[ST]
 }
 
-// ProcessCDC takes a non-specific Change Data Capture response and returns dependent entities if the source type is included
-func (t DependentCDCType) ProcessCDC(cdc quickbooks.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
-	return t.cdcProcessor(cdc, idEntry, t.sourceMapper, t.schemaGen)
+func (t DependentWHType[ST]) sourceTypeId() string {
+	return t.sourceType.Id()
 }
 
-// MapType creates a map of source & dependent entity ids to track changes from Change Data Capture and Webhook notifications
-func (t DependentCDCType) MapType(sourceArray any) (map[string]map[string]bool, error) {
-	return t.typeMapper(sourceArray, t.sourceMapper)
+func (t DependentWHType[ST]) processWH(req Request, sourceEntities []ST) ([]map[string]any, error) {
+	items := []map[string]any{}
+	idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+	if !exists {
+		return nil, fmt.Errorf("no id cache entry found for %s:%s, perform full sync to populate cache", req.RealmId, t.Id())
+	}
+
+	for _, source := range sourceEntities {
+		sourceId := t.sourceId(source)
+		cachedIds := idSet[sourceId]
+		newIds := t.sourceMapper(source)
+
+		itemSlice, err := t.schemaGen(source)
+		if err != nil {
+			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+		}
+		items = append(items, itemSlice...)
+
+		for cachedId := range cachedIds {
+			if _, ok := newIds[cachedId]; !ok {
+				items = append(items, map[string]any{
+					"id":           cachedId,
+					"__syncAction": fibery.REMOVE,
+				})
+			}
+		}
+
+		idSet[sourceId] = newIds
+
+	}
+
+	req.IdCache.Set(req.RealmId, t.Id(), idSet)
+	return items, nil
 }
 
-type depWHBatchProcessorFunc func(sourceArray any, cacheEntry *IdCache, sourceMapper sourceMapperFunc, schemaGen depSchemaGenFunc) ([]map[string]any, error)
+func (t DependentWHType[ST]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
 
-type DependentWHType struct {
-	dependentBaseType
-	source           QuickBooksWHType
-	sourceMapper     sourceMapperFunc
-	whBatchProcessor depWHBatchProcessorFunc
+	switch syncType {
+	case fibery.Full:
+		cacheUpdateFunc := func(sourceEntities []ST) {
+			idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+			if !exists {
+				idSet = make(IdSet)
+			}
+			for _, source := range sourceEntities {
+				sId := t.sourceId(source)
+				newIds := t.sourceMapper(source)
+				idSet[sId] = newIds
+			}
+			req.IdCache.Set(req.RealmId, t.Id(), idSet)
+		}
+		return getFullDataDep(req, t.sourceType.Id(), t.sourceType.pageQuery, t.processQuery, cacheUpdateFunc)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
 }
 
-func (t DependentWHType) Query(req Request) (Response, error) {
-	return t.source.Query(req)
+type DependentDualType[ST any] struct {
+	dependentBaseType[ST]
+	sourceType   *QuickBooksDualType[ST]
+	sourceId     entityFieldValueFunc[ST, string]
+	sourceStatus entityFieldValueFunc[ST, string]
+	sourceMapper sourceMapperFunc[ST]
 }
 
-func (t DependentWHType) GetSourceId() string {
-	return t.source.GetId()
+func (t DependentDualType[ST]) sourceTypeId() string {
+	return t.sourceType.Id()
 }
 
-func (t DependentWHType) ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error) {
-	return t.whBatchProcessor(sourceArray, cacheEntry, t.sourceMapper, t.schemaGen)
+func (t DependentDualType[ST]) processWH(req Request, data any) ([]map[string]any, error) {
+	sourceEntities, ok := data.([]ST)
+	if !ok {
+		return nil, fmt.Errorf("unable to assert sourceType on data")
+	}
+
+	items := []map[string]any{}
+	idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+	if !exists {
+		return nil, fmt.Errorf("no id cache entry found for %s:%s, perform full sync to populate cache", req.RealmId, t.Id())
+	}
+
+	for _, source := range sourceEntities {
+		sourceId := t.sourceId(source)
+		cachedIds := idSet[sourceId]
+		newIds := t.sourceMapper(source)
+
+		itemSlice, err := t.schemaGen(source)
+		if err != nil {
+			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+		}
+		items = append(items, itemSlice...)
+
+		for cachedId := range cachedIds {
+			if _, ok := newIds[cachedId]; !ok {
+				items = append(items, map[string]any{
+					"id":           cachedId,
+					"__syncAction": fibery.REMOVE,
+				})
+			}
+		}
+
+		idSet[sourceId] = newIds
+
+	}
+
+	req.IdCache.Set(req.RealmId, t.Id(), idSet)
+	return items, nil
 }
 
-type DependentDualType struct {
-	dependentBaseType
-	source           QuickBooksDualType
-	sourceMapper     sourceMapperFunc
-	typeMapper       typeMapperFunc
-	cdcProcessor     depCDCProcessorFunc
-	whBatchProcessor depWHBatchProcessorFunc
+func (t DependentDualType[ST]) processCDC(req Request, cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error) {
+	sourceEntities := quickbooks.CDCQueryExtractor[ST](cdc)
+	items := []map[string]any{}
+	idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+	if !exists {
+		return nil, fmt.Errorf("no id cache entry found for %s:%s, perform full sync to populate cache", req.RealmId, t.Id())
+	}
+
+	for _, source := range sourceEntities {
+		sourceId := t.sourceId(source)
+		cachedIds := idSet[sourceId]
+		newIds := t.sourceMapper(source)
+
+		if t.sourceStatus(source) == "Deleted" {
+			for cachedId := range cachedIds {
+				items = append(items, map[string]any{
+					"id":           cachedId,
+					"__syncAction": fibery.REMOVE,
+				})
+			}
+			req.IdCache.RemoveSource(req.RealmId, t.Id(), sourceId)
+			continue
+		}
+
+		itemSlice, err := t.schemaGen(source)
+		if err != nil {
+			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+		}
+		items = append(items, itemSlice...)
+
+		for cachedId := range cachedIds {
+			if _, ok := newIds[cachedId]; !ok {
+				items = append(items, map[string]any{
+					"id":           cachedId,
+					"__syncAction": fibery.REMOVE,
+				})
+			}
+		}
+
+		idSet[sourceId] = newIds
+	}
+
+	req.IdCache.Set(req.RealmId, t.Id(), idSet)
+	return items, nil
 }
 
-func (t DependentDualType) Query(req Request) (Response, error) {
-	return t.source.Query(req)
+func (t DependentDualType[ST]) GetData(req Request) (fibery.DataHandlerResponse, error) {
+	syncType := req.OpCache.SyncTypes[t.Id()]
+
+	switch syncType {
+	case fibery.Delta:
+		return getDeltaDataDep(req, "cdc", t.processCDC)
+	case fibery.Full:
+		cacheUpdateFunc := func(sourceEntities []ST) {
+			idSet, exists := req.IdCache.Get(req.RealmId, t.Id())
+			if !exists {
+				idSet = make(IdSet)
+			}
+			for _, source := range sourceEntities {
+				sId := t.sourceId(source)
+				newIds := t.sourceMapper(source)
+				idSet[sId] = newIds
+			}
+			req.IdCache.Set(req.RealmId, t.Id(), idSet)
+		}
+		return getFullDataDep(req, t.sourceType.Id(), t.sourceType.pageQuery, t.processQuery, cacheUpdateFunc)
+	default:
+		return fibery.DataHandlerResponse{}, fmt.Errorf("unsupported sync type")
+	}
 }
 
-func (t DependentDualType) GetSourceId() string {
-	return t.source.GetId()
+type TypeRegistry struct {
+	All             map[string]*Type
+	DepWHReceivable map[string][]*DepWHReceivable
 }
 
-// ProcessCDC takes a non-specific Change Data Capture response and returns dependent entities if the source type is included
-func (t DependentDualType) ProcessCDC(cdc quickbooks.ChangeDataCapture, idEntry *IdCache) ([]map[string]any, error) {
-	return t.cdcProcessor(cdc, idEntry, t.sourceMapper, t.schemaGen)
+var Types = TypeRegistry{
+	All:             make(map[string]*Type),
+	DepWHReceivable: make(map[string][]*DepWHReceivable),
 }
 
-// MapType creates a map of source & dependent entity ids to track changes from Change Data Capture and Webhook notifications
-func (t DependentDualType) MapType(sourceArray any) (map[string]map[string]bool, error) {
-	return t.typeMapper(sourceArray, t.sourceMapper)
-}
-
-func (t DependentDualType) ProcessWHBatch(sourceArray any, cacheEntry *IdCache) ([]map[string]any, error) {
-	return t.whBatchProcessor(sourceArray, cacheEntry, t.sourceMapper, t.schemaGen)
-}
-
-var Types = map[string]*Type{}
-var SourceDependents = map[string][]*DependentType{}
-
-func RegisterType(t Type) {
-	Types[t.GetId()] = &t
-	deptype, ok := t.(DependentType)
+func registerType(t Type) {
+	Types.All[t.Id()] = &t
+	depType, ok := t.(DepWHReceivable)
 	if ok {
-		SourceDependents[deptype.GetSourceId()] = append(SourceDependents[deptype.GetSourceId()], &deptype)
+		Types.DepWHReceivable[depType.sourceTypeId()] = append(Types.DepWHReceivable[depType.sourceTypeId()], &depType)
 	}
 }
