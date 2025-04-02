@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/tommyhedley/quickbooks-go"
 )
@@ -64,25 +63,4 @@ func HandleRequestError(w http.ResponseWriter, code int, errMsg string, err erro
 	} else {
 		RespondWithError(w, code, responseError)
 	}
-}
-
-func NewClientRequest(discovery *quickbooks.DiscoveryAPI, client *http.Client) (quickbooks.ClientRequest, error) {
-	clientRequest := quickbooks.ClientRequest{
-		Client:       client,
-		DiscoveryAPI: discovery,
-	}
-	switch os.Getenv("MODE") {
-	case "production":
-		clientRequest.ClientId = os.Getenv("OAUTH_CLIENT_ID_PRODUCTION")
-		clientRequest.ClientSecret = os.Getenv("OAUTH_CLIENT_SECRET_PRODUCTION")
-		clientRequest.Endpoint = os.Getenv("PRODUCTION_ENDPOINT")
-	case "sandbox":
-		clientRequest.ClientId = os.Getenv("OAUTH_CLIENT_ID_SANDBOX")
-		clientRequest.ClientSecret = os.Getenv("OAUTH_CLIENT_SECRET_SANDBOX")
-		clientRequest.Endpoint = os.Getenv("SANDBOX_ENDPOINT")
-	default:
-		return quickbooks.ClientRequest{}, fmt.Errorf("invalid MODE setting: %s", os.Getenv("MODE"))
-	}
-
-	return clientRequest, nil
 }

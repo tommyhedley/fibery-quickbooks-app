@@ -10,12 +10,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tommyhedley/fibery-quickbooks-app/data"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
@@ -48,13 +46,7 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 
 	token := &reqBody.Fields.BearerToken
 
-	secBeforeExp, err := strconv.Atoi(os.Getenv("TOKEN_REFRESH_BEFORE_EXPIRATION"))
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid TOKEN_REFRESH_BEFORE_EXPIRATION value: %w", err))
-		return
-	}
-
-	refreshNeeded := token.CheckExpiration(secBeforeExp)
+	refreshNeeded := token.CheckExpiration(i.config.RefreshSecBeforeExpriation)
 
 	if refreshNeeded {
 		newToken, err := i.client.RefreshToken(token.RefreshToken)
@@ -90,15 +82,15 @@ func (i *Integration) SyncConfigHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) {
-	type request struct {
+	type requestBody struct {
 		Types   []string              `json:"types"`
 		Filter  fibery.SyncFilter     `json:"filter"`
 		Account QuickBooksAccountInfo `json:"account"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	req := request{}
-	err := decoder.Decode(&req)
+	params := requestBody{}
+	err := decoder.Decode(&params)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("couldn't decode parameters"))
 		return
@@ -106,14 +98,13 @@ func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) 
 
 	requestedSchemas := make(map[string]map[string]fibery.Field)
 
-	for _, t := range req.Types {
-		typePointer, ok := data.Types.All[t]
+	for _, typeId := range params.Types {
+		storedType, ok := i.types.GetType(typeId)
 		if !ok {
-			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("type %s not found in registered types", t))
+			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("type %s not found in registered types", typeId))
 			return
 		}
-		datatype := *typePointer
-		requestedSchemas[t] = datatype.Schema()
+		requestedSchemas[typeId] = storedType.Schema()
 	}
 
 	RespondWithJSON(w, http.StatusOK, requestedSchemas)
@@ -121,14 +112,13 @@ func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) 
 
 func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
-		RequestedType     string                               `json:"requestedType"`
-		OperationID       string                               `json:"operationId"`
-		Types             []string                             `json:"types"`
-		Filter            map[string]any                       `json:"filter"`
-		Account           QuickBooksAccountInfo                `json:"account"`
-		LastSyncronizedAt string                               `json:"lastSynchronizedAt"`
-		Pagination        fibery.NextPageConfig                `json:"pagination"`
-		Schema            map[string]map[string]map[string]any `json:"schema"`
+		RequestedType     string                `json:"requestedType"`
+		OperationID       string                `json:"operationId"`
+		Types             []string              `json:"types"`
+		Filter            map[string]any        `json:"filter"`
+		Account           QuickBooksAccountInfo `json:"account"`
+		LastSyncronizedAt time.Time             `json:"lastSynchronizedAt"`
+		Pagination        fibery.NextPageConfig `json:"pagination"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -137,12 +127,6 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to decode request parameters: %w", err))
 		return
-	}
-
-	startPosition := params.Pagination.StartPosition
-
-	if startPosition == 0 {
-		startPosition = 1
 	}
 
 	if params.OperationID == "" {
@@ -155,111 +139,32 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lastSynced := time.Time{}
-	if params.LastSyncronizedAt != "" {
-		lastSynced, err = time.Parse(fibery.DateFormat, params.LastSyncronizedAt)
-		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("unable to convert lastSynchronizedAt value: %w", err))
-			return
-		}
-	}
-
-	opCache, exists := i.dataCache.Get(params.OperationID)
-	if !exists {
-		slog.Debug("opCache does not exist")
-		requestedTypes := make(map[string]bool)
-		syncTypes := make(map[string]fibery.SyncType)
-		deltaRequestTypes := []string{}
-		for _, rt := range params.Types {
-			requestedTypes[rt] = false
-			storedType := (*data.Types.All[rt])
-			if !lastSynced.IsZero() {
-				switch storedType.(type) {
-				case data.CDCQueryable:
-					syncTypes[rt] = fibery.Delta
-					deltaRequestTypes = append(deltaRequestTypes, storedType.Id())
-				case data.DepCDCQueryable:
-					if _, ok := i.idCache.Get(params.Account.RealmID, storedType.Id()); ok {
-						syncTypes[rt] = fibery.Delta
-						deltaRequestTypes = append(deltaRequestTypes, storedType.Id())
-					} else {
-						syncTypes[rt] = fibery.Full
-					}
-				}
-			} else {
-				syncTypes[rt] = fibery.Full
-			}
-		}
-
-		opCache = data.NewOperationCache(requestedTypes, syncTypes)
-		i.dataCache.Set(params.OperationID, opCache)
-
-		if len(deltaRequestTypes) > 0 {
-			go func() {
-				cdcParams := quickbooks.RequestParameters{
-					Ctx:     r.Context(),
-					RealmId: params.Account.RealmID,
-					Token:   &params.Account.BearerToken,
-				}
-
-				cdc, err := i.client.ChangeDataCapture(cdcParams, deltaRequestTypes, lastSynced)
-				if err != nil {
-					slog.Error("CDC request failed", "error", err)
-				} else {
-					opCache.Lock()
-					opCache.Results["cdc"] = &data.CacheEntry{
-						Data: make(chan any, 1),
-					}
-					opCache.Results["cdc"].Data <- cdc
-					opCache.Unlock()
-				}
-
-			}()
-		}
-	}
-
-	req := data.Request{
-		Filter:        params.Filter,
-		LastSynced:    lastSynced,
-		Ctx:           r.Context(),
-		Types:         params.Types,
-		RealmId:       params.Account.RealmID,
-		StartPosition: startPosition,
-		PageSize:      quickbooks.QueryPageSize,
-		OpCache:       opCache,
-		IdCache:       i.idCache,
-		Client:        i.client,
-		Token:         &params.Account.BearerToken,
-	}
-
-	requestType, ok := data.Types.All[params.RequestedType]
-	if !ok {
-		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requestedType was not found in i.types"))
+	op, err := i.opManager.GetOrAddOperation(params.OperationID, params.LastSyncronizedAt, params.Types, params.Account, i.types, i.idStore)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("issue getting/creating operation: %w", err))
 		return
 	}
 
-	slog.Debug("getting data")
+	startPosition := params.Pagination.StartPosition
 
-	resp, err := (*requestType).GetData(req)
+	if startPosition == 0 {
+		startPosition = 1
+	}
+
+	requestedType, exists := i.types.GetType(params.RequestedType)
+	if !exists {
+		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("requested type: %s does not exist in the TypeRegistry", params.RequestedType))
+		return
+	}
+
+	resp, err := requestedType.GetData(i.client, op, startPosition, i.config.QuickBooks.PageSize)
 	if err != nil {
 		HandleRequestError(w, http.StatusInternalServerError, "data request failed", err)
 		return
 	}
 
-	slog.Debug("data request completed")
-
-	opCache.Lock()
-	allComplete := true
-	for _, complete := range opCache.RequestedTypes {
-		if !complete {
-			allComplete = false
-			break
-		}
-	}
-	opCache.Unlock()
-
-	if allComplete {
-		i.dataCache.Delete(params.OperationID)
+	if op.IsComplete() {
+		i.opManager.DeleteOperation(params.OperationID)
 	}
 
 	RespondWithJSON(w, http.StatusOK, resp)
@@ -285,7 +190,7 @@ func (Integration) WebhookInitHandler(w http.ResponseWriter, r *http.Request) {
 	RespondWithJSON(w, http.StatusOK, fibery.Webhook{WebhookId: webhookID, WorkspaceId: params.Account.RealmID})
 }
 
-func (Integration) WebhookPreProcessHandler(w http.ResponseWriter, r *http.Request) {
+func (i *Integration) WebhookPreProcessHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
 		EventNotifications []struct {
 			RealmID         string `json:"realmId"`
@@ -305,12 +210,6 @@ func (Integration) WebhookPreProcessHandler(w http.ResponseWriter, r *http.Reque
 		WorkspaceIds []string          `json:"workspaceIds"`
 	}
 
-	verifierToken := os.Getenv("WEBHOOK_TOKEN")
-	if verifierToken == "" {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("missing verifier token"))
-		return
-	}
-
 	intuitSignature := r.Header.Get("intuit-signature")
 	if intuitSignature == "" {
 		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("missing intuit-signature header"))
@@ -323,7 +222,7 @@ func (Integration) WebhookPreProcessHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	mac := hmac.New(sha256.New, []byte(verifierToken))
+	mac := hmac.New(sha256.New, []byte(i.config.QuickBooks.WebhookToken))
 	mac.Write(bodyBytes)
 	computedHash := mac.Sum(nil)
 
@@ -399,6 +298,24 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	idCache, exists := i.idStore.GetOrCreateIdCache(params.Account.RealmID)
+	if !exists {
+		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("no idCache was found for realmId: %s, perform a full sync before enabling webhooks", params.Account.RealmID))
+		return
+	}
+
+	activeTypesBySource := make(map[string][]Type)
+
+	for _, typeId := range params.Types {
+		storedType, ok := i.types.GetType(typeId)
+		if !ok {
+			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("type %s not found in registered types", typeId))
+			return
+		} else {
+			activeTypesBySource[storedType.SourceId()] = append(activeTypesBySource[storedType.SourceId()], storedType)
+		}
+	}
+
 	queryEntities := map[string][]string{}
 	deleteEntities := map[string][]string{}
 
@@ -407,7 +324,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			continue
 		}
 		for _, e := range event.DataChangeEvent.Entities {
-			if _, ok := data.Types.All[e.Name]; ok {
+			if _, exists := activeTypesBySource[e.Name]; exists {
 				switch e.Operation {
 				case "Create", "Update", "Emailed", "Void":
 					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
@@ -418,40 +335,19 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	response := fibery.WebhookTransformResponse{
+	resp := &fibery.WebhookTransformResponse{
 		Data: make(fibery.WebhookData),
 	}
 
 	for typeId, ids := range deleteEntities {
-		for _, id := range ids {
-			response.Data[typeId] = append(response.Data[typeId], map[string]any{
-				"id":           id,
-				"__syncAction": fibery.REMOVE,
-			})
-		}
-		if depTypes, ok := data.Types.DepWHReceivable[typeId]; ok {
-			for _, depPtr := range depTypes {
-				for _, selectedType := range params.Types {
-					if depType := *depPtr; depType.Id() == selectedType {
-						idSet, exists := i.idCache.Get(params.Account.RealmID, depType.Id())
-						if !exists {
-							RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("no idCache exists for: %s, please full sync to build idCache", depType.Id()))
-							return
-						}
-						for _, parentId := range ids {
-							if depIds, exists := idSet[parentId]; exists {
-								for _, depId := range depIds {
-									response.Data[depType.Id()] = append(response.Data[depType.Id()], map[string]any{
-										"id":           depId,
-										"__syncAction": fibery.REMOVE,
-									})
-								}
-								i.idCache.RemoveSource(params.Account.RealmID, depType.Id(), parentId)
-							}
-						}
-					}
-					continue
-				}
+		for _, storedType := range activeTypesBySource[typeId] {
+			switch webhookType := storedType.(type) {
+			case WebhookType:
+				webhookType.ProcessWebhookDeletions(ids, resp)
+			case WebhookDepType:
+				webhookType.ProcessWebhookDeletions(ids, resp, idCache)
+			default:
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
 			}
 		}
 	}
@@ -478,36 +374,25 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	req := data.Request{
-		Filter:  params.Filter,
-		Ctx:     r.Context(),
-		Types:   params.Types,
-		RealmId: params.Account.RealmID,
-		IdCache: i.idCache,
-		Client:  i.client,
-		Token:   &params.Account.BearerToken,
-	}
-
 	for _, itemResponse := range batchResponse {
 		if faultType := itemResponse.Fault.FaultType; faultType != "" {
 			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("batch request error: %s", faultType))
 			return
 		}
 
-		datatype, ok := (*data.Types.All[itemResponse.BID]).(data.WHReceivable)
-		if !ok {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("requested datatype does not implement WHQueryable, please review you datatype implementations"))
-			return
-		}
-
-		err = datatype.ProcessWH(req, &itemResponse, &response.Data)
-		if err != nil {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process webhook batch: %w", err))
-			return
+		for _, storedType := range activeTypesBySource[itemResponse.BID] {
+			switch webhookType := storedType.(type) {
+			case WebhookType:
+				webhookType.ProcessWebhookUpdate(&itemResponse, resp)
+			case WebhookDepType:
+				webhookType.ProcessWebhookUpdate(&itemResponse, resp, idCache)
+			default:
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
+			}
 		}
 	}
 
-	RespondWithJSON(w, http.StatusOK, response)
+	RespondWithJSON(w, http.StatusOK, resp)
 }
 
 func (i *Integration) Oauth2AuthorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -526,7 +411,8 @@ func (i *Integration) Oauth2AuthorizeHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	redirectURI, err := i.client.FindAuthorizationUrl(os.Getenv("SCOPE"), reqBody.State, reqBody.CallbackURI)
+	slog.Debug(fmt.Sprintf("auth scope: %s", i.config.QuickBooks.Scope))
+	redirectURI, err := i.client.FindAuthorizationUrl(i.config.QuickBooks.Scope, reqBody.State, reqBody.CallbackURI)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("error generating redirect uri: %w", err))
 		return
