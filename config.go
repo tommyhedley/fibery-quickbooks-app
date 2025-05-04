@@ -11,7 +11,7 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var version = "dev"
+var version = "dev-v0.0.2"
 
 var loggerLevels = map[string]slog.Level{
 	"info":  slog.LevelInfo,
@@ -227,7 +227,9 @@ func AppConfig(version string) fibery.AppConfig {
 		Sources: []string{},
 		ResponsibleFor: fibery.ResponsibleFor{
 			DataSynchronization: true,
+			Automations:         true,
 		},
+		Actions: BuildActions(),
 	}
 }
 

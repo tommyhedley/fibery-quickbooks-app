@@ -24,12 +24,19 @@ type ResponsibleFor struct {
 	Automations         bool `json:"automations,omitempty"`
 }
 
+type ActionArgumentType string
+
+const (
+	TextArg     ActionArgumentType = "text"
+	TextAreaArg ActionArgumentType = "textarea"
+)
+
 type ActionArg struct {
-	Id           string `json:"id"`
-	Name         string `json:"name"`
-	Description  string `json:"description,omitempty"`
-	Type         string `json:"type"`
-	TextTemplate bool   `json:"textTemplateSupported,omitempty"`
+	Id           string             `json:"id"`
+	Name         string             `json:"name"`
+	Description  string             `json:"description,omitempty"`
+	ArgType      ActionArgumentType `json:"type"`
+	TextTemplate bool               `json:"textTemplateSupported,omitempty"`
 }
 
 type Action struct {
@@ -96,7 +103,7 @@ const (
 	Boolean      FieldSubtype = "boolean"
 	HTML         FieldSubtype = "html"
 	MD           FieldSubtype = "md"
-	Files        FieldSubtype = "files"
+	File         FieldSubtype = "file"
 	Daterange    FieldSubtype = "date-range"
 	Title        FieldSubtype = "title"
 	SingleSelect FieldSubtype = "single-select"

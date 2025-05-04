@@ -11,8 +11,8 @@ import (
 type Type interface {
 	Id() string
 	Name() string
-	SourceId() string
 	Schema() map[string]fibery.Field
+	SourceId() string
 	GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error)
 }
 
@@ -31,6 +31,7 @@ type WebhookType interface {
 	Type
 	ProcessWebhookUpdate(batchData *quickbooks.BatchItemResponse, resp *fibery.WebhookTransformResponse) error
 	ProcessWebhookDeletions(ids []string, resp *fibery.WebhookTransformResponse)
+	GetRelatedTypes() []CDCType
 }
 
 type CDCDepType interface {
@@ -65,13 +66,15 @@ type QuickBooksCDCType[T any] struct {
 
 type QuickBooksWHType[T any] struct {
 	QuickBooksType[T]
-	entityId entityFieldValueFunc[T, string]
+	entityId     entityFieldValueFunc[T, string]
+	relatedTypes []CDCType
 }
 
 type QuickBooksDualType[T any] struct {
 	QuickBooksType[T]
 	entityId     entityFieldValueFunc[T, string]
 	entityStatus entityFieldValueFunc[T, string]
+	relatedTypes []CDCType
 }
 
 type dependentBaseType[ST any] struct {
@@ -347,7 +350,7 @@ func getData[T any](
 				return fibery.DataHandlerResponse{}, fmt.Errorf("error processing cdc: %w", err)
 			}
 		default:
-			return fibery.DataHandlerResponse{}, fmt.Errorf("invalid type was passed into getChangeDataCapture: %t", cdcType)
+			return fibery.DataHandlerResponse{}, fmt.Errorf("invalid type was passed into getChangeDataCapture: %s", cdcType.Id())
 		}
 
 		op.MarkTypeFulfilled(storedType.Id())
@@ -580,7 +583,7 @@ func (t *QuickBooksType[T]) processQuery(entities []T) ([]map[string]any, error)
 	for _, entity := range entities {
 		item, err := t.schemaGen(entity)
 		if err != nil {
-			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+			return nil, fmt.Errorf("error converting %s to fibery schema: %w", t.Id(), err)
 		}
 		items = append(items, item)
 	}
@@ -592,7 +595,7 @@ func (t *dependentBaseType[ST]) processQuery(sourceEntities []ST) ([]map[string]
 	for _, source := range sourceEntities {
 		itemSlice, err := t.schemaGen(source)
 		if err != nil {
-			return nil, fmt.Errorf("error converting %s to fibery schema", t.Id())
+			return nil, fmt.Errorf("error converting %s to fibery schema: %w", t.Id(), err)
 		}
 		items = append(items, itemSlice...)
 	}
@@ -645,6 +648,14 @@ func (t *DependentWHType[ST]) ProcessWebhookDeletions(sourceIds []string, resp *
 
 func (t *DependentDualType[ST]) ProcessWebhookDeletions(sourceIds []string, resp *fibery.WebhookTransformResponse, idCache *IdCache) {
 	processWebhookDeletionsDep(sourceIds, resp, t.Id(), t.SourceId(), idCache)
+}
+
+func (t *QuickBooksWHType[T]) GetRelatedTypes() []CDCType {
+	return t.relatedTypes
+}
+
+func (t *QuickBooksDualType[T]) GetRelatedTypes() []CDCType {
+	return t.relatedTypes
 }
 
 func (t *QuickBooksType[T]) SourceId() string {
@@ -716,6 +727,18 @@ func (t *DependentDualType[ST]) MapSource(data any) (map[string]struct{}, error)
 }
 
 func (t *QuickBooksType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+}
+
+func (t *QuickBooksCDCType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+}
+
+func (t *QuickBooksWHType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+}
+
+func (t *QuickBooksDualType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
 	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
 }
 

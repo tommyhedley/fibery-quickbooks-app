@@ -45,3 +45,7 @@ type IntegrationFilter interface {
 type IntegrationResource interface {
 	SyncResourceHandler(w http.ResponseWriter, r *http.Request)
 }
+
+type IntegrationActions interface {
+	ActionHandler(w http.ResponseWriter, r *http.Request)
+}

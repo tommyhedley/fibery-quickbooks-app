@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strings"
 
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
@@ -121,889 +123,12 @@ func BuildTypes(tr TypeRegistry) {
 				Type:     fibery.Text,
 				SubType:  fibery.SingleSelect,
 				ReadOnly: true,
-				Options: []map[string]any{
-					{
-						"name": "Bank",
-					},
-					{
-						"name": "Other Current Asset",
-					},
-					{
-						"name": "Fixed Asset",
-					},
-					{
-						"name": "Other Asset",
-					},
-					{
-						"name": "Accounts Receivable",
-					},
-					{
-						"name": "Equity",
-					},
-					{
-						"name": "Expense",
-					},
-					{
-						"name": "Other Expense",
-					},
-					{
-						"name": "Cost of Goods Sold",
-					},
-					{
-						"name": "Accounts Payable",
-					},
-					{
-						"name": "Credit Card",
-					},
-					{
-						"name": "Long Term Liability",
-					},
-					{
-						"name": "Other Current Liability",
-					},
-					{
-						"name": "Income",
-					},
-					{
-						"name": "Other Income",
-					},
-				},
 			},
 			"AccountSubType": {
 				Name:     "Account Sub-Type",
 				Type:     fibery.Text,
 				SubType:  fibery.SingleSelect,
 				ReadOnly: true,
-				Options: []map[string]any{
-					{
-						"name": "CashOnHand",
-					},
-					{
-						"name": "Checking",
-					},
-					{
-						"name": "MoneyMarket",
-					},
-					{
-						"name": "RentsHeldInTrust",
-					},
-					{
-						"name": "Savings",
-					},
-					{
-						"name": "TrustAccounts",
-					},
-					{
-						"name": "CashAndCashEquivalents",
-					},
-					{
-						"name": "OtherEarMarkedBankAccounts",
-					},
-					{
-						"name": "AllowanceForBadDebts",
-					},
-					{
-						"name": "DevelopmentCosts",
-					},
-					{
-						"name": "EmployeeCashAdvances",
-					},
-					{
-						"name": "OtherCurrentAssets",
-					},
-					{
-						"name": "Inventory",
-					},
-					{
-						"name": "Investment_MortgageRealEstateLoans",
-					},
-					{
-						"name": "Investment_Other",
-					},
-					{
-						"name": "Investment_TaxExemptSecurities",
-					},
-					{
-						"name": "Investment_USGovernmentObligations",
-					},
-					{
-						"name": "LoansToOfficers",
-					},
-					{
-						"name": "LoansToOthers",
-					},
-					{
-						"name": "LoansToStockholders",
-					},
-					{
-						"name": "PrepaidExpenses",
-					},
-					{
-						"name": "Retainage",
-					},
-					{
-						"name": "UndepositedFunds",
-					},
-					{
-						"name": "AssetsAvailableForSale",
-					},
-					{
-						"name": "BalWithGovtAuthorities",
-					},
-					{
-						"name": "CalledUpShareCapitalNotPaid",
-					},
-					{
-						"name": "ExpenditureAuthorisationsAndLettersOfCredit",
-					},
-					{
-						"name": "GlobalTaxDeferred",
-					},
-					{
-						"name": "GlobalTaxRefund",
-					},
-					{
-						"name": "InternalTransfers",
-					},
-					{
-						"name": "OtherConsumables",
-					},
-					{
-						"name": "ProvisionsCurrentAssets",
-					},
-					{
-						"name": "ShortTermInvestmentsInRelatedParties",
-					},
-					{
-						"name": "ShortTermLoansAndAdvancesToRelatedParties",
-					},
-					{
-						"name": "TradeAndOtherReceivables",
-					},
-					{
-						"name": "AccumulatedDepletion",
-					},
-					{
-						"name": "AccumulatedDepreciation",
-					},
-					{
-						"name": "DepletableAssets",
-					},
-					{
-						"name": "FixedAssetComputers",
-					},
-					{
-						"name": "FixedAssetCopiers",
-					},
-					{
-						"name": "FixedAssetFurniture",
-					},
-					{
-						"name": "FixedAssetPhone",
-					},
-					{
-						"name": "FixedAssetPhotoVideo",
-					},
-					{
-						"name": "FixedAssetSoftware",
-					},
-					{
-						"name": "FixedAssetOtherToolsEquipment",
-					},
-					{
-						"name": "FurnitureAndFixtures",
-					},
-					{
-						"name": "Land",
-					},
-					{
-						"name": "LeaseholdImprovements",
-					},
-					{
-						"name": "OtherFixedAssets",
-					},
-					{
-						"name": "AccumulatedAmortization",
-					},
-					{
-						"name": "Buildings",
-					},
-					{
-						"name": "IntangibleAssets",
-					},
-					{
-						"name": "MachineryAndEquipment",
-					},
-					{
-						"name": "Vehicles",
-					},
-					{
-						"name": "AssetsInCourseOfConstruction",
-					},
-					{
-						"name": "CapitalWip",
-					},
-					{
-						"name": "CumulativeDepreciationOnIntangibleAssets",
-					},
-					{
-						"name": "IntangibleAssetsUnderDevelopment",
-					},
-					{
-						"name": "LandAsset",
-					},
-					{
-						"name": "NonCurrentAssets",
-					},
-					{
-						"name": "ParticipatingInterests",
-					},
-					{
-						"name": "ProvisionsFixedAssets",
-					},
-					{
-						"name": "LeaseBuyout",
-					},
-					{
-						"name": "OtherLongTermAssets",
-					},
-					{
-						"name": "SecurityDeposits",
-					},
-					{
-						"name": "AccumulatedAmortizationOfOtherAssets",
-					},
-					{
-						"name": "Goodwill",
-					},
-					{
-						"name": "Licenses",
-					},
-					{
-						"name": "OrganizationalCosts",
-					},
-					{
-						"name": "AssetsHeldForSale",
-					},
-					{
-						"name": "AvailableForSaleFinancialAssets",
-					},
-					{
-						"name": "DeferredTax",
-					},
-					{
-						"name": "Investments",
-					},
-					{
-						"name": "LongTermInvestments",
-					},
-					{
-						"name": "LongTermLoansAndAdvancesToRelatedParties",
-					},
-					{
-						"name": "OtherIntangibleAssets",
-					},
-					{
-						"name": "OtherLongTermInvestments",
-					},
-					{
-						"name": "OtherLongTermLoansAndAdvances",
-					},
-					{
-						"name": "PrepaymentsAndAccruedIncome",
-					},
-					{
-						"name": "ProvisionsNonCurrentAssets",
-					},
-					{
-						"name": "OpeningBalanceEquity",
-					},
-					{
-						"name": "PartnersEquity",
-					},
-					{
-						"name": "RetainedEarnings",
-					},
-					{
-						"name": "AccumulatedAdjustment",
-					},
-					{
-						"name": "OwnersEquity",
-					},
-					{
-						"name": "PaidInCapitalOrSurplus",
-					},
-					{
-						"name": "PartnerContributions",
-					},
-					{
-						"name": "PartnerDistributions",
-					},
-					{
-						"name": "PreferredStock",
-					},
-					{
-						"name": "CommonStock",
-					},
-					{
-						"name": "TreasuryStock",
-					},
-					{
-						"name": "EstimatedTaxes",
-					},
-					{
-						"name": "Healthcare",
-					},
-					{
-						"name": "PersonalIncome",
-					},
-					{
-						"name": "PersonalExpense",
-					},
-					{
-						"name": "AccumulatedOtherComprehensiveIncome",
-					},
-					{
-						"name": "CalledUpShareCapital",
-					},
-					{
-						"name": "CapitalReserves",
-					},
-					{
-						"name": "DividendDisbursed",
-					},
-					{
-						"name": "EquityInEarningsOfSubsiduaries",
-					},
-					{
-						"name": "InvestmentGrants",
-					},
-					{
-						"name": "MoneyReceivedAgainstShareWarrants",
-					},
-					{
-						"name": "OtherFreeReserves",
-					},
-					{
-						"name": "ShareApplicationMoneyPendingAllotment",
-					},
-					{
-						"name": "ShareCapital",
-					},
-					{
-						"name": "Funds",
-					},
-					{
-						"name": "AdvertisingPromotional",
-					},
-					{
-						"name": "BadDebts",
-					},
-					{
-						"name": "BankCharges",
-					},
-					{
-						"name": "CharitableContributions",
-					},
-					{
-						"name": "CommissionsAndFees",
-					},
-					{
-						"name": "Entertainment",
-					},
-					{
-						"name": "EntertainmentMeals",
-					},
-					{
-						"name": "EquipmentRental",
-					},
-					{
-						"name": "FinanceCosts",
-					},
-					{
-						"name": "GlobalTaxExpense",
-					},
-					{
-						"name": "Insurance",
-					},
-					{
-						"name": "InterestPaid",
-					},
-					{
-						"name": "LegalProfessionalFees",
-					},
-					{
-						"name": "OfficeExpenses",
-					},
-					{
-						"name": "OfficeGeneralAdministrativeExpenses",
-					},
-					{
-						"name": "OtherBusinessExpenses",
-					},
-					{
-						"name": "OtherMiscellaneousServiceCost",
-					},
-					{
-						"name": "PromotionalMeals",
-					},
-					{
-						"name": "RentOrLeaseOfBuildings",
-					},
-					{
-						"name": "RepairMaintenance",
-					},
-					{
-						"name": "ShippingFreightDelivery",
-					},
-					{
-						"name": "SuppliesMaterials",
-					},
-					{
-						"name": "Travel",
-					},
-					{
-						"name": "TravelMeals",
-					},
-					{
-						"name": "Utilities",
-					},
-					{
-						"name": "Auto",
-					},
-					{
-						"name": "CostOfLabor",
-					},
-					{
-						"name": "DuesSubscriptions",
-					},
-					{
-						"name": "PayrollExpenses",
-					},
-					{
-						"name": "TaxesPaid",
-					},
-					{
-						"name": "UnappliedCashBillPaymentExpense",
-					},
-					{
-						"name": "Utilities",
-					},
-					{
-						"name": "AmortizationExpense",
-					},
-					{
-						"name": "AppropriationsToDepreciation",
-					},
-					{
-						"name": "BorrowingCost",
-					},
-					{
-						"name": "CommissionsAndFees",
-					},
-					{
-						"name": "DistributionCosts",
-					},
-					{
-						"name": "ExternalServices",
-					},
-					{
-						"name": "ExtraordinaryCharges",
-					},
-					{
-						"name": "IncomeTaxExpense",
-					},
-					{
-						"name": "LossOnDiscontinuedOperationsNetOfTax",
-					},
-					{
-						"name": "ManagementCompensation",
-					},
-					{
-						"name": "OtherCurrentOperatingCharges",
-					},
-					{
-						"name": "OtherExternalServices",
-					},
-					{
-						"name": "OtherRentalCosts",
-					},
-					{
-						"name": "OtherSellingExpenses",
-					},
-					{
-						"name": "ProjectStudiesSurveysAssessments",
-					},
-					{
-						"name": "PurchasesRebates",
-					},
-					{
-						"name": "ShippingAndDeliveryExpense",
-					},
-					{
-						"name": "StaffCosts",
-					},
-					{
-						"name": "Sundry",
-					},
-					{
-						"name": "TravelExpensesGeneralAndAdminExpenses",
-					},
-					{
-						"name": "TravelExpensesSellingExpense",
-					},
-					{
-						"name": "Depreciation",
-					},
-					{
-						"name": "ExchangeGainOrLoss",
-					},
-					{
-						"name": "OtherMiscellaneousExpense",
-					},
-					{
-						"name": "PenaltiesSettlements",
-					},
-					{
-						"name": "Amortization",
-					},
-					{
-						"name": "GasAndFuel",
-					},
-					{
-						"name": "HomeOffice",
-					},
-					{
-						"name": "HomeOwnerRentalInsurance",
-					},
-					{
-						"name": "OtherHomeOfficeExpenses",
-					},
-					{
-						"name": "MortgageInterest",
-					},
-					{
-						"name": "RentAndLease",
-					},
-					{
-						"name": "RepairsAndMaintenance",
-					},
-					{
-						"name": "ParkingAndTolls",
-					},
-					{
-						"name": "Vehicle",
-					},
-					{
-						"name": "VehicleInsurance",
-					},
-					{
-						"name": "VehicleLease",
-					},
-					{
-						"name": "VehicleLoanInterest",
-					},
-					{
-						"name": "VehicleLoan",
-					},
-					{
-						"name": "VehicleRegistration",
-					},
-					{
-						"name": "VehicleRepairs",
-					},
-					{
-						"name": "OtherVehicleExpenses",
-					},
-					{
-						"name": "Utilities",
-					},
-					{
-						"name": "WashAndRoadServices",
-					},
-					{
-						"name": "DeferredTaxExpense",
-					},
-					{
-						"name": "Depletion",
-					},
-					{
-						"name": "ExceptionalItems",
-					},
-					{
-						"name": "ExtraordinaryItems",
-					},
-					{
-						"name": "IncomeTaxOtherExpense",
-					},
-					{
-						"name": "MatCredit",
-					},
-					{
-						"name": "PriorPeriodItems",
-					},
-					{
-						"name": "TaxRoundoffGainOrLoss",
-					},
-					{
-						"name": "EquipmentRentalCos",
-					},
-					{
-						"name": "OtherCostsOfServiceCos",
-					},
-					{
-						"name": "ShippingFreightDeliveryCos",
-					},
-					{
-						"name": "SuppliesMaterialsCogs",
-					},
-					{
-						"name": "CostOfLaborCos",
-					},
-					{
-						"name": "CostOfSales",
-					},
-					{
-						"name": "FreightAndDeliveryCost",
-					},
-					{
-						"name": "Accounts Payable",
-					},
-					{
-						"name": "OutstandingDuesMicroSmallEnterprise",
-					},
-					{
-						"name": "OutstandingDuesOtherThanMicroSmallEnterprise",
-					},
-					{
-						"name": "Credit Card",
-					},
-					{
-						"name": "Long Term Liability",
-					},
-					{
-						"name": "NotesPayable",
-					},
-					{
-						"name": "OtherLongTermLiabilities",
-					},
-					{
-						"name": "ShareholderNotesPayable",
-					},
-					{
-						"name": "AccrualsAndDeferredIncome",
-					},
-					{
-						"name": "AccruedLongLermLiabilities",
-					},
-					{
-						"name": "AccruedVacationPayable",
-					},
-					{
-						"name": "BankLoans",
-					},
-					{
-						"name": "DebtsRelatedToParticipatingInterests",
-					},
-					{
-						"name": "DeferredTaxLiabilities",
-					},
-					{
-						"name": "GovernmentAndOtherPublicAuthorities",
-					},
-					{
-						"name": "GroupAndAssociates",
-					},
-					{
-						"name": "LiabilitiesRelatedToAssetsHeldForSale",
-					},
-					{
-						"name": "LongTermBorrowings",
-					},
-					{
-						"name": "LongTermDebit",
-					},
-					{
-						"name": "LongTermEmployeeBenefitObligations",
-					},
-					{
-						"name": "ObligationsUnderFinanceLeases",
-					},
-					{
-						"name": "OtherLongTermProvisions",
-					},
-					{
-						"name": "ProvisionForLiabilities",
-					},
-					{
-						"name": "ProvisionsNonCurrentLiabilities",
-					},
-					{
-						"name": "StaffAndRelatedLongTermLiabilityAccounts",
-					},
-					{
-						"name": "DirectDepositPayable",
-					},
-					{
-						"name": "LineOfCredit",
-					},
-					{
-						"name": "LoanPayable",
-					},
-					{
-						"name": "GlobalTaxPayable",
-					},
-					{
-						"name": "GlobalTaxSuspense",
-					},
-					{
-						"name": "OtherCurrentLiabilities",
-					},
-					{
-						"name": "PayrollClearing",
-					},
-					{
-						"name": "PayrollTaxPayable",
-					},
-					{
-						"name": "PrepaidExpensesPayable",
-					},
-					{
-						"name": "RentsInTrustLiability",
-					},
-					{
-						"name": "TrustAccountsLiabilities",
-					},
-					{
-						"name": "FederalIncomeTaxPayable",
-					},
-					{
-						"name": "InsurancePayable",
-					},
-					{
-						"name": "SalesTaxPayable",
-					},
-					{
-						"name": "StateLocalIncomeTaxPayable",
-					},
-					{
-						"name": "AccruedLiabilities",
-					},
-					{
-						"name": "CurrentLiabilities",
-					},
-					{
-						"name": "CurrentPortionEmployeeBenefitsObligations",
-					},
-					{
-						"name": "CurrentPortionOfObligationsUnderFinanceLeases",
-					},
-					{
-						"name": "CurrentTaxLiability",
-					},
-					{
-						"name": "DividendsPayable",
-					},
-					{
-						"name": "DutiesAndTaxes",
-					},
-					{
-						"name": "InterestPayables",
-					},
-					{
-						"name": "ProvisionForWarrantyObligations",
-					},
-					{
-						"name": "ProvisionsCurrentLiabilities",
-					},
-					{
-						"name": "ShortTermBorrowings",
-					},
-					{
-						"name": "SocialSecurityAgencies",
-					},
-					{
-						"name": "StaffAndRelatedLiabilityAccounts",
-					},
-					{
-						"name": "SundryDebtorsAndCreditors",
-					},
-					{
-						"name": "TradeAndOtherPayables",
-					},
-					{
-						"name": "NonProfitIncome",
-					},
-					{
-						"name": "OtherPrimaryIncome",
-					},
-					{
-						"name": "SalesOfProductIncome",
-					},
-					{
-						"name": "ServiceFeeIncome",
-					},
-					{
-						"name": "DiscountsRefundsGiven",
-					},
-					{
-						"name": "UnappliedCashPaymentIncome",
-					},
-					{
-						"name": "CashReceiptIncome",
-					},
-					{
-						"name": "OperatingGrants",
-					},
-					{
-						"name": "OtherCurrentOperatingIncome",
-					},
-					{
-						"name": "OwnWorkCapitalized",
-					},
-					{
-						"name": "RevenueGeneral",
-					},
-					{
-						"name": "SalesRetail",
-					},
-					{
-						"name": "SalesWholesale",
-					},
-					{
-						"name": "SavingsByTaxScheme",
-					},
-					{
-						"name": "DividendIncome",
-					},
-					{
-						"name": "InterestEarned",
-					},
-					{
-						"name": "OtherInvestmentIncome",
-					},
-					{
-						"name": "OtherMiscellaneousIncome",
-					},
-					{
-						"name": "TaxExemptInterest",
-					},
-					{
-						"name": "GainLossOnSaleOfFixedAssets",
-					},
-					{
-						"name": "GainLossOnSaleOfInvestments",
-					},
-					{
-						"name": "LossOnDisposalOfAssets",
-					},
-					{
-						"name": "OtherOperatingIncome",
-					},
-					{
-						"name": "UnrealisedLossOnSecuritiesNetOfTax",
-					},
-				},
 			},
 			"ParentAccountId": {
 				Name: "Parent Account ID",
@@ -1175,15 +300,32 @@ func BuildTypes(tr TypeRegistry) {
 				salesTermId = b.SalesTermRef.Value
 			}
 
+			var txnDate string
+			if !b.TxnDate.IsZero() {
+				txnDate = b.TxnDate.Format(fibery.DateFormat)
+			}
+
+			var dueDate string
+			if !b.DueDate.IsZero() {
+				dueDate = b.DueDate.Format(fibery.DateFormat)
+			}
+
+			var name string
+			if b.PrivateNote == "" {
+				name = b.VendorRef.Name
+			} else {
+				name = b.VendorRef.Name + " - " + b.PrivateNote
+			}
+
 			return map[string]any{
 				"id":           b.Id,
 				"QBOId":        b.Id,
-				"Name":         b.PrivateNote,
+				"Name":         name,
 				"SyncToken":    b.SyncToken,
 				"__syncAction": fibery.SET,
 				"DocNumber":    b.DocNumber,
-				"TxnDate":      b.TxnDate.Format(fibery.DateFormat),
-				"DueDate":      b.DueDate.Format(fibery.DateFormat),
+				"TxnDate":      txnDate,
+				"DueDate":      dueDate,
 				"PrivateNote":  b.PrivateNote,
 				"TotalAmt":     b.TotalAmt,
 				"Balance":      b.Balance,
@@ -1228,10 +370,14 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"Description": {
-				Name:    "Description",
+			"Name": {
+				Name:    "Name",
 				Type:    fibery.Text,
 				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
 			},
 			"__syncAction": {
 				Type: fibery.Text,
@@ -1349,6 +495,17 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"ReimburseChargeId": {
+				Name: "Reimburse Charge ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Reimburse Charge",
+					TargetName:    "Bill Item Line",
+					TargetType:    "ReimburseCharge",
+					TargetFieldID: "id",
+				},
+			},
 		},
 		func(b quickbooks.Bill) ([]map[string]any, error) {
 			items := []map[string]any{}
@@ -1374,24 +531,40 @@ func BuildTypes(tr TypeRegistry) {
 						billed = true
 					}
 
+					var reimburseChargeId string
+					for _, txn := range line.LinkedTxn {
+						if txn.TxnType == "ReimburseCharge" {
+							reimburseChargeId = txn.TxnId
+						}
+					}
+
+					var name string
+					if line.Description == "" {
+						name = line.ItemBasedExpenseLineDetail.ItemRef.Name
+					} else {
+						name = line.ItemBasedExpenseLineDetail.ItemRef.Name + line.Description
+					}
+
 					item := map[string]any{
-						"id":              fmt.Sprintf("%s:i:%s", b.Id, line.Id),
-						"QBOId":           line.Id,
-						"Description":     line.Description,
-						"__syncAction":    fibery.SET,
-						"LineNum":         line.LineNum,
-						"Tax":             tax,
-						"Billable":        billable,
-						"Billed":          billed,
-						"Qty":             line.ItemBasedExpenseLineDetail.Qty,
-						"UnitPrice":       line.ItemBasedExpenseLineDetail.UnitPrice,
-						"MarkupPercent":   line.ItemBasedExpenseLineDetail.MarkupInfo.Percent,
-						"Amount":          line.Amount,
-						"BillId":          b.Id,
-						"ItemId":          line.ItemBasedExpenseLineDetail.ItemRef.Value,
-						"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
-						"ClassId":         line.ItemBasedExpenseLineDetail.ClassRef.Value,
-						"MarkupAccountId": line.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"id":                fmt.Sprintf("%s:i:%s", b.Id, line.Id),
+						"QBOId":             line.Id,
+						"Name":              name,
+						"Description":       line.Description,
+						"__syncAction":      fibery.SET,
+						"LineNum":           line.LineNum,
+						"Tax":               tax,
+						"Billable":          billable,
+						"Billed":            billed,
+						"Qty":               line.ItemBasedExpenseLineDetail.Qty,
+						"UnitPrice":         line.ItemBasedExpenseLineDetail.UnitPrice,
+						"MarkupPercent":     line.ItemBasedExpenseLineDetail.MarkupInfo.Percent,
+						"Amount":            line.Amount,
+						"BillId":            b.Id,
+						"ItemId":            line.ItemBasedExpenseLineDetail.ItemRef.Value,
+						"CustomerId":        line.AccountBasedExpenseLineDetail.CustomerRef.Value,
+						"ClassId":           line.ItemBasedExpenseLineDetail.ClassRef.Value,
+						"MarkupAccountId":   line.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"ReimburseChargeId": reimburseChargeId,
 					}
 					items = append(items, item)
 				}
@@ -1430,10 +603,14 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"Description": {
-				Name:    "Description",
+			"Name": {
+				Name:    "Name",
 				Type:    fibery.Text,
 				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
 			},
 			"__syncAction": {
 				Type: fibery.Text,
@@ -1532,6 +709,17 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"ReimburseChargeId": {
+				Name: "Reimburse Charge ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Reimburse Charge",
+					TargetName:    "Bill Account Line",
+					TargetType:    "ReimburseCharge",
+					TargetFieldID: "id",
+				},
+			},
 		},
 		func(b quickbooks.Bill) ([]map[string]any, error) {
 			items := []map[string]any{}
@@ -1557,22 +745,38 @@ func BuildTypes(tr TypeRegistry) {
 						billed = true
 					}
 
+					var reimburseChargeId string
+					for _, txn := range line.LinkedTxn {
+						if txn.TxnType == "ReimburseCharge" {
+							reimburseChargeId = txn.TxnId
+						}
+					}
+
+					var name string
+					if line.Description == "" {
+						name = line.AccountBasedExpenseLineDetail.AccountRef.Name
+					} else {
+						name = line.AccountBasedExpenseLineDetail.AccountRef.Name + " - " + line.Description
+					}
+
 					item := map[string]any{
-						"id":              fmt.Sprintf("%s:a:%s", b.Id, line.Id),
-						"QBOId":           line.Id,
-						"Description":     line.Description,
-						"__syncAction":    fibery.SET,
-						"LineNum":         line.LineNum,
-						"Tax":             tax,
-						"Billable":        billable,
-						"Billed":          billed,
-						"MarkupPercent":   line.AccountBasedExpenseLineDetail.MarkupInfo.Percent,
-						"Amount":          line.Amount,
-						"BillId":          b.Id,
-						"AccountId":       line.AccountBasedExpenseLineDetail.AccountRef.Value,
-						"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
-						"ClassId":         line.AccountBasedExpenseLineDetail.ClassRef.Value,
-						"MarkupAccountId": line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"id":                fmt.Sprintf("%s:a:%s", b.Id, line.Id),
+						"QBOId":             line.Id,
+						"Name":              name,
+						"Description":       line.Description,
+						"__syncAction":      fibery.SET,
+						"LineNum":           line.LineNum,
+						"Tax":               tax,
+						"Billable":          billable,
+						"Billed":            billed,
+						"MarkupPercent":     line.AccountBasedExpenseLineDetail.MarkupInfo.Percent,
+						"Amount":            line.Amount,
+						"BillId":            b.Id,
+						"AccountId":         line.AccountBasedExpenseLineDetail.AccountRef.Value,
+						"CustomerId":        line.AccountBasedExpenseLineDetail.CustomerRef.Value,
+						"ClassId":           line.AccountBasedExpenseLineDetail.ClassRef.Value,
+						"MarkupAccountId":   line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"ReimburseChargeId": reimburseChargeId,
 					}
 
 					items = append(items, item)
@@ -1703,6 +907,11 @@ func BuildTypes(tr TypeRegistry) {
 				paymentAccountId = bp.CheckPayment.BankAccountRef.Value
 			}
 
+			var txnDate string
+			if !bp.TxnDate.IsZero() {
+				txnDate = bp.TxnDate.Format(fibery.DateFormat)
+			}
+
 			return map[string]any{
 				"id":               bp.Id,
 				"QBOId":            bp.Id,
@@ -1710,7 +919,7 @@ func BuildTypes(tr TypeRegistry) {
 				"SyncToken":        bp.SyncToken,
 				"__syncAction":     fibery.SET,
 				"DocNumber":        bp.DocNumber,
-				"TxnDate":          bp.TxnDate.Format(fibery.DateFormat),
+				"TxnDate":          txnDate,
 				"PrivateNote":      bp.PrivateNote,
 				"TotalAmt":         bp.TotalAmt,
 				"PayType":          payType,
@@ -2386,7 +1595,7 @@ func BuildTypes(tr TypeRegistry) {
 		map[string]fibery.Field{
 			"id": {
 				Name: "ID",
-				Type: fibery.Text,
+				Type: fibery.Id,
 			},
 			"QBOId": {
 				Name: "QBO ID",
@@ -2613,6 +1822,11 @@ func BuildTypes(tr TypeRegistry) {
 				mobile = e.Mobile.FreeFormNumber
 			}
 
+			var birthDate string
+			if e.BirthDate != nil {
+				birthDate = e.BirthDate.Format(fibery.DateFormat)
+			}
+
 			return map[string]any{
 				"id":                e.Id,
 				"QBOId":             e.Id,
@@ -2627,7 +1841,7 @@ func BuildTypes(tr TypeRegistry) {
 				"Suffix":            e.Suffix,
 				"PrimaryEmailAddr":  email,
 				"BillableTime":      e.BillableTime,
-				"BirthDate":         e.BirthDate.Format(fibery.DateFormat),
+				"BirthDate":         birthDate,
 				"PrimaryPhone":      primaryPhone,
 				"Mobile":            mobile,
 				"CostRate":          e.CostRate,
@@ -2858,12 +2072,14 @@ func BuildTypes(tr TypeRegistry) {
 				Type: fibery.Text,
 			},
 			"AcceptedDate": {
-				Name: "Accepted Date",
-				Type: fibery.DateType,
+				Name:    "Accepted Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"ExpirationDate": {
-				Name: "Expiration Date",
-				Type: fibery.DateType,
+				Name:    "Expiration Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"Email": {
 				Name:    "To",
@@ -2895,8 +2111,9 @@ func BuildTypes(tr TypeRegistry) {
 				Type: fibery.DateType,
 			},
 			"TxnDate": {
-				Name: "Date",
-				Type: fibery.DateType,
+				Name:    "Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"PrivateNote": {
 				Name:    "Message on Statement",
@@ -3020,6 +2237,17 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"LinkedInvoiceId": {
+				Name: "Linked Invoice ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Linked Invoice",
+					TargetName:    "Linked Estimate",
+					TargetType:    "Invoice",
+					TargetFieldID: "id",
+				},
+			},
 		},
 		func(e quickbooks.Estimate) (map[string]any, error) {
 			var discountType = map[bool]string{
@@ -3121,6 +2349,13 @@ func BuildTypes(tr TypeRegistry) {
 				taxExemptionId = e.TaxExemptionRef.Value
 			}
 
+			var linkedInvoiceId string
+			for _, txn := range e.LinkedTxn {
+				if txn.TxnType == "Invoice" {
+					linkedInvoiceId = txn.TxnId
+				}
+			}
+
 			return map[string]any{
 				"id":                     e.Id,
 				"QBOId":                  e.Id,
@@ -3185,6 +2420,7 @@ func BuildTypes(tr TypeRegistry) {
 				"TaxCodeId":              taxCodeId,
 				"TaxExemptionId":         taxExemptionId,
 				"CustomerId":             e.CustomerRef.Value,
+				"LinkedInvoiceId":        linkedInvoiceId,
 			}, nil
 		},
 		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Estimate, error) {
@@ -3223,10 +2459,14 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"Description": {
-				Name:    "Description",
+			"Name": {
+				Name:    "Name",
 				Type:    fibery.Text,
 				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
 			},
 			"__syncAction": {
 				Type: fibery.Text,
@@ -3325,9 +2565,21 @@ func BuildTypes(tr TypeRegistry) {
 			items := []map[string]any{}
 			for _, line := range e.Line {
 				if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
+					var name string
+					if line.SalesItemLineDetail.ItemRef.Name == "" {
+						name = line.Description
+					} else {
+						if line.Description == "" {
+							name = line.SalesItemLineDetail.ItemRef.Name
+						} else {
+							name = line.SalesItemLineDetail.ItemRef.Name + " - " + line.Description
+						}
+					}
+
 					item := map[string]any{
 						"id":           fmt.Sprintf("%s:%s", e.Id, line.Id),
 						"QBOId":        line.Id,
+						"Name":         name,
 						"Description":  line.Description,
 						"__syncAction": fibery.SET,
 						"LineNum":      line.LineNum,
@@ -3336,7 +2588,7 @@ func BuildTypes(tr TypeRegistry) {
 						"Qty":          line.GroupLineDetail.Quantity,
 						"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
 						"Amount":       line.Amount,
-						"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+						"ItemId":       line.SalesItemLineDetail.ItemRef.Value,
 						"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
 						"EstimateId":   e.Id,
 					}
@@ -3344,22 +2596,48 @@ func BuildTypes(tr TypeRegistry) {
 				}
 				if line.DetailType == quickbooks.GroupLine {
 					for _, groupLine := range line.GroupLineDetail.Line {
+						var name string
+						if groupLine.SalesItemLineDetail.ItemRef.Name == "" {
+							name = groupLine.Description
+						} else {
+							if groupLine.Description == "" {
+								name = groupLine.SalesItemLineDetail.ItemRef.Name
+							} else {
+								name = groupLine.SalesItemLineDetail.ItemRef.Name + " - " + groupLine.Description
+							}
+						}
+
 						item := map[string]any{
 							"id":           fmt.Sprintf("%s:%s:%s", e.Id, line.Id, groupLine.Id),
 							"GroupLineId":  line.Id,
 							"QBOId":        line.Id,
+							"Name":         name,
 							"Description":  line.Description,
 							"__syncAction": fibery.SET,
-							"Qty":          line.GroupLineDetail.Quantity,
-							"LineNum":      line.LineNum,
-							"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+							"LineNum":      groupLine.LineNum,
+							"Taxed":        groupLine.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
+							"ServiceDate":  groupLine.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
+							"Qty":          groupLine.SalesItemLineDetail.Qty,
+							"UnitPrice":    groupLine.SalesItemLineDetail.UnitPrice,
+							"Amount":       groupLine.Amount,
+							"ItemId":       line.SalesItemLineDetail.ItemRef.Value,
+							"ClassId":      groupLine.SalesItemLineDetail.ClassRef.Value,
 							"EstimateId":   e.Id,
 						}
 						items = append(items, item)
 					}
+
+					var name string
+					if line.Description == "" {
+						name = line.GroupLineDetail.GroupItemRef.Name
+					} else {
+						name = line.GroupLineDetail.GroupItemRef.Name + " - " + line.Description
+					}
+
 					item := map[string]any{
 						"id":           fmt.Sprintf("%s:%s", e.Id, line.Id),
 						"QBOId":        line.Id,
+						"Name":         name,
 						"Description":  line.Description,
 						"__syncAction": fibery.SET,
 						"Qty":          line.GroupLineDetail.Quantity,
@@ -3460,7 +2738,7 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "Sale Country",
 				Type: fibery.Text,
 			},
-			"shippingFromLat": {
+			"ShippingFromLat": {
 				Name: "Sale Latitude",
 				Type: fibery.Text,
 			},
@@ -3590,12 +2868,14 @@ func BuildTypes(tr TypeRegistry) {
 				Type: fibery.DateType,
 			},
 			"TxnDate": {
-				Name: "Date",
-				Type: fibery.DateType,
+				Name:    "Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"DueDate": {
-				Name: "Due Date",
-				Type: fibery.DateType,
+				Name:    "Due Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"PrivateNote": {
 				Name:    "Message on Statement",
@@ -3665,6 +2945,15 @@ func BuildTypes(tr TypeRegistry) {
 					"precision":            2,
 				},
 			},
+			"TaxPercent": {
+				Name: "Tax Percent",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":    "Percent",
+					"precision": 2,
+				},
+			},
+
 			"SubtotalAmt": {
 				Name: "Subtotal",
 				Type: fibery.Number,
@@ -3760,10 +3049,21 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"LinkedTimeActivityIds": {
+				Name: "Linked Time Activity IDs",
+				Type: fibery.TextArray,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTM,
+					Name:          "Time Activities",
+					TargetName:    "Linked Invoice",
+					TargetType:    "TimeActivity",
+					TargetFieldID: "id",
+				},
+			},
 		},
 		func(i quickbooks.Invoice) (map[string]any, error) {
 			var discountType = map[bool]string{
-				true:  "Percentage",
+				true:  "Percent",
 				false: "Amount",
 			}
 			var discountLine *quickbooks.Line
@@ -3788,12 +3088,22 @@ func BuildTypes(tr TypeRegistry) {
 			}
 
 			var discountTypeValue string
-			var discountPercent json.Number
+			var discountPercent float64
 			var discountAmount json.Number
 
 			if discountLine != nil {
+				var err error
+				var discountNumber float64
+				if discountLine.DiscountLineDetail.DiscountPercent == "" {
+					discountNumber = 0.0
+				} else {
+					discountNumber, err = discountLine.DiscountLineDetail.DiscountPercent.Float64()
+					if err != nil {
+						return nil, err
+					}
+				}
 				discountTypeValue = discountType[discountLine.DiscountLineDetail.PercentBased]
-				discountPercent = discountLine.DiscountLineDetail.DiscountPercent
+				discountPercent = discountNumber / 100
 				discountAmount = discountLine.Amount
 			}
 
@@ -3836,12 +3146,25 @@ func BuildTypes(tr TypeRegistry) {
 
 			var dueDate string
 			if i.DueDate != nil {
-				txnDate = i.DueDate.Format(fibery.DateFormat)
+				dueDate = i.DueDate.Format(fibery.DateFormat)
 			}
 
+			var taxPercent float64
 			var totalTax json.Number
 			var taxCodeId string
 			if i.TxnTaxDetail != nil {
+				for _, taxLine := range i.TxnTaxDetail.TaxLine {
+					if taxLine.TaxLineDetail.PercentBased {
+						if taxLine.TaxLineDetail.TaxPercent == "" {
+							continue
+						}
+						percentNumber, err := taxLine.TaxLineDetail.TaxPercent.Float64()
+						if err != nil {
+							return nil, err
+						}
+						taxPercent += percentNumber / 100
+					}
+				}
 				totalTax = i.TxnTaxDetail.TotalTax
 				taxCodeId = i.TxnTaxDetail.TxnTaxCodeRef.Value
 			}
@@ -3854,6 +3177,13 @@ func BuildTypes(tr TypeRegistry) {
 			var taxExemptionId string
 			if i.TaxExemptionRef != nil {
 				taxExemptionId = i.TaxExemptionRef.Value
+			}
+
+			linkedTimeActivityIds := []string{}
+			for _, txn := range i.LinkedTxn {
+				if txn.TxnType == "TimeActivity" {
+					linkedTimeActivityIds = append(linkedTimeActivityIds, txn.TxnId)
+				}
 			}
 
 			return map[string]any{
@@ -3921,6 +3251,7 @@ func BuildTypes(tr TypeRegistry) {
 				"TaxCodeId":              taxCodeId,
 				"TaxExemptionId":         taxExemptionId,
 				"CustomerId":             i.CustomerRef.Value,
+				"LinkedTimeActivityIds":  linkedTimeActivityIds,
 			}, nil
 		},
 		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Invoice, error) {
@@ -3959,10 +3290,14 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"Description": {
-				Name:    "Description",
+			"Name": {
+				Name:    "Name",
 				Type:    fibery.Text,
 				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
 			},
 			"__syncAction": {
 				Type: fibery.Text,
@@ -4045,8 +3380,19 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"ReimburseChargeId": {
+				Name: "Reimburse Charge ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Reimburse Charge",
+					TargetName:    "Linked Invoice Line",
+					TargetType:    "ReimburseCharge",
+					TargetFieldID: "id",
+				},
+			},
 			"InvoiceId": {
-				Name: "Estimate ID",
+				Name: "Invoice ID",
 				Type: fibery.Text,
 				Relation: &fibery.Relation{
 					Cardinality:   fibery.MTO,
@@ -4061,41 +3407,87 @@ func BuildTypes(tr TypeRegistry) {
 			items := []map[string]any{}
 			for _, line := range i.Line {
 				if line.DetailType == quickbooks.DescriptionLine || line.DetailType == quickbooks.SalesItemLine {
+					var reimburseChargeId string
+					for _, txn := range line.LinkedTxn {
+						if txn.TxnType == "ReimburseCharge" {
+							reimburseChargeId = txn.TxnId
+						}
+					}
+
+					var name string
+					if line.SalesItemLineDetail.ItemRef.Name == "" {
+						name = line.Description
+					} else {
+						if line.Description == "" {
+							name = line.SalesItemLineDetail.ItemRef.Name
+						} else {
+							name = line.SalesItemLineDetail.ItemRef.Name + " - " + line.Description
+						}
+					}
+
 					item := map[string]any{
-						"id":           fmt.Sprintf("%s:%s", i.Id, line.Id),
-						"QBOId":        line.Id,
-						"Description":  line.Description,
-						"__syncAction": fibery.SET,
-						"LineNum":      line.LineNum,
-						"Taxed":        line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
-						"ServiceDate":  line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
-						"Qty":          line.GroupLineDetail.Quantity,
-						"UnitPrice":    line.SalesItemLineDetail.UnitPrice,
-						"Amount":       line.Amount,
-						"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
-						"ClassId":      line.SalesItemLineDetail.ClassRef.Value,
-						"InvoiceId":    i.Id,
+						"id":                fmt.Sprintf("%s:%s", i.Id, line.Id),
+						"QBOId":             line.Id,
+						"Name":              name,
+						"Description":       line.Description,
+						"__syncAction":      fibery.SET,
+						"LineNum":           line.LineNum,
+						"Taxed":             line.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
+						"ServiceDate":       line.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
+						"Qty":               line.SalesItemLineDetail.Qty,
+						"UnitPrice":         line.SalesItemLineDetail.UnitPrice,
+						"Amount":            line.Amount,
+						"ItemId":            line.SalesItemLineDetail.ItemRef.Value,
+						"ClassId":           line.SalesItemLineDetail.ClassRef.Value,
+						"ReimburseChargeId": reimburseChargeId,
+						"InvoiceId":         i.Id,
 					}
 					items = append(items, item)
 				}
 				if line.DetailType == quickbooks.GroupLine {
 					for _, groupLine := range line.GroupLineDetail.Line {
+						var name string
+						if groupLine.SalesItemLineDetail.ItemRef.Name == "" {
+							name = groupLine.Description
+						} else {
+							if groupLine.Description == "" {
+								name = groupLine.SalesItemLineDetail.ItemRef.Name
+							} else {
+								name = groupLine.SalesItemLineDetail.ItemRef.Name + " - " + groupLine.Description
+							}
+						}
+
 						item := map[string]any{
 							"id":           fmt.Sprintf("%s:%s:%s", i.Id, line.Id, groupLine.Id),
 							"GroupLineId":  line.Id,
-							"QBOId":        line.Id,
-							"Description":  line.Description,
+							"QBOId":        groupLine.Id,
+							"Name":         name,
+							"Description":  groupLine.Description,
 							"__syncAction": fibery.SET,
-							"Qty":          line.GroupLineDetail.Quantity,
-							"LineNum":      line.LineNum,
-							"ItemId":       line.GroupLineDetail.GroupItemRef.Value,
+							"LineNum":      groupLine.LineNum,
+							"Taxed":        groupLine.SalesItemLineDetail.TaxCodeRef.Value == "TAX",
+							"ServiceDate":  groupLine.SalesItemLineDetail.ServiceDate.Format(fibery.DateFormat),
+							"Qty":          groupLine.SalesItemLineDetail.Qty,
+							"UnitPrice":    groupLine.SalesItemLineDetail.UnitPrice,
+							"Amount":       groupLine.Amount,
+							"ItemId":       line.SalesItemLineDetail.ItemRef.Value,
+							"ClassId":      groupLine.SalesItemLineDetail.ClassRef.Value,
 							"InvoiceId":    i.Id,
 						}
 						items = append(items, item)
 					}
+
+					var name string
+					if line.Description == "" {
+						name = line.GroupLineDetail.GroupItemRef.Name
+					} else {
+						name = line.GroupLineDetail.GroupItemRef.Name + " - " + line.Description
+					}
+
 					item := map[string]any{
 						"id":           fmt.Sprintf("%s:%s", i.Id, line.Id),
 						"QBOId":        line.Id,
+						"Name":         name,
 						"Description":  line.Description,
 						"__syncAction": fibery.SET,
 						"Qty":          line.GroupLineDetail.Quantity,
@@ -4318,7 +3710,7 @@ func BuildTypes(tr TypeRegistry) {
 				Relation: &fibery.Relation{
 					Cardinality:   fibery.MTO,
 					Name:          "Asset Account",
-					TargetName:    "Items",
+					TargetName:    "Inventory Items",
 					TargetType:    "Account",
 					TargetFieldID: "id",
 				},
@@ -4329,7 +3721,7 @@ func BuildTypes(tr TypeRegistry) {
 				Relation: &fibery.Relation{
 					Cardinality:   fibery.MTO,
 					Name:          "Expense Account",
-					TargetName:    "Items",
+					TargetName:    "Purchase Items",
 					TargetType:    "Account",
 					TargetFieldID: "id",
 				},
@@ -4340,7 +3732,7 @@ func BuildTypes(tr TypeRegistry) {
 				Relation: &fibery.Relation{
 					Cardinality:   fibery.MTO,
 					Name:          "Income Account",
-					TargetName:    "Items",
+					TargetName:    "Sale Items",
 					TargetType:    "Account",
 					TargetFieldID: "id",
 				},
@@ -4387,6 +3779,11 @@ func BuildTypes(tr TypeRegistry) {
 				expenseAccountId = i.ExpenseAccountRef.Value
 			}
 
+			var invStart string
+			if !i.InvStartDate.IsZero() {
+				i.InvStartDate.Format(fibery.DateFormat)
+			}
+
 			return map[string]any{
 				"id":                  i.Id,
 				"QBOId":               i.Id,
@@ -4397,7 +3794,7 @@ func BuildTypes(tr TypeRegistry) {
 				"Active":              i.Active,
 				"Description":         i.Description,
 				"PurchaseDesc":        i.PurchaseDesc,
-				"InvStartDate":        i.InvStartDate.Format(fibery.DateFormat),
+				"InvStartDate":        invStart,
 				"Type":                itemType,
 				"QtyOnHand":           i.QtyOnHand,
 				"ReorderPoint":        i.ReorderPoint,
@@ -4442,8 +3839,8 @@ func BuildTypes(tr TypeRegistry) {
 	tr.Register(item)
 
 	paymentMethod := NewQuickBooksDualType(
-		"BillPayment",
-		"Bill Payment",
+		"PaymentMethod",
+		"Payment Method",
 		map[string]fibery.Field{
 			"id": {
 				Name: "ID",
@@ -4543,7 +3940,7 @@ func BuildTypes(tr TypeRegistry) {
 				"SyncToken":   pm.SyncToken,
 				"__syncToken": fibery.SET,
 				"Active":      pm.Active,
-				"Type":        paymentType,
+				"PayType":     paymentType,
 			}, nil
 		},
 		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.PaymentMethod, error) {
@@ -4635,14 +4032,36 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
-			"EntityId": {
-				Name: "Entity ID",
+			"CustomerId": {
+				Name: "Customer ID",
 				Type: fibery.Text,
 				Relation: &fibery.Relation{
 					Cardinality:   fibery.MTO,
-					Name:          "Entity",
+					Name:          "Customer Payee",
 					TargetName:    "Expenses",
-					TargetType:    "Entity",
+					TargetType:    "Customer",
+					TargetFieldID: "id",
+				},
+			},
+			"VendorId": {
+				Name: "Vendor ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Vendor Payee",
+					TargetName:    "Expenses",
+					TargetType:    "Vendor",
+					TargetFieldID: "id",
+				},
+			},
+			"EmployeeId": {
+				Name: "Employee ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Employee Payee",
+					TargetName:    "Expenses",
+					TargetType:    "Employee",
 					TargetFieldID: "id",
 				},
 			},
@@ -4661,8 +4080,9 @@ func BuildTypes(tr TypeRegistry) {
 				Type: fibery.Text,
 			},
 			"TxnDate": {
-				Name: "Invoice Date",
-				Type: fibery.DateType,
+				Name:    "Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"Credit": {
 				Name:    "Credit",
@@ -4673,6 +4093,11 @@ func BuildTypes(tr TypeRegistry) {
 				Name:    "Memo",
 				Type:    fibery.Text,
 				SubType: fibery.MD,
+			},
+			"Attachments": {
+				Name:    "Attachments",
+				Type:    fibery.TextArray,
+				SubType: fibery.File,
 			},
 		},
 		func(p quickbooks.Purchase) (map[string]any, error) {
@@ -4700,6 +4125,13 @@ func BuildTypes(tr TypeRegistry) {
 				}
 			}
 
+			var name string
+			if p.PrivateNote == "" {
+				name = entityName
+			} else {
+				name = entityName + " - " + p.PrivateNote
+			}
+
 			var paymentMethodId string
 			if p.PaymentMethodRef != nil {
 				paymentMethodId = p.PaymentMethodRef.Value
@@ -4713,7 +4145,7 @@ func BuildTypes(tr TypeRegistry) {
 			return map[string]any{
 				"id":               p.Id,
 				"QBOId":            p.Id,
-				"Name":             entityName,
+				"Name":             name,
 				"SyncToken":        p.SyncToken,
 				"__syncToken":      fibery.SET,
 				"PaymentType":      paymentType,
@@ -4753,7 +4185,7 @@ func BuildTypes(tr TypeRegistry) {
 
 	purchaseItemLine := NewDependentDualType(
 		"PurchaseItemLine",
-		"Account Item Line",
+		"Expense Item Line",
 		map[string]fibery.Field{
 			"id": {
 				Name: "id",
@@ -4763,10 +4195,14 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"Description": {
-				Name:    "Description",
+			"Name": {
+				Name:    "Name",
 				Type:    fibery.Text,
 				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
 			},
 			"__syncAction": {
 				Type: fibery.Text,
@@ -4884,6 +4320,17 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"ReimburseChargeId": {
+				Name: "Reimburse Charge ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Reimburse Charge",
+					TargetName:    "Expense Item Line",
+					TargetType:    "ReimburseCharge",
+					TargetFieldID: "id",
+				},
+			},
 		},
 		func(p quickbooks.Purchase) ([]map[string]any, error) {
 			items := []map[string]any{}
@@ -4909,24 +4356,40 @@ func BuildTypes(tr TypeRegistry) {
 						billed = true
 					}
 
+					var reimburseChargeId string
+					for _, txn := range line.LinkedTxn {
+						if txn.TxnType == "ReimburseCharge" {
+							reimburseChargeId = txn.TxnId
+						}
+					}
+
+					var name string
+					if line.Description == "" {
+						name = line.ItemBasedExpenseLineDetail.ItemRef.Name
+					} else {
+						name = line.ItemBasedExpenseLineDetail.ItemRef.Name + line.Description
+					}
+
 					item := map[string]any{
-						"id":              fmt.Sprintf("%s:i:%s", p.Id, line.Id),
-						"QBOId":           line.Id,
-						"Description":     line.Description,
-						"__syncAction":    fibery.SET,
-						"LineNum":         line.LineNum,
-						"Tax":             tax,
-						"Billable":        billable,
-						"Billed":          billed,
-						"Qty":             line.ItemBasedExpenseLineDetail.Qty,
-						"UnitPrice":       line.ItemBasedExpenseLineDetail.UnitPrice,
-						"MarkupPercent":   line.ItemBasedExpenseLineDetail.MarkupInfo.Percent,
-						"Amount":          line.Amount,
-						"BillId":          p.Id,
-						"ItemId":          line.ItemBasedExpenseLineDetail.ItemRef.Value,
-						"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
-						"ClassId":         line.ItemBasedExpenseLineDetail.ClassRef.Value,
-						"MarkupAccountId": line.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"id":                fmt.Sprintf("%s:i:%s", p.Id, line.Id),
+						"QBOId":             line.Id,
+						"Name":              name,
+						"Description":       line.Description,
+						"__syncAction":      fibery.SET,
+						"LineNum":           line.LineNum,
+						"Tax":               tax,
+						"Billable":          billable,
+						"Billed":            billed,
+						"Qty":               line.ItemBasedExpenseLineDetail.Qty,
+						"UnitPrice":         line.ItemBasedExpenseLineDetail.UnitPrice,
+						"MarkupPercent":     line.ItemBasedExpenseLineDetail.MarkupInfo.Percent,
+						"Amount":            line.Amount,
+						"PurchaseId":        p.Id,
+						"ItemId":            line.ItemBasedExpenseLineDetail.ItemRef.Value,
+						"CustomerId":        line.AccountBasedExpenseLineDetail.CustomerRef.Value,
+						"ClassId":           line.ItemBasedExpenseLineDetail.ClassRef.Value,
+						"MarkupAccountId":   line.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"ReimburseChargeId": reimburseChargeId,
 					}
 					items = append(items, item)
 				}
@@ -4955,7 +4418,7 @@ func BuildTypes(tr TypeRegistry) {
 
 	purchaseAccountLine := NewDependentDualType(
 		"PurchaseAccountLine",
-		"Expense Accout Line",
+		"Expense Account Line",
 		map[string]fibery.Field{
 			"id": {
 				Name: "id",
@@ -4965,10 +4428,14 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
-			"Description": {
-				Name:    "Description",
+			"Name": {
+				Name:    "Name",
 				Type:    fibery.Text,
 				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
 			},
 			"__syncAction": {
 				Type: fibery.Text,
@@ -5067,6 +4534,17 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"ReimburseChargeId": {
+				Name: "Reimburse Charge ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Reimburse Charge",
+					TargetName:    "Expense Account Line",
+					TargetType:    "ReimburseCharge",
+					TargetFieldID: "id",
+				},
+			},
 		},
 		func(p quickbooks.Purchase) ([]map[string]any, error) {
 			items := []map[string]any{}
@@ -5092,22 +4570,38 @@ func BuildTypes(tr TypeRegistry) {
 						billed = true
 					}
 
+					var reimburseChargeId string
+					for _, txn := range line.LinkedTxn {
+						if txn.TxnType == "ReimburseCharge" {
+							reimburseChargeId = txn.TxnId
+						}
+					}
+
+					var name string
+					if line.Description == "" {
+						name = line.AccountBasedExpenseLineDetail.AccountRef.Name
+					} else {
+						name = line.AccountBasedExpenseLineDetail.AccountRef.Name + " - " + line.Description
+					}
+
 					item := map[string]any{
-						"id":              fmt.Sprintf("%s:a:%s", p.Id, line.Id),
-						"QBOId":           line.Id,
-						"Description":     line.Description,
-						"__syncAction":    fibery.SET,
-						"LineNum":         line.LineNum,
-						"Tax":             tax,
-						"Billable":        billable,
-						"Billed":          billed,
-						"MarkupPercent":   line.AccountBasedExpenseLineDetail.MarkupInfo.Percent,
-						"Amount":          line.Amount,
-						"PurchaseId":      p.Id,
-						"AccountId":       line.AccountBasedExpenseLineDetail.AccountRef.Value,
-						"CustomerId":      line.AccountBasedExpenseLineDetail.CustomerRef.Value,
-						"ClassId":         line.AccountBasedExpenseLineDetail.ClassRef.Value,
-						"MarkupAccountId": line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"id":                fmt.Sprintf("%s:a:%s", p.Id, line.Id),
+						"QBOId":             line.Id,
+						"Name":              name,
+						"Description":       line.Description,
+						"__syncAction":      fibery.SET,
+						"LineNum":           line.LineNum,
+						"Tax":               tax,
+						"Billable":          billable,
+						"Billed":            billed,
+						"MarkupPercent":     line.AccountBasedExpenseLineDetail.MarkupInfo.Percent,
+						"Amount":            line.Amount,
+						"PurchaseId":        p.Id,
+						"AccountId":         line.AccountBasedExpenseLineDetail.AccountRef.Value,
+						"CustomerId":        line.AccountBasedExpenseLineDetail.CustomerRef.Value,
+						"ClassId":           line.AccountBasedExpenseLineDetail.ClassRef.Value,
+						"MarkupAccountId":   line.AccountBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value,
+						"ReimburseChargeId": reimburseChargeId,
 					}
 
 					items = append(items, item)
@@ -5135,13 +4629,223 @@ func BuildTypes(tr TypeRegistry) {
 
 	tr.Register(purchaseAccountLine)
 
+	reimburseCharge := NewQuickBooksCDCType(
+		"ReimburseCharge",
+		"Reimburse Charge",
+		map[string]fibery.Field{
+			"id": {
+				Name: "ID",
+				Type: fibery.Id,
+			},
+			"QBOId": {
+				Name: "QBO ID",
+				Type: fibery.Text,
+			},
+			"Name": {
+				Name:    "Name",
+				Type:    fibery.Text,
+				SubType: fibery.Title,
+			},
+			"Description": {
+				Name: "Description",
+				Type: fibery.Text,
+			},
+			"__syncAction": {
+				Type: fibery.Text,
+				Name: "Sync Action",
+			},
+			"SyncToken": {
+				Name: "Sync Token",
+				Type: fibery.Text,
+			},
+			"TxnDate": {
+				Name:    "Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
+			},
+			"CustomerId": {
+				Name: "Customer ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Customer",
+					TargetName:    "Reimburse Charges",
+					TargetType:    "Customer",
+					TargetFieldID: "id",
+				},
+			},
+			"TotalAmount": {
+				Name: "Total Amount",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":               "Money",
+					"currencyCode":         "USD",
+					"hasThousandSeperator": true,
+					"precision":            2,
+				},
+			},
+			"Amount": {
+				Name: "Amount",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":               "Money",
+					"currencyCode":         "USD",
+					"hasThousandSeperator": true,
+					"precision":            2,
+				},
+			},
+			"AccountId": {
+				Name: "Account ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Account",
+					TargetName:    "Reimburse Charges",
+					TargetType:    "Account",
+					TargetFieldID: "id",
+				},
+			},
+			"Markup": {
+				Name: "Markup",
+				Type: fibery.Text,
+			},
+			"MarkupAccountId": {
+				Name: "Markup Account ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Markup Account",
+					TargetName:    "Reimburse Charge Markup",
+					TargetType:    "Account",
+					TargetFieldID: "id",
+				},
+			},
+			"Taxable": {
+				Name:    "Taxable",
+				Type:    fibery.Text,
+				SubType: fibery.Boolean,
+			},
+			"LinkedInvoiceId": {
+				Name: "Linked Invoice ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Linked Invoice",
+					TargetName:    "Reimburse Charges",
+					TargetType:    "Invoice",
+					TargetFieldID: "id",
+				},
+			},
+		},
+		func(r quickbooks.ReimburseCharge) (map[string]any, error) {
+			var name string
+			if r.PrivateNote != "" {
+				name = r.CustomerRef.Name + " - " + r.PrivateNote
+			}
+
+			var date string
+			if r.TxnDate != nil {
+				date = r.TxnDate.Format(fibery.DateFormat)
+			}
+
+			var amount json.Number
+			var accountId string
+			var markup string
+			var markupAccountId string
+
+			taxable := false
+
+			for _, line := range r.Line {
+				if line.LineNum == 1 {
+					amount = line.Amount
+					accountId = line.ReimburseLineDetail.ItemAccountRef.Value
+					if line.ReimburseLineDetail.TaxCodeRef.Value == "TAX" {
+						taxable = true
+					}
+				}
+				if line.LineNum == 2 {
+					markupAmount, err := line.Amount.Float64()
+					if err != nil {
+						return nil, fmt.Errorf("error converting markup amount json.Number to float: %w", err)
+					}
+
+					markupPercent, err := line.ReimburseLineDetail.MarkupInfo.Percent.Float64()
+					if err != nil {
+						return nil, fmt.Errorf("error converting markup percent json.Number to float: %w", err)
+					}
+
+					var markupStr string
+
+					if math.Mod(markupPercent, 1.0) == 0 {
+						markupStr = fmt.Sprintf("%.0f%%", markupPercent)
+					} else {
+						markupStr = fmt.Sprintf("%.5f%%", markupPercent)
+
+						markupStr = strings.TrimRight(markupStr, "0")
+						markupStr = strings.TrimRight(markupStr, ".")
+					}
+
+					markup = fmt.Sprintf("$%.2f (%s)", markupAmount, markupStr)
+					markupAccountId = line.ReimburseLineDetail.ItemRef.Value
+				}
+			}
+
+			var invoiceId string
+			for _, txn := range r.LinkedTxn {
+				if txn.TxnType == "Invoice" {
+					invoiceId = txn.TxnId
+				}
+			}
+
+			return map[string]any{
+				"id":              r.Id,
+				"QBOId":           r.Id,
+				"Name":            name,
+				"Description":     r.PrivateNote,
+				"__syncAction":    fibery.SET,
+				"SyncToken":       r.SyncToken,
+				"TxnDate":         date,
+				"CustomerId":      r.CustomerRef.Value,
+				"TotalAmount":     r.Amount,
+				"Amount":          amount,
+				"AccountId":       accountId,
+				"Markup":          markup,
+				"MarkupAccountId": markupAccountId,
+				"Taxable":         taxable,
+				"LinkedInvoiceId": invoiceId,
+			}, nil
+		},
+		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.ReimburseCharge, error) {
+			params := quickbooks.RequestParameters{
+				Ctx:     ctx,
+				RealmId: realmId,
+				Token:   token,
+			}
+
+			items, err := client.FindReimburseChargesByPage(params, startPosition, pageSize)
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		},
+		func(r quickbooks.ReimburseCharge) string {
+			return r.Id
+		},
+		func(r quickbooks.ReimburseCharge) string {
+			return r.Status
+		},
+	)
+
+	tr.Register(reimburseCharge)
+
 	taxCode := NewQuickBooksType(
 		"TaxCode",
 		"Tax Code",
 		map[string]fibery.Field{
 			"id": {
 				Name: "ID",
-				Type: fibery.Text,
+				Type: fibery.Id,
 			},
 			"QBOId": {
 				Name: "QBO ID",
@@ -5240,7 +4944,7 @@ func BuildTypes(tr TypeRegistry) {
 		map[string]fibery.Field{
 			"id": {
 				Name: "ID",
-				Type: fibery.Text,
+				Type: fibery.Id,
 			},
 			"Name": {
 				Name:    "Name",
@@ -5450,7 +5154,7 @@ func BuildTypes(tr TypeRegistry) {
 		map[string]fibery.Field{
 			"id": {
 				Name: "ID",
-				Type: fibery.Text,
+				Type: fibery.Id,
 			},
 			"QBOId": {
 				Name: "QBO ID",
@@ -5466,6 +5170,10 @@ func BuildTypes(tr TypeRegistry) {
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
+			"__syncAction": {
+				Type: fibery.Text,
+				Name: "Sync Action",
+			},
 			"Active": {
 				Name:    "Active",
 				Type:    fibery.Text,
@@ -5474,11 +5182,12 @@ func BuildTypes(tr TypeRegistry) {
 		},
 		func(t quickbooks.Term) (map[string]any, error) {
 			return map[string]any{
-				"id":        t.Id,
-				"QBOId":     t.Id,
-				"Name":      t.Name,
-				"SyncToken": t.SyncToken,
-				"Active":    t.Active,
+				"id":           t.Id,
+				"QBOId":        t.Id,
+				"Name":         t.Name,
+				"SyncToken":    t.SyncToken,
+				"__syncAction": fibery.SET,
+				"Active":       t.Active,
 			}, nil
 		},
 		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Term, error) {
@@ -5517,10 +5226,15 @@ func BuildTypes(tr TypeRegistry) {
 				Name: "QBO ID",
 				Type: fibery.Text,
 			},
+			"Name": {
+				Name:    "Name",
+				Type:    fibery.Text,
+				SubType: fibery.Title,
+			},
 			"Description": {
 				Name:    "Description",
 				Type:    fibery.Text,
-				SubType: fibery.Title,
+				SubType: fibery.MD,
 			},
 			"SyncToken": {
 				Name:     "Sync Token",
@@ -5546,8 +5260,9 @@ func BuildTypes(tr TypeRegistry) {
 				},
 			},
 			"TxnDate": {
-				Name: "Date",
-				Type: fibery.DateType,
+				Name:    "Date",
+				Type:    fibery.DateType,
+				SubType: fibery.Day,
 			},
 			"Hours": {
 				Name: "Hours",
@@ -5714,20 +5429,51 @@ func BuildTypes(tr TypeRegistry) {
 				itemId = ta.ItemRef.Value
 			}
 
+			var startTime string
+			if ta.StartTime != nil {
+				startTime = ta.StartTime.Format(fibery.DateFormat)
+			}
+
+			var endTime string
+			if ta.EndTime != nil {
+				endTime = ta.EndTime.Format(fibery.DateFormat)
+			}
+
+			var txnDate string
+			if !ta.TxnDate.IsZero() {
+				txnDate = ta.TxnDate.Format(fibery.DateFormat)
+			}
+
+			var name string
+			if ta.ItemRef.Name != "" {
+				if ta.EmployeeRef.Name != "" {
+					name = ta.EmployeeRef.Name + " - " + ta.ItemRef.Name
+				} else {
+					name = ta.VendorRef.Name + " - " + ta.ItemRef.Name
+				}
+			} else {
+				if ta.EmployeeRef.Name != "" {
+					name = ta.EmployeeRef.Name
+				} else {
+					name = ta.VendorRef.Name
+				}
+			}
+
 			return map[string]any{
 				"id":           ta.Id,
 				"QBOId":        ta.Id,
+				"Name":         name,
 				"Description":  ta.Description,
 				"SyncToken":    ta.SyncToken,
 				"__syncAction": fibery.SET,
 				"ActivityType": ta.NameOf,
-				"TxnDate":      ta.TxnDate.Format(fibery.DateFormat),
+				"TxnDate":      txnDate,
 				"Hours":        ta.Hours,
 				"Minutes":      ta.Minutes,
 				"BreakHours":   ta.BreakHours,
 				"BreakMinutes": ta.BreakMinutes,
-				"StartTime":    ta.StartTime.Format(fibery.DateFormat),
-				"EndTime":      ta.EndTime.Format(fibery.DateFormat),
+				"StartTime":    startTime,
+				"EndTime":      endTime,
 				"HourlyRate":   ta.HourlyRate,
 				"CostRate":     ta.CostRate,
 				"Taxable":      ta.Taxable,
@@ -6059,4 +5805,10 @@ func BuildTypes(tr TypeRegistry) {
 	)
 
 	tr.Register(vendor)
+
+	// Set related types
+
+	purchase.relatedTypes = []CDCType{reimburseCharge}
+	bill.relatedTypes = []CDCType{reimburseCharge}
+	invoice.relatedTypes = []CDCType{reimburseCharge}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -80,37 +81,54 @@ func (om *OperationManager) CleanupExpired() {
 }
 
 func (om *OperationManager) GetOrAddOperation(operationId string, lastSynced time.Time, requestedTypes []string, acct QuickBooksAccountInfo, tr TypeRegistry, s *IdStore) (*Operation, error) {
-	types := make(map[string]RequestType, len(requestedTypes))
-	idCache, newCache := s.GetOrCreateIdCache(acct.RealmID)
-	groupCounts := make(map[string]int)
-	for _, requestedType := range requestedTypes {
-		storedType, exists := tr.GetType(requestedType)
-		if !exists {
-			return nil, fmt.Errorf("requested type: %s does not exist in the TypeRegistry", requestedType)
-		}
-		src := storedType.SourceId() // call to the SourceId method
-		groupCounts[src]++
-	}
-
-	for _, requestedType := range requestedTypes {
-		storedType, _ := tr.GetType(requestedType)
-		groupSize := groupCounts[storedType.SourceId()]
-		if !lastSynced.IsZero() && !newCache {
-			var cdc bool
-			switch storedType.(type) {
-			case CDCType:
-				cdc = true
-			case CDCDepType:
-				cdc = true
-			default:
-				cdc = false
+	om.Lock()
+	op, exists := om.Operations[operationId]
+	om.Unlock()
+	if !exists {
+		types := make(map[string]RequestType, len(requestedTypes))
+		idCache, cacheExists := s.GetOrCreateIdCache(acct.RealmID)
+		slog.Debug(fmt.Sprintf("an existing cache was available: %t, for realmId: %s\n", cacheExists, acct.RealmID))
+		slog.Debug(fmt.Sprintf("lastSynced is not zero: %t\n", !lastSynced.IsZero()))
+		groupCounts := make(map[string]int)
+		for _, requestedType := range requestedTypes {
+			storedType, exists := tr.GetType(requestedType)
+			if !exists {
+				return nil, fmt.Errorf("requested type: %s does not exist in the TypeRegistry", requestedType)
 			}
-			if cdc {
-				types[requestedType] = RequestType{
-					SourceId:  storedType.SourceId(),
-					Sync:      fibery.Delta,
-					GroupSize: groupSize,
-					Done:      false,
+			src := storedType.SourceId() // call to the SourceId method
+			groupCounts[src]++
+		}
+
+		for _, requestedType := range requestedTypes {
+			storedType, _ := tr.GetType(requestedType)
+			groupSize := groupCounts[storedType.SourceId()]
+			if !lastSynced.IsZero() && cacheExists {
+				var cdc bool
+				switch storedType.(type) {
+				case CDCType:
+					slog.Debug(fmt.Sprintf("%s is cdc\n", storedType.Id()))
+					cdc = true
+				case CDCDepType:
+					slog.Debug(fmt.Sprintf("%s is cdc\n", storedType.Id()))
+					cdc = true
+				default:
+					slog.Debug(fmt.Sprintf("%s is not cdc\n", storedType.Id()))
+					cdc = false
+				}
+				if cdc {
+					types[requestedType] = RequestType{
+						SourceId:  storedType.SourceId(),
+						Sync:      fibery.Delta,
+						GroupSize: groupSize,
+						Done:      false,
+					}
+				} else {
+					types[requestedType] = RequestType{
+						SourceId:  storedType.SourceId(),
+						Sync:      fibery.Full,
+						GroupSize: groupSize,
+						Done:      false,
+					}
 				}
 			} else {
 				types[requestedType] = RequestType{
@@ -120,32 +138,25 @@ func (om *OperationManager) GetOrAddOperation(operationId string, lastSynced tim
 					Done:      false,
 				}
 			}
-		} else {
-			types[requestedType] = RequestType{
-				SourceId:  storedType.SourceId(),
-				Sync:      fibery.Full,
-				GroupSize: groupSize,
-				Done:      false,
-			}
 		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		op = &Operation{
+			Types:      types,
+			Account:    acct,
+			DataCache:  make(map[DataKey]*CacheEntry),
+			IdCache:    idCache,
+			LastSynced: lastSynced,
+			lastReturn: time.Now(),
+			ctx:        ctx,
+			cancel:     cancel,
+		}
+
+		om.Lock()
+		defer om.Unlock()
+		om.Operations[operationId] = op
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	op := &Operation{
-		Types:      types,
-		Account:    acct,
-		DataCache:  make(map[DataKey]*CacheEntry),
-		IdCache:    idCache,
-		LastSynced: lastSynced,
-		lastReturn: time.Now(),
-		ctx:        ctx,
-		cancel:     cancel,
-	}
-
-	om.Lock()
-	defer om.Unlock()
-	om.Operations[operationId] = op
 
 	return op, nil
 }

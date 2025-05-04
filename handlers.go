@@ -24,6 +24,17 @@ type QuickBooksAccountInfo struct {
 	quickbooks.BearerToken
 }
 
+type SyncDataRequest struct {
+	RequestedType     string                             `json:"requestedType"`
+	OperationID       string                             `json:"operationId"`
+	Types             []string                           `json:"types"`
+	Schema            map[string]map[string]fibery.Field `json:"schema"`
+	Filter            map[string]any                     `json:"filter"`
+	Account           QuickBooksAccountInfo              `json:"account"`
+	LastSyncronizedAt time.Time                          `json:"lastSynchronizedAt"`
+	Pagination        fibery.NextPageConfig              `json:"pagination"`
+}
+
 func (i *Integration) AppConfigHandler(w http.ResponseWriter, r *http.Request) {
 	RespondWithJSON(w, http.StatusOK, i.appConfig)
 }
@@ -112,13 +123,14 @@ func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) 
 
 func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
-		RequestedType     string                `json:"requestedType"`
-		OperationID       string                `json:"operationId"`
-		Types             []string              `json:"types"`
-		Filter            map[string]any        `json:"filter"`
-		Account           QuickBooksAccountInfo `json:"account"`
-		LastSyncronizedAt time.Time             `json:"lastSynchronizedAt"`
-		Pagination        fibery.NextPageConfig `json:"pagination"`
+		RequestedType     string                             `json:"requestedType"`
+		OperationID       string                             `json:"operationId"`
+		Types             []string                           `json:"types"`
+		Schema            map[string]map[string]fibery.Field `json:"schema"`
+		Filter            map[string]any                     `json:"filter"`
+		Account           QuickBooksAccountInfo              `json:"account"`
+		LastSyncronizedAt time.Time                          `json:"lastSynchronizedAt"`
+		Pagination        fibery.NextPageConfig              `json:"pagination"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -305,6 +317,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	activeTypesBySource := make(map[string][]Type)
+	activeRelatedTypesByWebhook := make(map[string][]CDCType)
 
 	for _, typeId := range params.Types {
 		storedType, ok := i.types.GetType(typeId)
@@ -313,11 +326,17 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			return
 		} else {
 			activeTypesBySource[storedType.SourceId()] = append(activeTypesBySource[storedType.SourceId()], storedType)
+			if whType, ok := storedType.(WebhookType); ok {
+				activeRelatedTypesByWebhook[typeId] = append(activeRelatedTypesByWebhook[typeId], whType.GetRelatedTypes()...)
+			}
 		}
 	}
 
 	queryEntities := map[string][]string{}
 	deleteEntities := map[string][]string{}
+	cdcTypes := map[string]CDCType{}
+
+	var oldestChange time.Time
 
 	for _, event := range params.Payload.EventNotifications {
 		if event.RealmID != params.Account.RealmID {
@@ -332,6 +351,14 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 					deleteEntities[e.Name] = append(deleteEntities[e.Name], e.ID)
 				}
 			}
+			if rlTypes, exists := activeRelatedTypesByWebhook[e.Name]; exists {
+				for _, typ := range rlTypes {
+					cdcTypes[typ.Id()] = typ
+				}
+				if oldestChange.IsZero() || e.LastUpdated.Before(oldestChange) {
+					oldestChange = e.LastUpdated
+				}
+			}
 		}
 	}
 
@@ -339,56 +366,90 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		Data: make(fibery.WebhookData),
 	}
 
-	for typeId, ids := range deleteEntities {
-		for _, storedType := range activeTypesBySource[typeId] {
-			switch webhookType := storedType.(type) {
-			case WebhookType:
-				webhookType.ProcessWebhookDeletions(ids, resp)
-			case WebhookDepType:
-				webhookType.ProcessWebhookDeletions(ids, resp, idCache)
-			default:
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
+	if len(deleteEntities) > 0 {
+		for typeId, ids := range deleteEntities {
+			for _, storedType := range activeTypesBySource[typeId] {
+				switch webhookType := storedType.(type) {
+				case WebhookType:
+					webhookType.ProcessWebhookDeletions(ids, resp)
+				case WebhookDepType:
+					webhookType.ProcessWebhookDeletions(ids, resp, idCache)
+				default:
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
+				}
 			}
 		}
 	}
 
-	batchRequest := []quickbooks.BatchItemRequest{}
+	if len(queryEntities) > 0 {
+		batchRequest := []quickbooks.BatchItemRequest{}
 
-	for typ, ids := range queryEntities {
-		req := quickbooks.BatchItemRequest{
-			BID:   typ,
-			Query: fmt.Sprintf("SELECT * FROM %s WHERE Id IN ('%s')", typ, strings.Join(ids, "','")),
+		for typ, ids := range queryEntities {
+			req := quickbooks.BatchItemRequest{
+				BID:   typ,
+				Query: fmt.Sprintf("SELECT * FROM %s WHERE Id IN ('%s')", typ, strings.Join(ids, "','")),
+			}
+			batchRequest = append(batchRequest, req)
 		}
-		batchRequest = append(batchRequest, req)
-	}
 
-	reqParams := quickbooks.RequestParameters{
-		Ctx:     r.Context(),
-		RealmId: params.Account.RealmID,
-		Token:   &params.Account.BearerToken,
-	}
+		reqParams := quickbooks.RequestParameters{
+			Ctx:     r.Context(),
+			RealmId: params.Account.RealmID,
+			Token:   &params.Account.BearerToken,
+		}
 
-	batchResponse, err := i.client.BatchRequest(reqParams, batchRequest)
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to make batch request: %w", err))
-		return
-	}
-
-	for _, itemResponse := range batchResponse {
-		if faultType := itemResponse.Fault.FaultType; faultType != "" {
-			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("batch request error: %s", faultType))
+		batchResponse, err := i.client.BatchRequest(reqParams, batchRequest)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to make batch request: %w", err))
 			return
 		}
 
-		for _, storedType := range activeTypesBySource[itemResponse.BID] {
-			switch webhookType := storedType.(type) {
-			case WebhookType:
-				webhookType.ProcessWebhookUpdate(&itemResponse, resp)
-			case WebhookDepType:
-				webhookType.ProcessWebhookUpdate(&itemResponse, resp, idCache)
-			default:
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
+		for _, itemResponse := range batchResponse {
+			if faultType := itemResponse.Fault.FaultType; faultType != "" {
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("batch request error: %s", faultType))
+				return
 			}
+
+			for _, storedType := range activeTypesBySource[itemResponse.BID] {
+				switch webhookType := storedType.(type) {
+				case WebhookType:
+					webhookType.ProcessWebhookUpdate(&itemResponse, resp)
+				case WebhookDepType:
+					webhookType.ProcessWebhookUpdate(&itemResponse, resp, idCache)
+				default:
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
+				}
+			}
+		}
+	}
+
+	if len(cdcTypes) > 0 {
+		cdcQueryEntities := make([]string, 0, len(cdcTypes))
+		for typeId := range cdcTypes {
+			cdcQueryEntities = append(cdcQueryEntities, typeId)
+		}
+
+		reqParams := quickbooks.RequestParameters{
+			Ctx:     r.Context(),
+			RealmId: params.Account.RealmID,
+			Token:   &params.Account.BearerToken,
+		}
+
+		oldestChange = oldestChange.Add(time.Second * -5)
+
+		cdcResponse, err := i.client.ChangeDataCapture(reqParams, cdcQueryEntities, oldestChange)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to make cdc request: %w", err))
+			return
+		}
+
+		for typeId, cdcType := range cdcTypes {
+			items, err := cdcType.processCDC(&cdcResponse)
+			if err != nil {
+				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process cdc data: %w", err))
+				return
+			}
+			resp.Data[typeId] = items
 		}
 	}
 
@@ -480,5 +541,9 @@ func (Integration) LogoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (Integration) SyncFilterValidateHandler(w http.ResponseWriter, r *http.Request) {
+	RespondWithJSON(w, http.StatusOK, nil)
+}
+
+func (Integration) ActionHandler(w http.ResponseWriter, r *http.Request) {
 	RespondWithJSON(w, http.StatusOK, nil)
 }

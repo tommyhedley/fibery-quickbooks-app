@@ -46,4 +46,8 @@ func RegisterFiberyRoutes(mux *http.ServeMux, integration any) {
 	if resource, ok := integration.(IntegrationResource); ok {
 		mux.HandleFunc("POST /api/v1/synchronizer/resource", resource.SyncResourceHandler)
 	}
+
+	if actions, ok := integration.(IntegrationActions); ok {
+		mux.HandleFunc("POST /api/v1/automations/action/execute", actions.ActionHandler)
+	}
 }
