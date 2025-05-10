@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/tommyhedley/quickbooks-go v0.1.9
+	github.com/tommyhedley/quickbooks-go v0.1.13
 	golang.org/x/sync v0.12.0
 )
 

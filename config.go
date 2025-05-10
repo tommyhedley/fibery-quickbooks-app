@@ -11,7 +11,7 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var version = "dev-v0.0.2"
+var version = "dev-v0.0.3"
 
 var loggerLevels = map[string]slog.Level{
 	"info":  slog.LevelInfo,

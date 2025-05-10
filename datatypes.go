@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -166,14 +165,8 @@ func BuildTypes(tr TypeRegistry) {
 				"ParentAccountId":               parentAccountId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Account, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindAccountsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Account, error) {
+			items, err := client.FindAccountsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -288,6 +281,11 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"Attachables": {
+				Name:    "Attachments",
+				Type:    fibery.TextArray,
+				SubType: fibery.File,
+			},
 		},
 		func(b quickbooks.Bill) (map[string]any, error) {
 			var apAccountId string
@@ -334,14 +332,8 @@ func BuildTypes(tr TypeRegistry) {
 				"SalesTermId":  salesTermId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Bill, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindBillsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Bill, error) {
+			items, err := client.FindBillsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -927,14 +919,8 @@ func BuildTypes(tr TypeRegistry) {
 				"PaymentAccountId": paymentAccountId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.BillPayment, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindBillPaymentsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.BillPayment, error) {
+			items, err := client.FindBillPaymentsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -1122,14 +1108,8 @@ func BuildTypes(tr TypeRegistry) {
 				"ParentClassId":      c.ParentRef.Value,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Class, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindClassesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Class, error) {
+			items, err := client.FindClassesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -1565,14 +1545,8 @@ func BuildTypes(tr TypeRegistry) {
 				"ParentId":           parentId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Customer, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindCustomersByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Customer, error) {
+			items, err := client.FindCustomersByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -1631,14 +1605,8 @@ func BuildTypes(tr TypeRegistry) {
 				"Active":       ct.Active,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.CustomerType, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindCustomerTypesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.CustomerType, error) {
+			items, err := client.FindCustomerTypesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -1860,14 +1828,8 @@ func BuildTypes(tr TypeRegistry) {
 				"AddressLong":       e.PrimaryAddr.Long,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Employee, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindEmployeesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Employee, error) {
+			items, err := client.FindEmployeesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -2423,14 +2385,8 @@ func BuildTypes(tr TypeRegistry) {
 				"LinkedInvoiceId":        linkedInvoiceId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Estimate, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindEstimatesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Estimate, error) {
+			items, err := client.FindEstimatesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -3254,14 +3210,8 @@ func BuildTypes(tr TypeRegistry) {
 				"LinkedTimeActivityIds":  linkedTimeActivityIds,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Invoice, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindInvoicesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Invoice, error) {
+			items, err := client.FindInvoicesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -3814,14 +3764,8 @@ func BuildTypes(tr TypeRegistry) {
 				"IncomeAccountId":     i.IncomeAccountRef.Value,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Item, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindItemsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Item, error) {
+			items, err := client.FindItemsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -3943,14 +3887,8 @@ func BuildTypes(tr TypeRegistry) {
 				"PayType":     paymentType,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.PaymentMethod, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindPaymentMethodsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.PaymentMethod, error) {
+			items, err := client.FindPaymentMethodsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -4094,7 +4032,7 @@ func BuildTypes(tr TypeRegistry) {
 				Type:    fibery.Text,
 				SubType: fibery.MD,
 			},
-			"Attachments": {
+			"Attachables": {
 				Name:    "Attachments",
 				Type:    fibery.TextArray,
 				SubType: fibery.File,
@@ -4159,14 +4097,8 @@ func BuildTypes(tr TypeRegistry) {
 				"PrivateNote":      p.PrivateNote,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Purchase, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindPurchasesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Purchase, error) {
+			items, err := client.FindPurchasesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -4815,14 +4747,8 @@ func BuildTypes(tr TypeRegistry) {
 				"LinkedInvoiceId": invoiceId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.ReimburseCharge, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindReimburseChargesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.ReimburseCharge, error) {
+			items, err := client.FindReimburseChargesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -4920,14 +4846,8 @@ func BuildTypes(tr TypeRegistry) {
 				"TaxCodeType": taxCodeType,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.TaxCode, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindTaxCodesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.TaxCode, error) {
+			items, err := client.FindTaxCodesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -5080,7 +5000,7 @@ func BuildTypes(tr TypeRegistry) {
 				"Name": te.Name,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]TaxExemptionEntity, error) {
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]TaxExemptionEntity, error) {
 			return []TaxExemptionEntity{
 				{
 					Id:   "1",
@@ -5190,14 +5110,8 @@ func BuildTypes(tr TypeRegistry) {
 				"Active":       t.Active,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Term, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindTermsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Term, error) {
+			items, err := client.FindTermsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -5486,14 +5400,8 @@ func BuildTypes(tr TypeRegistry) {
 				"ItemId":       itemId,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.TimeActivity, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindTimeActivitiesByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.TimeActivity, error) {
+			items, err := client.FindTimeActivitiesByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}
@@ -5782,14 +5690,8 @@ func BuildTypes(tr TypeRegistry) {
 				"BillingLong":       billAddr.Long,
 			}, nil
 		},
-		func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]quickbooks.Vendor, error) {
-			params := quickbooks.RequestParameters{
-				Ctx:     ctx,
-				RealmId: realmId,
-				Token:   token,
-			}
-
-			items, err := client.FindVendorsByPage(params, startPosition, pageSize)
+		func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]quickbooks.Vendor, error) {
+			items, err := client.FindVendorsByPage(requestParams, startPosition, pageSize)
 			if err != nil {
 				return nil, err
 			}

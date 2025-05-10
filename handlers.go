@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -69,9 +70,10 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	params := quickbooks.RequestParameters{
-		Ctx:     r.Context(),
-		RealmId: reqBody.Fields.RealmID,
-		Token:   token,
+		Ctx:             r.Context(),
+		RealmId:         reqBody.Fields.RealmID,
+		Token:           token,
+		WaitOnRateLimit: true,
 	}
 
 	info, err := i.client.FindCompanyInfo(params)
@@ -122,19 +124,8 @@ func (i *Integration) SyncSchemaHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
-	type requestBody struct {
-		RequestedType     string                             `json:"requestedType"`
-		OperationID       string                             `json:"operationId"`
-		Types             []string                           `json:"types"`
-		Schema            map[string]map[string]fibery.Field `json:"schema"`
-		Filter            map[string]any                     `json:"filter"`
-		Account           QuickBooksAccountInfo              `json:"account"`
-		LastSyncronizedAt time.Time                          `json:"lastSynchronizedAt"`
-		Pagination        fibery.NextPageConfig              `json:"pagination"`
-	}
-
 	decoder := json.NewDecoder(r.Body)
-	params := requestBody{}
+	params := SyncDataRequest{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to decode request parameters: %w", err))
@@ -151,7 +142,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	op, err := i.opManager.GetOrAddOperation(params.OperationID, params.LastSyncronizedAt, params.Types, params.Account, i.types, i.idStore)
+	op, err := i.opManager.GetOrAddOperation(params, i.types, i.idStore, i.client, i.config.QuickBooks.PageSize)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("issue getting/creating operation: %w", err))
 		return
@@ -177,6 +168,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 
 	if op.IsComplete() {
 		i.opManager.DeleteOperation(params.OperationID)
+		slog.Debug(fmt.Sprintf("operation %s deleted", params.OperationID))
 	}
 
 	RespondWithJSON(w, http.StatusOK, resp)
@@ -284,9 +276,10 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			AcceptEncoding                  string    `json:"accept-encoding"`
 			Authorization                   string    `json:"authorization"`
 		} `json:"params"`
-		Types   []string              `json:"types"`
-		Filter  map[string]any        `json:"filter"`
-		Account QuickBooksAccountInfo `json:"account"`
+		Types   []string                           `json:"types"`
+		Schema  map[string]map[string]fibery.Field `json:"schema"`
+		Filter  map[string]any                     `json:"filter"`
+		Account QuickBooksAccountInfo              `json:"account"`
 		Payload struct {
 			EventNotifications []struct {
 				RealmID         string `json:"realmId"`
@@ -332,6 +325,12 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
+	attachableSources := GetAttachmentSources(params.Schema, "Attachables")
+	for source := range attachableSources {
+		slog.Debug(fmt.Sprintf("attachable source: %s", source))
+	}
+	activeAttachableSources := make(map[string]bool)
+
 	queryEntities := map[string][]string{}
 	deleteEntities := map[string][]string{}
 	cdcTypes := map[string]CDCType{}
@@ -347,6 +346,9 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 				switch e.Operation {
 				case "Create", "Update", "Emailed", "Void":
 					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
+					if attachableSources[e.Name] {
+						activeAttachableSources[e.Name] = true
+					}
 				case "Delete", "Merge":
 					deleteEntities[e.Name] = append(deleteEntities[e.Name], e.ID)
 				}
@@ -360,6 +362,10 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 				}
 			}
 		}
+	}
+
+	for source := range activeAttachableSources {
+		slog.Debug(fmt.Sprintf("active attachable source: %s", source))
 	}
 
 	resp := &fibery.WebhookTransformResponse{
@@ -382,7 +388,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	if len(queryEntities) > 0 {
-		batchRequest := []quickbooks.BatchItemRequest{}
+		batchRequest := make([]quickbooks.BatchItemRequest, 0, len(queryEntities))
 
 		for typ, ids := range queryEntities {
 			req := quickbooks.BatchItemRequest{
@@ -423,10 +429,23 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	if len(cdcTypes) > 0 {
-		cdcQueryEntities := make([]string, 0, len(cdcTypes))
-		for typeId := range cdcTypes {
-			cdcQueryEntities = append(cdcQueryEntities, typeId)
+	numCDCType := len(cdcTypes)
+	numAttachableSources := len(activeAttachableSources)
+
+	slog.Debug(fmt.Sprintf("number of CDC types to query: %d", numCDCType))
+	slog.Debug(fmt.Sprintf("number of Attachable sources: %d", numAttachableSources))
+
+	if numCDCType > 0 || numAttachableSources > 0 {
+		cdcQueryEntities := make([]string, 0, numCDCType+numAttachableSources)
+
+		if numCDCType > 0 {
+			for typeId := range cdcTypes {
+				cdcQueryEntities = append(cdcQueryEntities, typeId)
+			}
+		}
+
+		if numAttachableSources > 0 {
+			cdcQueryEntities = append(cdcQueryEntities, "Attachable")
 		}
 
 		reqParams := quickbooks.RequestParameters{
@@ -435,21 +454,50 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			Token:   &params.Account.BearerToken,
 		}
 
-		oldestChange = oldestChange.Add(time.Second * -5)
+		oldestChange = oldestChange.Add(time.Second * -3)
 
-		cdcResponse, err := i.client.ChangeDataCapture(reqParams, cdcQueryEntities, oldestChange)
+		cdc, err := i.client.ChangeDataCapture(reqParams, cdcQueryEntities, oldestChange)
 		if err != nil {
 			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to make cdc request: %w", err))
 			return
 		}
 
-		for typeId, cdcType := range cdcTypes {
-			items, err := cdcType.processCDC(&cdcResponse)
-			if err != nil {
-				RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process cdc data: %w", err))
-				return
+		if numCDCType > 0 {
+			for typeId, cdcType := range cdcTypes {
+				items, err := cdcType.processCDC(&cdc)
+				if err != nil {
+					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to process cdc data: %w", err))
+					return
+				}
+				resp.Data[typeId] = items
 			}
-			resp.Data[typeId] = items
+		}
+
+		if numAttachableSources > 0 {
+			attachables := quickbooks.CDCQueryExtractor[quickbooks.Attachable](&cdc)
+
+			for _, attachable := range attachables {
+				if len(attachable.AttachableRef) == 0 {
+					continue
+				}
+
+				attachableURL := GenerateAttachablesURL(attachable)
+
+				for _, ref := range attachable.AttachableRef {
+					if !activeAttachableSources[ref.EntityRef.Type] {
+						continue
+					}
+
+					items := resp.Data[ref.EntityRef.Type]
+
+					for i, item := range items {
+						if item["id"] == ref.EntityRef.Value {
+							URLs := resp.Data[ref.EntityRef.Type][i]["Attachable"].([]string)
+							resp.Data[ref.EntityRef.Type][i]["Attachable"] = append(URLs, attachableURL)
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -545,5 +593,71 @@ func (Integration) SyncFilterValidateHandler(w http.ResponseWriter, r *http.Requ
 }
 
 func (Integration) ActionHandler(w http.ResponseWriter, r *http.Request) {
+	RespondWithJSON(w, http.StatusOK, nil)
+}
+
+func (i *Integration) SyncResourceHandler(w http.ResponseWriter, r *http.Request) {
+	type requestBody struct {
+		Types   []string              `json:"types"`
+		Filter  map[string]any        `json:"filter"`
+		Account QuickBooksAccountInfo `json:"account"`
+		Params  struct {
+			Type string `json:"type"`
+			Id   string `json:"id"`
+		} `json:"params"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	req := requestBody{}
+	err := decoder.Decode(&req)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("unable to decode request parameters: %w", err))
+		return
+	}
+
+	switch req.Params.Type {
+	case "attachable":
+		requestParams := quickbooks.RequestParameters{
+			Ctx:             context.Background(),
+			RealmId:         req.Account.RealmID,
+			Token:           &req.Account.BearerToken,
+			WaitOnRateLimit: false,
+		}
+
+		downloadUrl, err := i.client.GetAttachableDownloadURL(requestParams, req.Params.Id)
+		if err != nil {
+			HandleRequestError(w, http.StatusInternalServerError, "data request failed", err)
+			return
+		}
+
+		resp, err := http.Get(downloadUrl.String())
+		if err != nil {
+			RespondWithError(w, http.StatusBadGateway, fmt.Errorf("download request failed: %w", err))
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 300 {
+			RespondWithError(w, resp.StatusCode, fmt.Errorf("unexpected status %d from QuickBooks", resp.StatusCode))
+			return
+		}
+
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			w.Header().Set("Content-Type", ct)
+		}
+		if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+			w.Header().Set("Content-Disposition", cd)
+		}
+		if cl := resp.Header.Get("Content-Length"); cl != "" {
+			w.Header().Set("Content-Length", cl)
+		}
+
+		if _, err := io.Copy(w, resp.Body); err != nil {
+			fmt.Printf("warning: streaming error: %v\n", err)
+		}
+	default:
+		RespondWithError(w, http.StatusBadRequest, fmt.Errorf("resouce type: %s is not implemented", req.Params.Type))
+		return
+	}
 	RespondWithJSON(w, http.StatusOK, nil)
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
@@ -46,7 +46,7 @@ type WebhookDepType interface {
 }
 
 type schemaGenFunc[T any] func(T) (map[string]any, error)
-type pageQueryFunc[T any] func(client *quickbooks.Client, ctx context.Context, realmId string, token *quickbooks.BearerToken, startPosition, pageSize int) ([]T, error)
+type pageQueryFunc[T any] func(client *quickbooks.Client, requestParams quickbooks.RequestParameters, startPosition, pageSize int) ([]T, error)
 type entityFieldValueFunc[T, V any] func(T) V
 
 type depSchemaGenFunc[ST any] func(ST) ([]map[string]any, error)
@@ -304,6 +304,13 @@ func getData[T any](
 	processQuery func([]T) ([]map[string]any, error),
 ) (fibery.DataHandlerResponse, error) {
 	requestType := op.Types[storedType.Id()]
+	requestParams := quickbooks.RequestParameters{
+		Ctx:             op.ctx,
+		RealmId:         op.Account.RealmID,
+		Token:           &op.Account.BearerToken,
+		WaitOnRateLimit: true,
+	}
+
 	switch requestType.Sync {
 	case fibery.Delta:
 		dataRequestKey := DataKey{DataType: "CDC"}
@@ -320,13 +327,10 @@ func getData[T any](
 
 		for id := range cdcTypeMap {
 			cdcTypes = append(cdcTypes, id)
+			slog.Debug(fmt.Sprintf("requesting cdc data for: %s", id))
 		}
 
-		requestParams := quickbooks.RequestParameters{
-			Ctx:     op.ctx,
-			RealmId: op.Account.RealmID,
-			Token:   &op.Account.BearerToken,
-		}
+		slog.Debug(fmt.Sprintf("cdc request time: %s", op.LastSynced.String()))
 
 		result, err := op.GetOrFetchData(dataRequestKey, expectedGroupSize, func() (any, error) {
 			return client.ChangeDataCapture(requestParams, cdcTypes, op.LastSynced)
@@ -353,7 +357,21 @@ func getData[T any](
 			return fibery.DataHandlerResponse{}, fmt.Errorf("invalid type was passed into getChangeDataCapture: %s", cdcType.Id())
 		}
 
+		if requestType.Attachables != nil && len(requestType.Attachables) > 0 {
+			for i, item := range items {
+				if id, ok := item["id"].(string); ok {
+					if attachments, exists := requestType.Attachables[id]; exists && len(attachments) > 0 {
+						items[i]["Attachments"] = attachments
+						slog.Debug(fmt.Sprintf("attachables linked to %s:%s", storedType.Id(), id))
+						fmt.Println(items[i])
+					}
+				}
+			}
+		}
+
 		op.MarkTypeFulfilled(storedType.Id())
+
+		slog.Debug(fmt.Sprintf("items for %s: %s", storedType.Id(), items))
 
 		return fibery.DataHandlerResponse{
 			Items:               items,
@@ -365,7 +383,7 @@ func getData[T any](
 		expectedGroupSize := requestType.GroupSize
 
 		result, err := op.GetOrFetchData(dataRequestKey, expectedGroupSize, func() (any, error) {
-			return queryByPage(client, op.ctx, op.Account.RealmID, &op.Account.BearerToken, startPosition, pageSize)
+			return queryByPage(client, requestParams, startPosition, pageSize)
 		})
 		if err != nil {
 			return fibery.DataHandlerResponse{}, fmt.Errorf("error get/fetching data: %w", err)
@@ -389,6 +407,18 @@ func getData[T any](
 					return fibery.DataHandlerResponse{}, err
 				}
 				op.IdCache.SetIds(sk, deltaType.Id(), sourceMap)
+			}
+		}
+
+		if requestType.Attachables != nil && len(requestType.Attachables) > 0 {
+			for i, item := range items {
+				if id, ok := item["id"].(string); ok {
+					if attachments, exists := requestType.Attachables[id]; exists && len(attachments) > 0 {
+						items[i]["Attachments"] = attachments
+						slog.Debug(fmt.Sprintf("attachables linked to %s:%s", storedType.Id(), id))
+						fmt.Println(items[i])
+					}
+				}
 			}
 		}
 
