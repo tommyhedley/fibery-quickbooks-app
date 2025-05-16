@@ -94,47 +94,98 @@ func buildOperation(req SyncDataRequest, tr TypeRegistry, s *IdStore, client *qu
 		if !exists {
 			return nil, fmt.Errorf("requested type: %s does not exist in the TypeRegistry", requestedType)
 		}
-		src := storedType.SourceId() // call to the SourceId method
-		groupCounts[src]++
+		switch typ := storedType.(type) {
+		case UnionType:
+			for _, id := range typ.SourceIds() {
+				groupCounts[id]++
+			}
+		case DeltaDepType:
+			groupCounts[typ.SourceId()]++
+		default:
+			groupCounts[typ.Id()]++
+		}
 	}
 
 	cdc := !req.LastSyncronizedAt.IsZero() && cacheExists
 
 	for _, requestedType := range req.Types {
 		storedType, _ := tr.GetType(requestedType)
-		groupSize := groupCounts[storedType.SourceId()]
-		if cdc {
-			switch storedType.(type) {
-			case CDCType:
-				slog.Debug(fmt.Sprintf("%s is cdc\n", storedType.Id()))
-				types[requestedType] = RequestType{
-					SourceId:  storedType.SourceId(),
-					Sync:      fibery.Delta,
-					GroupSize: groupSize,
-					Done:      false,
-				}
-			case CDCDepType:
-				slog.Debug(fmt.Sprintf("%s is cdc\n", storedType.Id()))
-				types[requestedType] = RequestType{
-					SourceId:  storedType.SourceId(),
-					Sync:      fibery.Delta,
-					GroupSize: groupSize,
-					Done:      false,
-				}
-			default:
-				slog.Debug(fmt.Sprintf("%s is not cdc\n", storedType.Id()))
-				types[requestedType] = RequestType{
-					SourceId:  storedType.SourceId(),
-					Sync:      fibery.Full,
-					GroupSize: groupSize,
-					Done:      false,
+		switch st := storedType.(type) {
+		case UnionType:
+			for _, unionType := range st.UnionTypes() {
+				switch ut := unionType.(type) {
+				case CDCType:
+					sync := fibery.Full
+					if cdc {
+						sync = fibery.Delta
+					}
+					types[ut.Id()] = RequestType{
+						SourceId:  ut.Id(),
+						Sync:      sync,
+						GroupSize: groupCounts[ut.Id()],
+						Done:      false,
+					}
+				case CDCDepType:
+					sync := fibery.Full
+					if cdc {
+						sync = fibery.Delta
+					}
+					types[ut.Id()] = RequestType{
+						SourceId:  ut.SourceId(),
+						Sync:      sync,
+						GroupSize: groupCounts[ut.SourceId()],
+						Done:      false,
+					}
+				case DeltaDepType:
+					types[ut.Id()] = RequestType{
+						SourceId:  ut.SourceId(),
+						Sync:      fibery.Full,
+						GroupSize: groupCounts[ut.SourceId()],
+						Done:      false,
+					}
+				default:
+					types[ut.Id()] = RequestType{
+						SourceId:  ut.Id(),
+						Sync:      fibery.Full,
+						GroupSize: groupCounts[ut.Id()],
+						Done:      false,
+					}
 				}
 			}
-		} else {
+		case CDCType:
+			sync := fibery.Full
+			if cdc {
+				sync = fibery.Delta
+			}
 			types[requestedType] = RequestType{
-				SourceId:  storedType.SourceId(),
+				SourceId:  st.Id(),
+				Sync:      sync,
+				GroupSize: groupCounts[st.Id()],
+				Done:      false,
+			}
+		case CDCDepType:
+			sync := fibery.Full
+			if cdc {
+				sync = fibery.Delta
+			}
+			types[requestedType] = RequestType{
+				SourceId:  st.SourceId(),
+				Sync:      sync,
+				GroupSize: groupCounts[st.SourceId()],
+				Done:      false,
+			}
+		case DeltaDepType:
+			types[requestedType] = RequestType{
+				SourceId:  st.SourceId(),
 				Sync:      fibery.Full,
-				GroupSize: groupSize,
+				GroupSize: groupCounts[st.SourceId()],
+				Done:      false,
+			}
+		default:
+			types[requestedType] = RequestType{
+				SourceId:  st.Id(),
+				Sync:      fibery.Full,
+				GroupSize: groupCounts[st.Id()],
 				Done:      false,
 			}
 		}
@@ -148,7 +199,7 @@ func buildOperation(req SyncDataRequest, tr TypeRegistry, s *IdStore, client *qu
 		}
 	}()
 
-	attachmentSources := GetAttachmentSources(req.Schema, "Attachables")
+	attachmentSources := GetAttachmentSources(req.Schema, "Files")
 	if len(attachmentSources) > 0 {
 		requestParams := quickbooks.RequestParameters{
 			Ctx:             ctx,
@@ -239,7 +290,7 @@ func buildOperation(req SyncDataRequest, tr TypeRegistry, s *IdStore, client *qu
 							continue
 						}
 
-						attachableString := fmt.Sprintf("app://resource?type=%s&id=%s", "attachable", attachable.Id)
+						attachableURL := GenerateAttachablesURL(attachable)
 
 						for _, ref := range attachable.AttachableRef {
 							if itemResponse.BID != ref.EntityRef.Type {
@@ -251,7 +302,7 @@ func buildOperation(req SyncDataRequest, tr TypeRegistry, s *IdStore, client *qu
 								reqType.Attachables = make(map[string][]string)
 							}
 
-							reqType.Attachables[ref.EntityRef.Value] = append(reqType.Attachables[ref.EntityRef.Value], attachableString)
+							reqType.Attachables[ref.EntityRef.Value] = append(reqType.Attachables[ref.EntityRef.Value], attachableURL)
 
 							types[itemResponse.BID] = reqType
 

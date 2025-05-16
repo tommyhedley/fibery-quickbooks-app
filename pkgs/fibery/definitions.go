@@ -154,7 +154,8 @@ const (
 )
 
 type NextPageConfig struct {
-	StartPosition int `json:"startPosition"`
+	StartPosition int      `json:"startPosition"`
+	Types         []string `json:"types"`
 }
 
 type Pagination struct {

@@ -148,10 +148,8 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startPosition := params.Pagination.StartPosition
-
-	if startPosition == 0 {
-		startPosition = 1
+	if params.Pagination.StartPosition == 0 {
+		params.Pagination.StartPosition = 1
 	}
 
 	requestedType, exists := i.types.GetType(params.RequestedType)
@@ -160,7 +158,7 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := requestedType.GetData(i.client, op, startPosition, i.config.QuickBooks.PageSize)
+	resp, err := requestedType.GetData(i.client, op, params.Pagination, i.config.QuickBooks.PageSize)
 	if err != nil {
 		HandleRequestError(w, http.StatusInternalServerError, "data request failed", err)
 		return
@@ -309,7 +307,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	activeTypesBySource := make(map[string][]Type)
+	activeWebhookTypesBySource := make(map[string][]Type)
 	activeRelatedTypesByWebhook := make(map[string][]CDCType)
 
 	for _, typeId := range params.Types {
@@ -318,9 +316,22 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			RespondWithError(w, http.StatusBadRequest, fmt.Errorf("type %s not found in registered types", typeId))
 			return
 		} else {
-			activeTypesBySource[storedType.SourceId()] = append(activeTypesBySource[storedType.SourceId()], storedType)
-			if whType, ok := storedType.(WebhookType); ok {
-				activeRelatedTypesByWebhook[typeId] = append(activeRelatedTypesByWebhook[typeId], whType.GetRelatedTypes()...)
+			switch whType := storedType.(type) {
+			case UnionType:
+				for _, unionType := range whType.UnionTypes() {
+					switch ut := unionType.(type) {
+					case WebhookType:
+						activeWebhookTypesBySource[ut.Id()] = append(activeWebhookTypesBySource[ut.Id()], storedType)
+						activeRelatedTypesByWebhook[ut.Id()] = append(activeRelatedTypesByWebhook[ut.Id()], ut.GetRelatedTypes()...)
+					case WebhookDepType:
+						activeWebhookTypesBySource[ut.SourceId()] = append(activeWebhookTypesBySource[ut.SourceId()], storedType)
+					}
+				}
+			case WebhookType:
+				activeWebhookTypesBySource[whType.Id()] = append(activeWebhookTypesBySource[whType.Id()], storedType)
+				activeRelatedTypesByWebhook[whType.Id()] = append(activeRelatedTypesByWebhook[whType.Id()], whType.GetRelatedTypes()...)
+			case WebhookDepType:
+				activeWebhookTypesBySource[whType.SourceId()] = append(activeWebhookTypesBySource[whType.SourceId()], storedType)
 			}
 		}
 	}
@@ -329,6 +340,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 	for source := range attachableSources {
 		slog.Debug(fmt.Sprintf("attachable source: %s", source))
 	}
+
 	activeAttachableSources := make(map[string]bool)
 
 	queryEntities := map[string][]string{}
@@ -342,7 +354,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			continue
 		}
 		for _, e := range event.DataChangeEvent.Entities {
-			if _, exists := activeTypesBySource[e.Name]; exists {
+			if _, exists := activeWebhookTypesBySource[e.Name]; exists {
 				switch e.Operation {
 				case "Create", "Update", "Emailed", "Void":
 					queryEntities[e.Name] = append(queryEntities[e.Name], e.ID)
@@ -353,8 +365,8 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 					deleteEntities[e.Name] = append(deleteEntities[e.Name], e.ID)
 				}
 			}
-			if rlTypes, exists := activeRelatedTypesByWebhook[e.Name]; exists {
-				for _, typ := range rlTypes {
+			if relatedTypes, exists := activeRelatedTypesByWebhook[e.Name]; exists {
+				for _, typ := range relatedTypes {
 					cdcTypes[typ.Id()] = typ
 				}
 				if oldestChange.IsZero() || e.LastUpdated.Before(oldestChange) {
@@ -374,12 +386,12 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 
 	if len(deleteEntities) > 0 {
 		for typeId, ids := range deleteEntities {
-			for _, storedType := range activeTypesBySource[typeId] {
-				switch webhookType := storedType.(type) {
+			for _, storedType := range activeWebhookTypesBySource[typeId] {
+				switch whType := storedType.(type) {
 				case WebhookType:
-					webhookType.ProcessWebhookDeletions(ids, resp)
+					whType.ProcessWebhookDeletions(ids, resp)
 				case WebhookDepType:
-					webhookType.ProcessWebhookDeletions(ids, resp, idCache)
+					whType.ProcessWebhookDeletions(ids, resp, idCache)
 				default:
 					RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("invalid type found in activeTypesBySource array: %s", storedType.Id()))
 				}
@@ -416,7 +428,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 				return
 			}
 
-			for _, storedType := range activeTypesBySource[itemResponse.BID] {
+			for _, storedType := range activeWebhookTypesBySource[itemResponse.BID] {
 				switch webhookType := storedType.(type) {
 				case WebhookType:
 					webhookType.ProcessWebhookUpdate(&itemResponse, resp)

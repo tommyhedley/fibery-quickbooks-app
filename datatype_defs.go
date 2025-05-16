@@ -12,14 +12,20 @@ type Type interface {
 	Id() string
 	Name() string
 	Schema() map[string]fibery.Field
-	SourceId() string
-	GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error)
+	GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error)
 }
 
 type DeltaDepType interface {
 	Type
+	SourceId() string
 	SourceKey(sourceEntity any) (IdKey, error)
 	MapSource(sourceEntity any) (map[string]struct{}, error)
+}
+
+type UnionType interface {
+	Type
+	SourceIds() []string
+	UnionTypes() []Type
 }
 
 type CDCType interface {
@@ -108,6 +114,12 @@ type DependentDualType[ST any] struct {
 	sourceId     entityFieldValueFunc[ST, string]
 	sourceStatus entityFieldValueFunc[ST, string]
 	sourceMapper sourceMapperFunc[ST]
+}
+
+type UnionDataType struct {
+	fibery.BaseType
+	unionTypes []Type
+	schemaGen  func(typeId string, input []map[string]any) ([]map[string]any, error)
 }
 
 func NewQuickBooksType[T any](
@@ -294,6 +306,24 @@ func NewDependentDualType[ST any](
 	}
 }
 
+func NewUnionDataType(
+	id string,
+	name string,
+	schema map[string]fibery.Field,
+	ut []Type,
+	sg func(typeId string, input []map[string]any) ([]map[string]any, error),
+) *UnionDataType {
+	return &UnionDataType{
+		BaseType: fibery.BaseType{
+			TypeId:     id,
+			TypeName:   name,
+			TypeSchema: schema,
+		},
+		unionTypes: ut,
+		schemaGen:  sg,
+	}
+}
+
 func getData[T any](
 	client *quickbooks.Client,
 	op *Operation,
@@ -361,7 +391,7 @@ func getData[T any](
 			for i, item := range items {
 				if id, ok := item["id"].(string); ok {
 					if attachments, exists := requestType.Attachables[id]; exists && len(attachments) > 0 {
-						items[i]["Attachments"] = attachments
+						items[i]["Files"] = attachments
 						slog.Debug(fmt.Sprintf("attachables linked to %s:%s", storedType.Id(), id))
 						fmt.Println(items[i])
 					}
@@ -379,7 +409,13 @@ func getData[T any](
 		}, nil
 
 	case fibery.Full:
-		dataRequestKey := DataKey{DataType: storedType.SourceId(), StartPosition: startPosition}
+		var dataRequestKey DataKey
+		switch typ := storedType.(type) {
+		case DeltaDepType:
+			dataRequestKey = DataKey{DataType: typ.SourceId(), StartPosition: startPosition}
+		default:
+			dataRequestKey = DataKey{DataType: typ.Id(), StartPosition: startPosition}
+		}
 		expectedGroupSize := requestType.GroupSize
 
 		result, err := op.GetOrFetchData(dataRequestKey, expectedGroupSize, func() (any, error) {
@@ -688,10 +724,6 @@ func (t *QuickBooksDualType[T]) GetRelatedTypes() []CDCType {
 	return t.relatedTypes
 }
 
-func (t *QuickBooksType[T]) SourceId() string {
-	return t.Id()
-}
-
 func (t *DependentDataType[ST]) SourceId() string {
 	return t.sourceType.Id()
 }
@@ -706,6 +738,27 @@ func (t *DependentWHType[ST]) SourceId() string {
 
 func (t *DependentDualType[ST]) SourceId() string {
 	return t.sourceType.Id()
+}
+
+func (t *UnionDataType) SourceIds() []string {
+	sourceIdMap := make(map[string]struct{})
+	for _, unionType := range t.unionTypes {
+		switch typ := unionType.(type) {
+		case DeltaDepType:
+			sourceIdMap[typ.SourceId()] = struct{}{}
+		default:
+			sourceIdMap[typ.Id()] = struct{}{}
+		}
+	}
+	sourceIds := make([]string, 0, len(sourceIdMap))
+	for id := range sourceIdMap {
+		sourceIds = append(sourceIds, id)
+	}
+	return sourceIds
+}
+
+func (t *UnionDataType) UnionTypes() []Type {
+	return t.unionTypes
 }
 
 func (t *DependentCDCType[ST]) SourceKey(data any) (IdKey, error) {
@@ -756,34 +809,72 @@ func (t *DependentDualType[ST]) MapSource(data any) (map[string]struct{}, error)
 	return t.sourceMapper(sourceEntity), nil
 }
 
-func (t *QuickBooksType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+func (t *QuickBooksType[T]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.pageQuery, t.processQuery)
 }
 
-func (t *QuickBooksCDCType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+func (t *QuickBooksCDCType[T]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.pageQuery, t.processQuery)
 }
 
-func (t *QuickBooksWHType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+func (t *QuickBooksWHType[T]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.pageQuery, t.processQuery)
 }
 
-func (t *QuickBooksDualType[T]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.pageQuery, t.processQuery)
+func (t *QuickBooksDualType[T]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.pageQuery, t.processQuery)
 }
 
-func (t *DependentDataType[ST]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
+func (t *DependentDataType[ST]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
 }
 
-func (t *DependentCDCType[ST]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
+func (t *DependentCDCType[ST]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
 }
 
-func (t *DependentWHType[ST]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
+func (t *DependentWHType[ST]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
 }
 
-func (t *DependentDualType[ST]) GetData(client *quickbooks.Client, op *Operation, startPosition, pageSize int) (fibery.DataHandlerResponse, error) {
-	return getData(client, op, t, startPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
+func (t *DependentDualType[ST]) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	return getData(client, op, t, pagination.StartPosition, pageSize, t.sourceType.pageQuery, t.processQuery)
+}
+
+func (t *UnionDataType) GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error) {
+	response := fibery.DataHandlerResponse{
+		SynchronizationType: fibery.Full,
+	}
+	var queryTypes []Type
+	if len(pagination.Types) > 0 && pagination.StartPosition > pageSize {
+		for _, pageType := range pagination.Types {
+			for _, unionType := range t.unionTypes {
+				if unionType.Id() == pageType {
+					queryTypes = append(queryTypes, unionType)
+				}
+			}
+		}
+	} else {
+		queryTypes = t.unionTypes
+	}
+	for _, unionType := range queryTypes {
+		typeResponse, err := unionType.GetData(client, op, pagination, pageSize)
+		if err != nil {
+			return fibery.DataHandlerResponse{}, fmt.Errorf("unable to fetch data for union type %s:%s: %w", t.Id(), unionType.Id(), err)
+		}
+		if typeResponse.Pagination.HasNext {
+			response.Pagination.HasNext = true
+			response.Pagination.NextPageConfig.StartPosition = typeResponse.Pagination.NextPageConfig.StartPosition
+			response.Pagination.NextPageConfig.Types = append(response.Pagination.NextPageConfig.Types, unionType.Id())
+		}
+		if typeResponse.SynchronizationType == fibery.Delta {
+			response.SynchronizationType = fibery.Delta
+		}
+		typeItems, err := t.schemaGen(unionType.Id(), typeResponse.Items)
+		if err != nil {
+			return fibery.DataHandlerResponse{}, fmt.Errorf("unable to generate schema for union type %s:%s: %w", t.Id(), unionType.Id(), err)
+		}
+		response.Items = append(response.Items, typeItems...)
+	}
+	return response, nil
 }

@@ -281,8 +281,8 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
-			"Attachables": {
-				Name:    "Attachments",
+			"Files": {
+				Name:    "Files",
 				Type:    fibery.TextArray,
 				SubType: fibery.File,
 			},
@@ -4003,6 +4003,17 @@ func BuildTypes(tr TypeRegistry) {
 					TargetFieldID: "id",
 				},
 			},
+			"EntityId": {
+				Name: "Entity ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Entity Payee",
+					TargetName:    "Expenses",
+					TargetType:    "Entity",
+					TargetFieldID: "id",
+				},
+			},
 			"Total": {
 				Name: "Total",
 				Type: fibery.Number,
@@ -4032,8 +4043,8 @@ func BuildTypes(tr TypeRegistry) {
 				Type:    fibery.Text,
 				SubType: fibery.MD,
 			},
-			"Attachables": {
-				Name:    "Attachments",
+			"Files": {
+				Name:    "Files",
 				Type:    fibery.TextArray,
 				SubType: fibery.File,
 			},
@@ -4049,17 +4060,19 @@ func BuildTypes(tr TypeRegistry) {
 				paymentType = "Credit Card"
 			}
 
-			var entityId string
-			var entityName string
+			var entityId, entityName, customerId, vendorId, employeeId string
 			if p.EntityRef != nil {
 				entityName = p.EntityRef.Name
 				switch p.EntityRef.Type {
 				case "Customer":
 					entityId = "c:" + p.EntityRef.Value
+					customerId = p.EntityRef.Value
 				case "Vendor":
 					entityId = "v:" + p.EntityRef.Value
+					vendorId = p.EntityRef.Value
 				case "Employee":
 					entityId = "e:" + p.EntityRef.Value
+					employeeId = p.EntityRef.Value
 				}
 			}
 
@@ -4085,10 +4098,13 @@ func BuildTypes(tr TypeRegistry) {
 				"QBOId":            p.Id,
 				"Name":             name,
 				"SyncToken":        p.SyncToken,
-				"__syncToken":      fibery.SET,
+				"__syncAction":     fibery.SET,
 				"PaymentType":      paymentType,
 				"PaymentAccountId": p.AccountRef.Value,
 				"PaymentMethodId":  paymentMethodId,
+				"CustomerId":       customerId,
+				"VendorId":         vendorId,
+				"EmployeeId":       employeeId,
 				"EntityId":         entityId,
 				"Total":            p.TotalAmt,
 				"DocNumber":        p.DocNumber,
@@ -5707,6 +5723,154 @@ func BuildTypes(tr TypeRegistry) {
 	)
 
 	tr.Register(vendor)
+
+	// Build Union Types
+
+	entity := NewUnionDataType(
+		"Entity",
+		"Entity",
+		map[string]fibery.Field{
+			"id": {
+				Name: "ID",
+				Type: fibery.Id,
+			},
+			"QBOId": {
+				Name: "QBO ID",
+				Type: fibery.Text,
+			},
+			"Name": {
+				Name:    "Name",
+				Type:    fibery.Text,
+				SubType: fibery.Title,
+			},
+			"__syncAction": {
+				Type: fibery.Text,
+				Name: "Sync Action",
+			},
+			"CustomerId": {
+				Name: "Customer ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Customer",
+					TargetName:    "Entity",
+					TargetType:    "Customer",
+					TargetFieldID: "id",
+				},
+			},
+			"EmployeeId": {
+				Name: "Employee ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Employee",
+					TargetName:    "Entity",
+					TargetType:    "Employee",
+					TargetFieldID: "id",
+				},
+			},
+			"VendorId": {
+				Name: "Vendor ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Vendor",
+					TargetName:    "Entity",
+					TargetType:    "Vendor",
+					TargetFieldID: "id",
+				},
+			},
+		},
+		[]Type{customer, employee, vendor},
+		func(typeId string, input []map[string]any) ([]map[string]any, error) {
+			var items []map[string]any
+			switch typeId {
+			case "Customer":
+				for _, inputItem := range input {
+					var id, name string
+					var syncAction fibery.SyncAction
+					var ok bool
+					if id, ok = inputItem["id"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+					}
+					if name, ok = inputItem["DisplayName"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'DisplayName' from Customer item")
+
+					}
+					if syncAction, ok = inputItem["__syncAction"].(fibery.SyncAction); !ok {
+						return nil, fmt.Errorf("unable to extract '__syncAction' from Customer item")
+					}
+
+					item := map[string]any{
+						"id":           "c:" + id,
+						"QBOId":        id,
+						"Name":         name + " (Customer)",
+						"__syncAction": syncAction,
+						"CustomerId":   id,
+					}
+
+					items = append(items, item)
+				}
+			case "Employee":
+				for _, inputItem := range input {
+					var id, name string
+					var syncAction fibery.SyncAction
+					var ok bool
+					if id, ok = inputItem["id"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'id' from Employee item")
+					}
+					if name, ok = inputItem["DisplayName"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'DisplayName' from Employee item")
+
+					}
+					if syncAction, ok = inputItem["__syncAction"].(fibery.SyncAction); !ok {
+						return nil, fmt.Errorf("unable to extract '__syncAction' from Employee item")
+					}
+
+					item := map[string]any{
+						"id":           "e:" + id,
+						"QBOId":        id,
+						"Name":         name + " (Employee)",
+						"__syncAction": syncAction,
+						"EmployeeId":   id,
+					}
+
+					items = append(items, item)
+				}
+			case "Vendor":
+				for _, inputItem := range input {
+					var id, name string
+					var syncAction fibery.SyncAction
+					var ok bool
+					if id, ok = inputItem["id"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'id' from Vendor item")
+					}
+					if name, ok = inputItem["DisplayName"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'DisplayName' from Vendor item")
+
+					}
+					if syncAction, ok = inputItem["__syncAction"].(fibery.SyncAction); !ok {
+						return nil, fmt.Errorf("unable to extract '__syncAction' from Vendor item")
+					}
+
+					item := map[string]any{
+						"id":           "v:" + id,
+						"QBOId":        id,
+						"Name":         name + " (Vendor)",
+						"__syncAction": syncAction,
+						"VendorId":     id,
+					}
+
+					items = append(items, item)
+				}
+			default:
+				return nil, fmt.Errorf("invalid typeId: %s", typeId)
+			}
+			return items, nil
+		},
+	)
+
+	tr.Register(entity)
 
 	// Set related types
 
