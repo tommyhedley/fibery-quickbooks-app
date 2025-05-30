@@ -12,12 +12,27 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-type RequestType struct {
+type RequestType int
+
+const (
+	Standard RequestType = iota
+	ChangeDataCapture
+)
+
+type RequestTypes struct {
 	SourceId    string
 	Sync        fibery.SyncType
 	GroupSize   int
 	Done        bool
 	Attachables map[string][]string
+}
+
+type DataSourceTest struct {
+	RequestType      RequestType
+	SyncType         fibery.SyncType
+	TargetTypes      []Type
+	ResponseChannels map[string]chan fibery.DataHandlerResponse
+	Attachables      map[string][]string
 }
 
 type DataKey struct {
@@ -78,6 +93,35 @@ func (om *OperationManager) CleanupExpired() {
 				op.cancel()
 			}
 			delete(om.Operations, opId)
+		}
+	}
+}
+
+func initalizeOperation(req SyncDataRequest, tr TypeRegistry, s *IdStore) (*Operation, error) {
+	var op *Operation
+	idCache, cacheExists := s.GetOrCreateIdCache(req.Account.RealmID)
+	dataSources := map[string]DataSource{}
+	for _, requestedType := range req.Types {
+		storedType, exists := tr.GetType(requestedType)
+		if !exists {
+			return nil, fmt.Errorf("requested type: %s does not exist in the TypeRegistry", requestedType)
+		}
+		switch typ := storedType.(type) {
+		case UnionType:
+			for _, sourceId := range typ.SourceIds() {
+				if source, ok := dataSources[sourceId]; !ok {
+					dataSources[sourceId] = DataSource{
+						TargetTypes: []Type{storedType},
+					}
+				} else {
+					source.TargetTypes = append(source.TargetTypes, storedType)
+					sources[id] = source
+				}
+			}
+		case DeltaDepType:
+			groupCounts[typ.SourceId()]++
+		default:
+			groupCounts[typ.Id()]++
 		}
 	}
 }

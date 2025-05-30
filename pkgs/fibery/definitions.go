@@ -128,8 +128,8 @@ type Relation struct {
 }
 
 type Field struct {
-	Ignore      bool             `json:"ignore,omitempty"`
 	Name        string           `json:"name"`
+	Ignore      bool             `json:"ignore,omitempty"`
 	Description string           `json:"description,omitempty"`
 	ReadOnly    bool             `json:"readonly,omitempty"`
 	Type        FieldType        `json:"type,omitempty"`
@@ -180,22 +180,4 @@ type WebhookData map[string][]map[string]any
 
 type WebhookTransformResponse struct {
 	Data WebhookData `json:"data"`
-}
-
-type BaseType struct {
-	TypeId     string
-	TypeName   string
-	TypeSchema map[string]Field
-}
-
-func (t *BaseType) Id() string {
-	return t.TypeId
-}
-
-func (t *BaseType) Name() string {
-	return t.TypeName
-}
-
-func (t *BaseType) Schema() map[string]Field {
-	return t.TypeSchema
 }

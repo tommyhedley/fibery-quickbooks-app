@@ -336,7 +336,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	attachableSources := GetAttachmentSources(params.Schema, "Attachables")
+	attachableSources := GetAttachmentSources(params.Schema, "Files")
 	for source := range attachableSources {
 		slog.Debug(fmt.Sprintf("attachable source: %s", source))
 	}
@@ -466,7 +466,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 			Token:   &params.Account.BearerToken,
 		}
 
-		oldestChange = oldestChange.Add(time.Second * -3)
+		oldestChange = oldestChange.Add(time.Second * -5)
 
 		cdc, err := i.client.ChangeDataCapture(reqParams, cdcQueryEntities, oldestChange)
 		if err != nil {
@@ -494,6 +494,7 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 				}
 
 				attachableURL := GenerateAttachablesURL(attachable)
+				fmt.Println(attachableURL)
 
 				for _, ref := range attachable.AttachableRef {
 					if !activeAttachableSources[ref.EntityRef.Type] {
@@ -504,8 +505,8 @@ func (i *Integration) WebhookTransformHandler(w http.ResponseWriter, r *http.Req
 
 					for i, item := range items {
 						if item["id"] == ref.EntityRef.Value {
-							URLs := resp.Data[ref.EntityRef.Type][i]["Attachable"].([]string)
-							resp.Data[ref.EntityRef.Type][i]["Attachable"] = append(URLs, attachableURL)
+							URLs := resp.Data[ref.EntityRef.Type][i]["Files"].([]string)
+							resp.Data[ref.EntityRef.Type][i]["Files"] = append(URLs, attachableURL)
 						}
 					}
 				}

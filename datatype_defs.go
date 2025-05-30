@@ -8,10 +8,11 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-type Type interface {
+type Type2 interface {
 	Id() string
 	Name() string
 	Schema() map[string]fibery.Field
+	SelectStatement(start, pageSize int) string
 	GetData(client *quickbooks.Client, op *Operation, pagination fibery.NextPageConfig, pageSize int) (fibery.DataHandlerResponse, error)
 }
 
@@ -22,22 +23,22 @@ type DeltaDepType interface {
 	MapSource(sourceEntity any) (map[string]struct{}, error)
 }
 
-type UnionType interface {
+type UnionType2 interface {
 	Type
 	SourceIds() []string
 	UnionTypes() []Type
 }
 
-type CDCType interface {
+type CDCType2 interface {
 	Type
 	processCDC(cdc *quickbooks.ChangeDataCapture) ([]map[string]any, error)
 }
 
-type WebhookType interface {
+type WebhookType2 interface {
 	Type
 	ProcessWebhookUpdate(batchData *quickbooks.BatchItemResponse, resp *fibery.WebhookTransformResponse) error
 	ProcessWebhookDeletions(ids []string, resp *fibery.WebhookTransformResponse)
-	GetRelatedTypes() []CDCType
+	GetRelatedTypes() []CDCType2
 }
 
 type CDCDepType interface {
@@ -56,10 +57,10 @@ type pageQueryFunc[T any] func(client *quickbooks.Client, requestParams quickboo
 type entityFieldValueFunc[T, V any] func(T) V
 
 type depSchemaGenFunc[ST any] func(ST) ([]map[string]any, error)
-type sourceMapperFunc[ST any] func(ST) map[string]struct{}
 
 type QuickBooksType[T any] struct {
-	fibery.BaseType
+	fibery.Type
+	FieldDef[T]
 	schemaGen schemaGenFunc[T]
 	pageQuery pageQueryFunc[T]
 }
@@ -83,8 +84,9 @@ type QuickBooksDualType[T any] struct {
 	relatedTypes []CDCType
 }
 
-type dependentBaseType[ST any] struct {
-	fibery.BaseType
+type dependentBaseType[ST, T any] struct {
+	fibery.Type
+	DependentFieldDef[ST, T]
 	schemaGen depSchemaGenFunc[ST]
 }
 
@@ -93,7 +95,7 @@ type DependentDataType[ST any] struct {
 	sourceType *QuickBooksType[ST]
 }
 
-type DependentCDCType[ST any] struct {
+type DependentCDCType2[ST any] struct {
 	dependentBaseType[ST]
 	sourceType   *QuickBooksCDCType[ST]
 	sourceId     entityFieldValueFunc[ST, string]
@@ -108,7 +110,7 @@ type DependentWHType[ST any] struct {
 	sourceMapper sourceMapperFunc[ST]
 }
 
-type DependentDualType[ST any] struct {
+type DependentDualType2[ST any] struct {
 	dependentBaseType[ST]
 	sourceType   *QuickBooksDualType[ST]
 	sourceId     entityFieldValueFunc[ST, string]
@@ -450,7 +452,7 @@ func getData[T any](
 			for i, item := range items {
 				if id, ok := item["id"].(string); ok {
 					if attachments, exists := requestType.Attachables[id]; exists && len(attachments) > 0 {
-						items[i]["Attachments"] = attachments
+						items[i]["Files"] = attachments
 						slog.Debug(fmt.Sprintf("attachables linked to %s:%s", storedType.Id(), id))
 						fmt.Println(items[i])
 					}
