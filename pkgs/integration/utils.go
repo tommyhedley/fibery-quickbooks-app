@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"encoding/json"
@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
@@ -66,18 +65,6 @@ func HandleRequestError(w http.ResponseWriter, code int, errMsg string, err erro
 	}
 }
 
-func GetAttachmentSources(schema map[string]map[string]fibery.Field, attachablesFieldName string) map[string]bool {
-	typeMap := map[string]bool{}
-	for typeId, fields := range schema {
-		for _, field := range fields {
-			if field.SubType == fibery.File {
-				typeMap[typeId] = true
-			}
-		}
-	}
-	return typeMap
-}
-
-func GenerateAttachablesURL(a quickbooks.Attachable) string {
-	return fmt.Sprintf("app://resource?type=%s&id=%s", "attachable", a.Id)
+func startPosition(page, pageSize int) int {
+	return ((page - 1) * pageSize) + 1
 }

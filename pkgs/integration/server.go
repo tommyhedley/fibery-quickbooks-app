@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"bytes"
@@ -117,7 +117,7 @@ func gzipMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func NewIntegrationHandler(i *Integration) http.Handler {
+func NewHandler(i *Integration) http.Handler {
 	mux := http.NewServeMux()
 	fibery.RegisterFiberyRoutes(mux, i)
 	var handler http.Handler = mux

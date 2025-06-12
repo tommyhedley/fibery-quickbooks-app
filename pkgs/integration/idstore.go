@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"sync"
@@ -152,4 +152,3 @@ func (c *IdCache) RemoveSource(source IdKey) bool {
 	}
 	return false
 }
-

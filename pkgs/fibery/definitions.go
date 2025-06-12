@@ -40,7 +40,7 @@ type ActionArg struct {
 }
 
 type Action struct {
-	ActionID    string      `json:"action"`
+	ActionId    string      `json:"action"`
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
 	Args        []ActionArg `json:"args"`
@@ -154,8 +154,7 @@ const (
 )
 
 type NextPageConfig struct {
-	StartPosition int      `json:"startPosition"`
-	Types         []string `json:"types"`
+	Page int `json:"page"`
 }
 
 type Pagination struct {
@@ -180,4 +179,10 @@ type WebhookData map[string][]map[string]any
 
 type WebhookTransformResponse struct {
 	Data WebhookData `json:"data"`
+}
+
+type Type interface {
+	Id() string
+	Name() string
+	Schema() map[string]Field
 }

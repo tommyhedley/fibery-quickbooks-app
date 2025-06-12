@@ -1,11 +1,11 @@
-package main
+package integration
 
 import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 
 func BuildActions() []fibery.Action {
 	return []fibery.Action{
 		{
-			ActionID:    "test",
+			ActionId:    "test",
 			Name:        "Test Action",
 			Description: "This is a text action",
 			Args: []fibery.ActionArg{

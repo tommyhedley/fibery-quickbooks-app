@@ -5,51 +5,51 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/tommyhedley/quickbooks-go"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 )
 
 func main() {
-	config := NewProgramConfig(1000, 600)
-	types := NewTypeRegistry()
+	shutdownCtx, shutdownCancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer shutdownCancel()
 
-	discoveryAPI, err := quickbooks.CallDiscoveryAPI(config.DiscoverURL())
-	if err != nil {
-		log.Fatalf("error calling discovery API: %s\n", err.Error())
+	params := integration.Parameters{
+		Version:                    "dev-v0.0.3",
+		PageSize:                   1000,
+		RefreshSecBeforeExpiration: 600,
+		AttachableFieldId:          "Attachables",
+		OperationTTL:               time.Duration(30 * time.Second),
+		IdCacheTTL:                 time.Duration(24 * time.Hour),
 	}
 
-	clientReq := config.NewClientRequest(discoveryAPI, http.DefaultClient)
-
-	client, err := quickbooks.NewClient(clientReq)
+	integ, err := integration.New(shutdownCtx, params)
 	if err != nil {
-		log.Fatalf("error creating quickbooks client: %s\n", err.Error())
+		log.Fatalf("unable to create new integration: %w", err)
 	}
-
-	operationTTL := time.Duration(30 * time.Second)
-	idCacheTTL := time.Duration(24 * time.Hour)
-
-	integration := NewIntegration(AppConfig(version), SyncConfig(types), config, types, client, operationTTL, idCacheTTL)
-	slog.SetDefault(config.BuildLogger())
 
 	server := &http.Server{
-		Addr:         ":" + config.Port,
-		Handler:      NewIntegrationHandler(integration),
+		Addr:    ":" + integ.Port(),
+		Handler: integration.NewHandler(integ),
+		BaseContext: func(net.Listener) context.Context {
+			return shutdownCtx
+		},
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
 
-	done := make(chan bool)
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	go func() {
-		<-quit
+		<-shutdownCtx.Done()
 		slog.Info("Server is shutting down...")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
@@ -58,15 +58,13 @@ func main() {
 		if err := server.Shutdown(ctx); err != nil {
 			slog.Error(fmt.Sprintf("Could not gracefully shutdown the server %+v", err))
 		}
-		close(done)
 	}()
 
-	slog.Info(fmt.Sprintf("Server starting at port %s...", config.Port))
+	slog.Info(fmt.Sprintf("Server starting at port %s...", integ.Port()))
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error(fmt.Sprintf("Could not listen on :%s %+v", config.Port, err))
+		slog.Error(fmt.Sprintf("Could not listen on :%s %+v", integ.Port(), err))
 	}
 
-	<-done
 	slog.Info("Server stopped")
 }
