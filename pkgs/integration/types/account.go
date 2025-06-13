@@ -208,6 +208,7 @@ var account = integration.NewDualType(
 			},
 		},
 	},
+	nil,
 )
 
 func init() {

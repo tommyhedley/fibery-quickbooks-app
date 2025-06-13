@@ -41,7 +41,7 @@ type WebhookDependentType interface {
 	ProcessWebhookDeletions(sourceIds []string, idCache *IdCache) ([]map[string]any, error)
 }
 
-type dualType interface {
+type DualType interface {
 	CDCType
 	WebhookType
 }
@@ -143,7 +143,7 @@ type DependentDualTypeDef[ST, T any] struct {
 }
 
 type UnionTypeDef struct {
-	SourceTypes []dualType
+	SourceTypes []DualType
 	FiberyId    string
 	FiberyName  string
 	Fields      map[string]UnionFieldDef
@@ -219,6 +219,7 @@ func NewWebhookType[T any](
 	batchItemExtractor func(quickbooks.BatchItemResponse) T,
 	batchQueryExtractor func(quickbooks.BatchQueryResponse) []T,
 	addlFields map[string]FieldDef[T],
+	relatedTypes []CDCType,
 ) *WebhookTypeDef[T] {
 	return &WebhookTypeDef[T]{
 		StandardTypeDef: *NewStandardType(
@@ -232,6 +233,7 @@ func NewWebhookType[T any](
 		),
 		ItemId:      itemId,
 		ItemBuilder: itemBuilder,
+		Related:     relatedTypes,
 	}
 }
 
@@ -244,6 +246,7 @@ func NewDualType[T any](
 	batchQueryExtractor func(quickbooks.BatchQueryResponse) []T,
 	cdcQueryExtractor func(quickbooks.CDCQueryResponse) []T,
 	addlFields map[string]FieldDef[T],
+	relatedTypes []CDCType,
 ) *DualTypeDef[T] {
 	return &DualTypeDef[T]{
 		CDCTypeDef: CDCTypeDef[T]{
@@ -261,6 +264,7 @@ func NewDualType[T any](
 			CDCQueryExtractor: cdcQueryExtractor,
 		},
 		ItemBuilder: itemBuilder,
+		Related:     relatedTypes,
 	}
 }
 
@@ -383,7 +387,7 @@ func NewDependentDualType[ST, T any](
 }
 
 func NewUnionType(
-	sourceTypes []dualType,
+	sourceTypes []DualType,
 	fiberyId, fiberyName string,
 	fields map[string]UnionFieldDef,
 ) *UnionTypeDef {

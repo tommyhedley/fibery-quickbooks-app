@@ -1,6 +1,8 @@
 package types
 
 import (
+	"fmt"
+
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
@@ -221,8 +223,303 @@ var bill = integration.NewDualType(
 			},
 		},
 	},
+	[]integration.CDCType{reimburseCharge},
+)
+
+var billItemLine = integration.NewDependentDualType(
+	"bill",
+	"billItemLine",
+	"Bill Item Line",
+	func(b quickbooks.Bill, l quickbooks.Line) string {
+		return fmt.Sprintf("%s:i:%s", b.Id, l.Id)
+	},
+	func(b quickbooks.Bill) []quickbooks.Line {
+		return b.Line
+	},
+	func(b quickbooks.Bill) string {
+		return b.Id
+	},
+	func(b quickbooks.Bill) string {
+		return b.Status
+	},
+	func(id string) quickbooks.Bill {
+		return quickbooks.Bill{
+			Id: id,
+		}
+	},
+	func(bir quickbooks.BatchItemResponse) quickbooks.Bill {
+		return bir.Bill
+	},
+	func(bqr quickbooks.BatchQueryResponse) []quickbooks.Bill {
+		return bqr.Bill
+	},
+	func(cr quickbooks.CDCQueryResponse) []quickbooks.Bill {
+		return cr.Bill
+	},
+	map[string]integration.DependentFieldDef[quickbooks.Bill, quickbooks.Line]{
+		"QBOId": {
+			Params: fibery.Field{
+				Name: "QBO ID",
+				Type: fibery.Text,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.Id, nil
+			},
+		},
+		"Name": {
+			Params: fibery.Field{
+				Name:    "Name",
+				Type:    fibery.Text,
+				SubType: fibery.Title,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				var name string
+				if dd.Item.Description == "" {
+					name = dd.Item.ItemBasedExpenseLineDetail.ItemRef.Name
+				} else {
+					name = dd.Item.ItemBasedExpenseLineDetail.ItemRef.Name + dd.Item.Description
+				}
+				return name, nil
+			},
+		},
+		"Description": {
+			Params: fibery.Field{
+				Name: "Description",
+				Type: fibery.Text,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.Description, nil
+			},
+		},
+		"__syncAction": {
+			Params: fibery.Field{
+				Type: fibery.Text,
+				Name: "Sync Action",
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return fibery.SET, nil
+			},
+		},
+		"LineNum": {
+			Params: fibery.Field{
+				Name:    "Line",
+				Type:    fibery.Number,
+				SubType: fibery.Integer,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.LineNum, nil
+			},
+		},
+		"Tax": {
+			Params: fibery.Field{
+				Name:    "Tax",
+				Type:    fibery.Text,
+				SubType: fibery.Boolean,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				tax := false
+				if dd.Item.ItemBasedExpenseLineDetail.TaxCodeRef.Value == "TAX" {
+					tax = true
+				}
+				return tax, nil
+			},
+		},
+		"Billable": {
+			Params: fibery.Field{
+				Name:    "Billable",
+				Type:    fibery.Text,
+				SubType: fibery.Boolean,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				var billable bool
+				switch dd.Item.ItemBasedExpenseLineDetail.BillableStatus {
+				case quickbooks.BillableStatusType:
+					billable = true
+				case quickbooks.HasBeenBilledStatusType:
+					billable = true
+				default:
+					billable = false
+				}
+				return billable, nil
+			},
+		},
+		"Billed": {
+			Params: fibery.Field{
+				Name:    "Billed",
+				Type:    fibery.Text,
+				SubType: fibery.Boolean,
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				billed := false
+				if dd.Item.ItemBasedExpenseLineDetail.BillableStatus == quickbooks.HasBeenBilledStatusType {
+					billed = true
+				}
+				return billed, nil
+			},
+		},
+		"Qty": {
+			Params: fibery.Field{
+				Name: "Quantity",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":               "Number",
+					"hasThousandSeparator": true,
+					"precision":            2,
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.Qty, nil
+			},
+		},
+		"UnitPrice": {
+			Params: fibery.Field{
+				Name: "Unit Price",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":               "Money",
+					"currencyCode":         "USD",
+					"hasThousandSeperator": true,
+					"precision":            2,
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.UnitPrice, nil
+			},
+		},
+		"MarkupPercent": {
+			Params: fibery.Field{
+				Name: "Markup",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":    "Percent",
+					"precision": 2,
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.MarkupInfo, nil
+			},
+		},
+		"Amount": {
+			Params: fibery.Field{
+				Name: "Amount",
+				Type: fibery.Number,
+				Format: map[string]any{
+					"format":               "Money",
+					"currencyCode":         "USD",
+					"hasThousandSeperator": true,
+					"precision":            2,
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.Amount, nil
+			},
+		},
+		"BillId": {
+			Params: fibery.Field{
+				Name: "Bill ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Bill",
+					TargetName:    "Item Lines",
+					TargetType:    "Bill",
+					TargetFieldID: "id",
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.SourceItem.Id, nil
+			},
+		},
+		"ItemId": {
+			Params: fibery.Field{
+				Name: "Item ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Item",
+					TargetName:    "Bill Item Lines",
+					TargetType:    "Item",
+					TargetFieldID: "id",
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.ItemRef.Value, nil
+			},
+		},
+		"CustomerId": {
+			Params: fibery.Field{
+				Name: "Customer ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Customer",
+					TargetName:    "Bill Item Lines",
+					TargetType:    "Customer",
+					TargetFieldID: "id",
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.CustomerRef.Value, nil
+			},
+		},
+		"ClassId": {
+			Params: fibery.Field{
+				Name: "Class ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Class",
+					TargetName:    "Bill Item Lines",
+					TargetType:    "Class",
+					TargetFieldID: "id",
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.ClassRef.Value, nil
+			},
+		},
+		"MarkupAccountId": {
+			Params: fibery.Field{
+				Name: "Markup Account ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.MTO,
+					Name:          "Markup Income Account",
+					TargetName:    "Bill Item Line Markup",
+					TargetType:    "Account",
+					TargetFieldID: "id",
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				return dd.Item.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value, nil
+			},
+		},
+		"ReimburseChargeId": {
+			Params: fibery.Field{
+				Name: "Reimburse Charge ID",
+				Type: fibery.Text,
+				Relation: &fibery.Relation{
+					Cardinality:   fibery.OTO,
+					Name:          "Reimburse Charge",
+					TargetName:    "Bill Item Line",
+					TargetType:    "ReimburseCharge",
+					TargetFieldID: "id",
+				},
+			},
+			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+				var reimburseChargeId string
+				for _, txn := range dd.Item.LinkedTxn {
+					if txn.TxnType == "ReimburseCharge" {
+						reimburseChargeId = txn.TxnId
+					}
+				}
+				return reimburseChargeId, nil
+			},
+		},
+	},
 )
 
 func init() {
 	integration.Types.Register(bill)
+	integration.Types.Register(billItemLine)
 }
