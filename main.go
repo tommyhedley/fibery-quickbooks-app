@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
+	_ "github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration/types"
 )
 
 func main() {
@@ -27,8 +28,8 @@ func main() {
 		Version:                    "dev-v0.0.3",
 		PageSize:                   1000,
 		RefreshSecBeforeExpiration: 600,
-		AttachableFieldId:          "Attachables",
-		OperationTTL:               time.Duration(30 * time.Second),
+		AttachableFieldId:          "attachables",
+		OperationTTL:               time.Duration(15 * time.Second),
 		IdCacheTTL:                 time.Duration(24 * time.Hour),
 	}
 

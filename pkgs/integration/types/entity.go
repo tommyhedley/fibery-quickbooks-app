@@ -8,7 +8,7 @@ import (
 )
 
 var entity = integration.NewUnionType(
-	[]integration.DualType{customer, vendor, employee},
+	[]integration.StandardType{customer, vendor, employee},
 	"entity",
 	"Entity",
 	map[string]integration.UnionFieldDef{
@@ -22,19 +22,19 @@ var entity = integration.NewUnionType(
 				var ok bool
 
 				switch s {
-				case "customer":
+				case "Customer":
 					if id, ok = m["id"].(string); !ok {
-						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+						return nil, fmt.Errorf("unable to extract 'id' from customer item")
 					}
 					return "c:" + id, nil
-				case "vendor":
+				case "Vendor":
 					if id, ok = m["id"].(string); !ok {
-						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+						return nil, fmt.Errorf("unable to extract 'id' from vendor item")
 					}
 					return "v:" + id, nil
-				case "employee":
+				case "Employee":
 					if id, ok = m["id"].(string); !ok {
-						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+						return nil, fmt.Errorf("unable to extract 'id' from employee item")
 					}
 					return "e:" + id, nil
 				default:
@@ -42,20 +42,21 @@ var entity = integration.NewUnionType(
 				}
 			},
 		},
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO ID",
-				Type: fibery.Text,
+				Name:     "QBO ID",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(s string, m map[string]any) (any, error) {
 				id, ok := m["id"].(string)
 				if !ok {
-					return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+					return nil, fmt.Errorf("unable to extract 'id' for qboId from %s item", s)
 				}
 				return id, nil
 			},
 		},
-		"Name": {
+		"name": {
 			Params: fibery.Field{
 				Name:    "Name",
 				Type:    fibery.Text,
@@ -66,21 +67,21 @@ var entity = integration.NewUnionType(
 				var ok bool
 
 				switch s {
-				case "customer":
-					if name, ok = m["name"].(string); !ok {
-						return nil, fmt.Errorf("unable to extract 'name' from Customer item")
+				case "Customer":
+					if name, ok = m["displayName"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'displayName' from customer item")
 					}
-					return name + "(Customer)", nil
-				case "vendor":
-					if name, ok = m["name"].(string); !ok {
-						return nil, fmt.Errorf("unable to extract 'name' from Customer item")
+					return name + " (Customer)", nil
+				case "Vendor":
+					if name, ok = m["displayName"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'displayName' from vendor item")
 					}
-					return name + "(Vendor)", nil
-				case "employee":
-					if name, ok = m["name"].(string); !ok {
-						return nil, fmt.Errorf("unable to extract 'name' from Customer item")
+					return name + " (Vendor)", nil
+				case "Employee":
+					if name, ok = m["displayName"].(string); !ok {
+						return nil, fmt.Errorf("unable to extract 'displayName' from employee item")
 					}
-					return name + "(Employee)", nil
+					return name + " (Employee)", nil
 				default:
 					return nil, nil
 				}
@@ -92,14 +93,14 @@ var entity = integration.NewUnionType(
 				Name: "Sync Action",
 			},
 			Convert: func(s string, m map[string]any) (any, error) {
-				syncAction, ok := m["__syncAction"].(string)
+				syncAction, ok := m["__syncAction"].(fibery.SyncAction)
 				if !ok {
-					return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+					return nil, fmt.Errorf("unable to extract '__syncAction' from %s item", s)
 				}
 				return syncAction, nil
 			},
 		},
-		"CustomerId": {
+		"customerId": {
 			Params: fibery.Field{
 				Name: "Customer ID",
 				Type: fibery.Text,
@@ -107,15 +108,15 @@ var entity = integration.NewUnionType(
 					Cardinality:   fibery.OTO,
 					Name:          "Customer",
 					TargetName:    "Entity",
-					TargetType:    "vustomer",
+					TargetType:    "customer",
 					TargetFieldID: "id",
 				},
 			},
 			Convert: func(s string, m map[string]any) (any, error) {
-				if s == "customer" {
+				if s == "Customer" {
 					id, ok := m["id"].(string)
 					if !ok {
-						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+						return nil, fmt.Errorf("unable to extract 'id' for customerId from customer item")
 					}
 					return id, nil
 				} else {
@@ -123,7 +124,7 @@ var entity = integration.NewUnionType(
 				}
 			},
 		},
-		"EmployeeId": {
+		"employeeId": {
 			Params: fibery.Field{
 				Name: "Employee ID",
 				Type: fibery.Text,
@@ -131,15 +132,15 @@ var entity = integration.NewUnionType(
 					Cardinality:   fibery.OTO,
 					Name:          "Employee",
 					TargetName:    "Entity",
-					TargetType:    "vmployee",
+					TargetType:    "employee",
 					TargetFieldID: "id",
 				},
 			},
 			Convert: func(s string, m map[string]any) (any, error) {
-				if s == "employee" {
+				if s == "Employee" {
 					id, ok := m["id"].(string)
 					if !ok {
-						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+						return nil, fmt.Errorf("unable to extract 'id' for employeeId from employee item")
 					}
 					return id, nil
 				} else {
@@ -147,7 +148,7 @@ var entity = integration.NewUnionType(
 				}
 			},
 		},
-		"VendorId": {
+		"vendorId": {
 			Params: fibery.Field{
 				Name: "Vendor ID",
 				Type: fibery.Text,
@@ -160,10 +161,10 @@ var entity = integration.NewUnionType(
 				},
 			},
 			Convert: func(s string, m map[string]any) (any, error) {
-				if s == "vendor" {
+				if s == "Vendor" {
 					id, ok := m["id"].(string)
 					if !ok {
-						return nil, fmt.Errorf("unable to extract 'id' from Customer item")
+						return nil, fmt.Errorf("unable to extract 'id' for vendorId from vendor item")
 					}
 					return id, nil
 				} else {
@@ -173,3 +174,7 @@ var entity = integration.NewUnionType(
 		},
 	},
 )
+
+func init() {
+	integration.Types.Register(entity)
+}

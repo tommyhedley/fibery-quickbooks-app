@@ -9,7 +9,7 @@ import (
 )
 
 var bill = integration.NewDualType(
-	"bill",
+	"Bill",
 	"bill",
 	"Bill",
 	func(b quickbooks.Bill) string {
@@ -33,16 +33,17 @@ var bill = integration.NewDualType(
 		return cr.Bill
 	},
 	map[string]integration.FieldDef[quickbooks.Bill]{
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO Id",
-				Type: fibery.Text,
+				Name:     "QBO Id",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
-		"Name": {
+		"name": {
 			Params: fibery.Field{
 				Name:    "Name",
 				Type:    fibery.Text,
@@ -55,7 +56,7 @@ var bill = integration.NewDualType(
 				return sd.Item.VendorRef.Name + " – " + sd.Item.PrivateNote, nil
 			},
 		},
-		"SyncToken": {
+		"syncToken": {
 			Params: fibery.Field{
 				Name:     "Sync Token",
 				Type:     fibery.Text,
@@ -74,7 +75,7 @@ var bill = integration.NewDualType(
 				return fibery.SET, nil
 			},
 		},
-		"DocNumber": {
+		"docNumber": {
 			Params: fibery.Field{
 				Name: "Bill Number",
 				Type: fibery.Text,
@@ -83,7 +84,7 @@ var bill = integration.NewDualType(
 				return sd.Item.DocNumber, nil
 			},
 		},
-		"TxnDate": {
+		"txnDate": {
 			Params: fibery.Field{
 				Name:    "Bill Date",
 				Type:    fibery.DateType,
@@ -96,7 +97,7 @@ var bill = integration.NewDualType(
 				return sd.Item.TxnDate.Format(fibery.DateFormat), nil
 			},
 		},
-		"DueDate": {
+		"dueDate": {
 			Params: fibery.Field{
 				Name:    "Due Date",
 				Type:    fibery.DateType,
@@ -109,7 +110,7 @@ var bill = integration.NewDualType(
 				return sd.Item.DueDate.Format(fibery.DateFormat), nil
 			},
 		},
-		"PrivateNote": {
+		"privateNote": {
 			Params: fibery.Field{
 				Name:    "Memo",
 				Type:    fibery.Text,
@@ -119,7 +120,7 @@ var bill = integration.NewDualType(
 				return sd.Item.PrivateNote, nil
 			},
 		},
-		"TotalAmt": {
+		"totalAmt": {
 			Params: fibery.Field{
 				Name: "Total",
 				Type: fibery.Number,
@@ -134,7 +135,7 @@ var bill = integration.NewDualType(
 				return sd.Item.TotalAmt, nil
 			},
 		},
-		"Balance": {
+		"balance": {
 			Params: fibery.Field{
 				Name: "Balance",
 				Type: fibery.Number,
@@ -149,7 +150,7 @@ var bill = integration.NewDualType(
 				return sd.Item.Balance, nil
 			},
 		},
-		"VendorId": {
+		"vendorId": {
 			Params: fibery.Field{
 				Name: "Vendor Id",
 				Type: fibery.Text,
@@ -157,7 +158,7 @@ var bill = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Vendor",
 					TargetName:    "Bills",
-					TargetType:    "Vendor",
+					TargetType:    "vendor",
 					TargetFieldID: "id",
 				},
 			},
@@ -165,7 +166,7 @@ var bill = integration.NewDualType(
 				return sd.Item.VendorRef.Value, nil
 			},
 		},
-		"APAccountId": {
+		"apAccountId": {
 			Params: fibery.Field{
 				Name: "AP Account Id",
 				Type: fibery.Text,
@@ -173,7 +174,7 @@ var bill = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "AP Account",
 					TargetName:    "Bills",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -184,7 +185,7 @@ var bill = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"SalesTermId": {
+		"salesTermId": {
 			Params: fibery.Field{
 				Name: "Sales Term Id",
 				Type: fibery.Text,
@@ -192,7 +193,7 @@ var bill = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Terms",
 					TargetName:    "Bills",
-					TargetType:    "SalesTerm",
+					TargetType:    "salesTerm",
 					TargetFieldID: "id",
 				},
 			},
@@ -203,7 +204,7 @@ var bill = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"Files": {
+		"attachables": {
 			Params: fibery.Field{
 				Name:    "Files",
 				Type:    fibery.TextArray,
@@ -234,7 +235,13 @@ var billItemLine = integration.NewDependentDualType(
 		return fmt.Sprintf("%s:i:%s", b.Id, l.Id)
 	},
 	func(b quickbooks.Bill) []quickbooks.Line {
-		return b.Line
+		items := make([]quickbooks.Line, 0)
+		for _, line := range b.Line {
+			if line.DetailType == quickbooks.ItemExpenseLine {
+				items = append(items, line)
+			}
+		}
+		return items
 	},
 	func(b quickbooks.Bill) string {
 		return b.Id
@@ -257,16 +264,17 @@ var billItemLine = integration.NewDependentDualType(
 		return cr.Bill
 	},
 	map[string]integration.DependentFieldDef[quickbooks.Bill, quickbooks.Line]{
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO ID",
-				Type: fibery.Text,
+				Name:     "QBO ID",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.Id, nil
 			},
 		},
-		"Name": {
+		"name": {
 			Params: fibery.Field{
 				Name:    "Name",
 				Type:    fibery.Text,
@@ -277,12 +285,12 @@ var billItemLine = integration.NewDependentDualType(
 				if dd.Item.Description == "" {
 					name = dd.Item.ItemBasedExpenseLineDetail.ItemRef.Name
 				} else {
-					name = dd.Item.ItemBasedExpenseLineDetail.ItemRef.Name + dd.Item.Description
+					name = dd.Item.ItemBasedExpenseLineDetail.ItemRef.Name + " - " + dd.Item.Description
 				}
 				return name, nil
 			},
 		},
-		"Description": {
+		"description": {
 			Params: fibery.Field{
 				Name: "Description",
 				Type: fibery.Text,
@@ -300,7 +308,7 @@ var billItemLine = integration.NewDependentDualType(
 				return fibery.SET, nil
 			},
 		},
-		"LineNum": {
+		"lineNum": {
 			Params: fibery.Field{
 				Name:    "Line",
 				Type:    fibery.Number,
@@ -310,7 +318,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.LineNum, nil
 			},
 		},
-		"Tax": {
+		"tax": {
 			Params: fibery.Field{
 				Name:    "Tax",
 				Type:    fibery.Text,
@@ -324,7 +332,7 @@ var billItemLine = integration.NewDependentDualType(
 				return tax, nil
 			},
 		},
-		"Billable": {
+		"billable": {
 			Params: fibery.Field{
 				Name:    "Billable",
 				Type:    fibery.Text,
@@ -343,7 +351,7 @@ var billItemLine = integration.NewDependentDualType(
 				return billable, nil
 			},
 		},
-		"Billed": {
+		"billed": {
 			Params: fibery.Field{
 				Name:    "Billed",
 				Type:    fibery.Text,
@@ -357,7 +365,7 @@ var billItemLine = integration.NewDependentDualType(
 				return billed, nil
 			},
 		},
-		"Qty": {
+		"qty": {
 			Params: fibery.Field{
 				Name: "Quantity",
 				Type: fibery.Number,
@@ -371,7 +379,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.Qty, nil
 			},
 		},
-		"UnitPrice": {
+		"unitPrice": {
 			Params: fibery.Field{
 				Name: "Unit Price",
 				Type: fibery.Number,
@@ -386,7 +394,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.UnitPrice, nil
 			},
 		},
-		"MarkupPercent": {
+		"markupPercent": {
 			Params: fibery.Field{
 				Name: "Markup",
 				Type: fibery.Number,
@@ -399,7 +407,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.MarkupInfo, nil
 			},
 		},
-		"Amount": {
+		"amount": {
 			Params: fibery.Field{
 				Name: "Amount",
 				Type: fibery.Number,
@@ -414,7 +422,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.Amount, nil
 			},
 		},
-		"BillId": {
+		"billId": {
 			Params: fibery.Field{
 				Name: "Bill ID",
 				Type: fibery.Text,
@@ -422,7 +430,7 @@ var billItemLine = integration.NewDependentDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Bill",
 					TargetName:    "Item Lines",
-					TargetType:    "Bill",
+					TargetType:    "bill",
 					TargetFieldID: "id",
 				},
 			},
@@ -430,7 +438,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.SourceItem.Id, nil
 			},
 		},
-		"ItemId": {
+		"itemId": {
 			Params: fibery.Field{
 				Name: "Item ID",
 				Type: fibery.Text,
@@ -438,7 +446,7 @@ var billItemLine = integration.NewDependentDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Item",
 					TargetName:    "Bill Item Lines",
-					TargetType:    "Item",
+					TargetType:    "item",
 					TargetFieldID: "id",
 				},
 			},
@@ -446,7 +454,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.ItemRef.Value, nil
 			},
 		},
-		"CustomerId": {
+		"customerId": {
 			Params: fibery.Field{
 				Name: "Customer ID",
 				Type: fibery.Text,
@@ -454,7 +462,7 @@ var billItemLine = integration.NewDependentDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Customer",
 					TargetName:    "Bill Item Lines",
-					TargetType:    "Customer",
+					TargetType:    "customer",
 					TargetFieldID: "id",
 				},
 			},
@@ -462,7 +470,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.CustomerRef.Value, nil
 			},
 		},
-		"ClassId": {
+		"classId": {
 			Params: fibery.Field{
 				Name: "Class ID",
 				Type: fibery.Text,
@@ -470,7 +478,7 @@ var billItemLine = integration.NewDependentDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Class",
 					TargetName:    "Bill Item Lines",
-					TargetType:    "Class",
+					TargetType:    "class",
 					TargetFieldID: "id",
 				},
 			},
@@ -478,7 +486,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.ClassRef.Value, nil
 			},
 		},
-		"MarkupAccountId": {
+		"markupAccountId": {
 			Params: fibery.Field{
 				Name: "Markup Account ID",
 				Type: fibery.Text,
@@ -486,7 +494,7 @@ var billItemLine = integration.NewDependentDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Markup Income Account",
 					TargetName:    "Bill Item Line Markup",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -494,7 +502,7 @@ var billItemLine = integration.NewDependentDualType(
 				return dd.Item.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value, nil
 			},
 		},
-		"ReimburseChargeId": {
+		"reimburseChargeId": {
 			Params: fibery.Field{
 				Name: "Reimburse Charge ID",
 				Type: fibery.Text,
@@ -502,7 +510,7 @@ var billItemLine = integration.NewDependentDualType(
 					Cardinality:   fibery.OTO,
 					Name:          "Reimburse Charge",
 					TargetName:    "Bill Item Line",
-					TargetType:    "ReimburseCharge",
+					TargetType:    "reimburseCharge",
 					TargetFieldID: "id",
 				},
 			},

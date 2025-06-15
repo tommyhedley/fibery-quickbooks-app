@@ -35,7 +35,7 @@ func (tr TypeRegistry) GetAll() []fibery.SyncConfigTypes {
 	return types
 }
 
-var Types TypeRegistry
+var Types = make(TypeRegistry)
 
 type ActionRegistry map[string]fibery.Action
 
@@ -58,7 +58,7 @@ func (ar ActionRegistry) GetAll() []fibery.Action {
 	return actions
 }
 
-var Actions ActionRegistry
+var Actions = make(ActionRegistry)
 
 type Integration struct {
 	appConfig  fibery.AppConfig

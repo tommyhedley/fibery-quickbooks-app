@@ -48,7 +48,9 @@ type DualType interface {
 
 type UnionType interface {
 	fibery.Type
-	Types() []string
+	Types() []StandardType
+	CDC() bool
+	Webhook() bool
 	ProcessBatchQuery(batches map[string]*quickbooks.BatchItemResponse, pageSize int) ([]map[string]any, map[string]struct{}, error)
 	ProcessCDCQuery(cdc *quickbooks.ChangeDataCapture, pageSize int) ([]map[string]any, error)
 	ProcessWebhookDeletions(deletedSources map[string][]string) ([]map[string]any, error)
@@ -143,7 +145,7 @@ type DependentDualTypeDef[ST, T any] struct {
 }
 
 type UnionTypeDef struct {
-	SourceTypes []DualType
+	SourceTypes []StandardType
 	FiberyId    string
 	FiberyName  string
 	Fields      map[string]UnionFieldDef
@@ -181,6 +183,7 @@ func NewStandardType[T any](
 		TypeId:              typeId,
 		FiberyId:            fiberyId,
 		FiberyName:          fiberyName,
+		Fields:              fields,
 		BatchItemExtractor:  batchItemExtractor,
 		BatchQueryExtractor: batchQueryExtractor,
 	}
@@ -387,7 +390,7 @@ func NewDependentDualType[ST, T any](
 }
 
 func NewUnionType(
-	sourceTypes []DualType,
+	sourceTypes []StandardType,
 	fiberyId, fiberyName string,
 	fields map[string]UnionFieldDef,
 ) *UnionTypeDef {
@@ -986,12 +989,8 @@ func (t *UnionTypeDef) Convert(typeId string, item map[string]any) (map[string]a
 	return output, nil
 }
 
-func (t *UnionTypeDef) Types() []string {
-	output := make([]string, 0, len(t.SourceTypes))
-	for _, source := range t.SourceTypes {
-		output = append(output, source.Type())
-	}
-	return output
+func (t *UnionTypeDef) Types() []StandardType {
+	return t.SourceTypes
 }
 
 func (t *UnionTypeDef) CDC() bool {
@@ -1036,8 +1035,6 @@ func (t *UnionTypeDef) ProcessBatchQuery(batches map[string]*quickbooks.BatchIte
 			if m {
 				more[source.Type()] = struct{}{}
 			}
-		} else {
-			return nil, nil, fmt.Errorf("no valid batch passed for: %s", source.Type())
 		}
 	}
 	return output, more, nil

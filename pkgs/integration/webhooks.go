@@ -27,10 +27,9 @@ type WebhookRequest struct {
 		AcceptEncoding                  string    `json:"accept-encoding"`
 		Authorization                   string    `json:"authorization"`
 	} `json:"params"`
-	Types   []string                           `json:"types"`
-	Schema  map[string]map[string]fibery.Field `json:"schema"`
-	Filter  map[string]any                     `json:"filter"`
-	Account QuickBooksAccountInfo              `json:"account"`
+	Types   []string              `json:"types"`
+	Filter  map[string]any        `json:"filter"`
+	Account QuickBooksAccountInfo `json:"account"`
 	Payload struct {
 		EventNotifications []struct {
 			RealmId         string `json:"realmId"`
@@ -60,6 +59,7 @@ type RelatedType struct {
 }
 
 type WebhookGroup struct {
+	sync.Mutex
 	webhookTypes      map[string]fibery.Type
 	relatedTypes      map[string]*RelatedType
 	updatedSources    map[string]*WebhookUpdatedSource
@@ -83,9 +83,11 @@ func buildWebhookGroup(req WebhookRequest, i *Integration, cdcLookback time.Dura
 		relatedTypes:   make(map[string]*RelatedType),
 		updatedSources: make(map[string]*WebhookUpdatedSource),
 		deletedSources: make(map[string][]string),
+		oldestChange:   time.Now(),
 		cdcLookback:    cdcLookback,
 		idCache:        idCache,
 		account:        req.Account,
+		integration:    i,
 	}
 
 	allSources := make(map[string]bool)
@@ -102,29 +104,18 @@ func buildWebhookGroup(req WebhookRequest, i *Integration, cdcLookback time.Dura
 	for typeId := range reqTypes {
 		regType, ok := i.types.Get(typeId)
 		if !ok {
-			return nil, fmt.Errorf("")
+			return nil, fmt.Errorf("requestedType: %s not found", typeId)
 		} else {
 			switch t := regType.(type) {
 			case UnionType:
-				schema, ok := req.Schema[typeId]
-				if !ok {
-					return nil, fmt.Errorf("no schema for %s was provided on the request", typeId)
-				}
+				if t.Webhook() {
+					group.webhookTypes[t.Id()] = regType
 
-				getAttach := attachableField(schema, attachableFieldId)
-
-				group.webhookTypes[t.Id()] = regType
-
-				for _, sourceTypeId := range t.Types() {
-
-					_, ok = allSources[sourceTypeId]
-					if !ok {
-						allSources[sourceTypeId] = getAttach
-						continue
-					}
-
-					if getAttach {
-						allSources[sourceTypeId] = getAttach
+					for _, sourceType := range t.Types() {
+						_, ok = allSources[sourceType.Type()]
+						if !ok {
+							allSources[sourceType.Type()] = false
+						}
 					}
 				}
 			case WebhookDependentType:
@@ -135,23 +126,15 @@ func buildWebhookGroup(req WebhookRequest, i *Integration, cdcLookback time.Dura
 					allSources[t.SourceType()] = false
 				}
 			case WebhookType:
-				schema, ok := req.Schema[typeId]
-				if !ok {
-					return nil, fmt.Errorf("no schema for %s was provided on the request", typeId)
-				}
-
-				getAttach := attachableField(schema, attachableFieldId)
-
 				group.webhookTypes[t.Id()] = regType
 
 				_, ok = allSources[t.Type()]
 				if !ok {
-					allSources[t.Type()] = getAttach
-					continue
+					allSources[t.Type()] = t.Attachables(attachableFieldId)
 				}
 
-				if getAttach {
-					allSources[t.Type()] = getAttach
+				if t.Attachables(attachableFieldId) {
+					allSources[t.Type()] = true
 				}
 
 				relatedTypes, ok := relatedTypesBySource[t.Type()]
@@ -161,15 +144,9 @@ func buildWebhookGroup(req WebhookRequest, i *Integration, cdcLookback time.Dura
 
 				for typeId, relatedType := range t.RelatedTypes() {
 					if _, ok := reqTypes[typeId]; ok {
-						schema, ok := req.Schema[typeId]
-						if !ok {
-							return nil, fmt.Errorf("no schema for %s was provided on the request", typeId)
-						}
-
-						getAttach := attachableField(schema, attachableFieldId)
 						relatedTypes[typeId] = &RelatedType{
 							typ:           relatedType,
-							getAttachable: getAttach,
+							getAttachable: relatedType.Attachables(attachableFieldId),
 						}
 					}
 				}
@@ -227,6 +204,8 @@ func buildWebhookGroup(req WebhookRequest, i *Integration, cdcLookback time.Dura
 }
 
 func (wg *WebhookGroup) indexBatch(batch []quickbooks.BatchItemResponse) error {
+	wg.Lock()
+	defer wg.Unlock()
 	for _, resp := range batch {
 		faults := resp.Fault.Faults
 		if len(faults) > 0 {
@@ -251,6 +230,7 @@ func (wg *WebhookGroup) indexBatch(batch []quickbooks.BatchItemResponse) error {
 				if more {
 					return fmt.Errorf("more than %d attachables returned for: %s", wg.integration.config.QuickBooks.PageSize, entityType)
 				}
+
 			}
 			continue
 		}
@@ -309,20 +289,24 @@ func (wg *WebhookGroup) doCDC(req []string, params quickbooks.RequestParameters)
 		return fmt.Errorf("error fetching cdc: %w", err)
 	}
 
+	wg.Lock()
 	wg.changeDataCapture = &cdc
+	wg.Unlock()
 
 	return nil
 }
 
 func (wg *WebhookGroup) fetchAll(ctx context.Context) error {
 	var (
-		fetch    sync.WaitGroup
-		batchReq []quickbooks.BatchItemRequest
-		cdcReq   []string
+		fetch sync.WaitGroup
+		once  sync.Once
+		first error
 	)
 
 	page := 1
 	pageSize := wg.integration.config.QuickBooks.PageSize
+
+	batchReq := make([]quickbooks.BatchItemRequest, 0, len(wg.updatedSources))
 
 	for sourceType, source := range wg.updatedSources {
 		if source.getAttachable {
@@ -331,11 +315,17 @@ func (wg *WebhookGroup) fetchAll(ctx context.Context) error {
 		batchReq = append(batchReq, batchQueryRequest(sourceType, source.ids, page, pageSize, false))
 	}
 
+	cdcReq := make([]string, 0, len(wg.relatedTypes))
+
 	for _, rlType := range wg.relatedTypes {
 		if rlType.getAttachable {
 			batchReq = append(batchReq, batchQueryRequest(rlType.typ.Type(), nil, page, pageSize, true))
 		}
 		cdcReq = append(cdcReq, rlType.typ.Type())
+	}
+
+	record := func(err error) {
+		once.Do(func() { first = err })
 	}
 
 	params := quickbooks.RequestParameters{
@@ -346,24 +336,30 @@ func (wg *WebhookGroup) fetchAll(ctx context.Context) error {
 	}
 
 	if len(cdcReq) > 0 {
+		fmt.Println(cdcReq)
 		fetch.Add(1)
 		go func() {
 			defer fetch.Done()
-			wg.doCDC(cdcReq, params)
+			if err := wg.doCDC(cdcReq, params); err != nil {
+				record(err)
+			}
 		}()
 	}
 
 	if len(batchReq) > 0 {
+		fmt.Println(batchReq)
 		fetch.Add(1)
 		go func() {
 			defer fetch.Done()
-			wg.doBatch(batchReq, params)
+			if err := wg.doBatch(batchReq, params); err != nil {
+				record(err)
+			}
 		}()
 	}
 
 	fetch.Wait()
 
-	return nil
+	return first
 }
 
 func (wg *WebhookGroup) process() (map[string][]map[string]any, error) {
@@ -374,20 +370,20 @@ func (wg *WebhookGroup) process() (map[string][]map[string]any, error) {
 		case UnionType:
 			batchResponses := make(map[string]*quickbooks.BatchItemResponse)
 			sourceDeletions := make(map[string][]string)
-			for _, typeId := range t.Types() {
-				source, ok := wg.updatedSources[typeId]
-				if !ok {
-					return nil, fmt.Errorf("no updatedSources found for: %s", typeId)
-				}
-
-				batchResponses[typeId] = source.batchData
-
-				deleteIds, ok := wg.deletedSources[typeId]
+			for _, sourceType := range t.Types() {
+				source, ok := wg.updatedSources[sourceType.Type()]
 				if !ok {
 					continue
 				}
 
-				sourceDeletions[typeId] = deleteIds
+				batchResponses[sourceType.Type()] = source.batchData
+
+				deleteIds, ok := wg.deletedSources[sourceType.Type()]
+				if !ok {
+					continue
+				}
+
+				sourceDeletions[sourceType.Type()] = deleteIds
 			}
 
 			updateItems, moreSource, err := t.ProcessBatchQuery(batchResponses, pageSize)
@@ -404,20 +400,24 @@ func (wg *WebhookGroup) process() (map[string][]map[string]any, error) {
 				return nil, fmt.Errorf("error processing deletedItems: %w", err)
 			}
 
-			typeOutout, ok := output[typeId]
-			if !ok {
-				typeOutout = make([]map[string]any, 0, len(updateItems)+len(deleteItems))
+			responseLength := len(updateItems) + len(deleteItems)
+
+			if responseLength > 0 {
+
+				typeOutout, ok := output[typeId]
+				if !ok {
+					typeOutout = make([]map[string]any, 0, responseLength)
+				}
+
+				typeOutout = append(typeOutout, updateItems...)
+				typeOutout = append(typeOutout, deleteItems...)
+
+				output[typeId] = typeOutout
 			}
-
-			typeOutout = append(typeOutout, updateItems...)
-			typeOutout = append(typeOutout, deleteItems...)
-
-			output[typeId] = typeOutout
-
 		case WebhookDependentType:
 			source, ok := wg.updatedSources[t.SourceType()]
 			if !ok {
-				return nil, fmt.Errorf("no updatedSources found for: %s", t.SourceType())
+				continue
 			}
 
 			updateItems, more, err := t.ProcessBatchQuery(source.batchData, wg.idCache, pageSize)
@@ -451,7 +451,7 @@ func (wg *WebhookGroup) process() (map[string][]map[string]any, error) {
 		case WebhookType:
 			source, ok := wg.updatedSources[t.Type()]
 			if !ok {
-				return nil, fmt.Errorf("no updatedSources found for: %s", t.Type())
+				continue
 			}
 
 			updateItems, more, err := t.ProcessBatchQuery(source.batchData, source.attachables, pageSize)

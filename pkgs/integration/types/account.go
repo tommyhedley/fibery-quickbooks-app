@@ -1,13 +1,16 @@
 package types
 
 import (
+	"fmt"
+	"regexp"
+
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
 var account = integration.NewDualType(
-	"account",
+	"Account",
 	"account",
 	"Account",
 	func(a quickbooks.Account) string {
@@ -31,16 +34,17 @@ var account = integration.NewDualType(
 		return cr.Account
 	},
 	map[string]integration.FieldDef[quickbooks.Account]{
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO Id",
-				Type: fibery.Text,
+				Name:     "QBO Id",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
-		"Name": {
+		"name": {
 			Params: fibery.Field{
 				Name: "Base Name",
 				Type: fibery.Text,
@@ -49,7 +53,7 @@ var account = integration.NewDualType(
 				return sd.Item.Name, nil
 			},
 		},
-		"FullyQualifiedName": {
+		"fullyQualifiedName": {
 			Params: fibery.Field{
 				Name:    "Full Name",
 				Type:    fibery.Text,
@@ -59,7 +63,7 @@ var account = integration.NewDualType(
 				return sd.Item.FullyQualifiedName, nil
 			},
 		},
-		"SyncToken": {
+		"syncToken": {
 			Params: fibery.Field{
 				Name:     "Sync Token",
 				Type:     fibery.Text,
@@ -78,7 +82,7 @@ var account = integration.NewDualType(
 				return fibery.SET, nil
 			},
 		},
-		"Active": {
+		"active": {
 			Params: fibery.Field{
 				Name:    "Active",
 				Type:    fibery.Text,
@@ -88,7 +92,7 @@ var account = integration.NewDualType(
 				return sd.Item.Active, nil
 			},
 		},
-		"Description": {
+		"description": {
 			Params: fibery.Field{
 				Name:    "Description",
 				Type:    fibery.Text,
@@ -98,7 +102,7 @@ var account = integration.NewDualType(
 				return sd.Item.Description, nil
 			},
 		},
-		"AcctNum": {
+		"acctNum": {
 			Params: fibery.Field{
 				Name: "Account Number",
 				Type: fibery.Text,
@@ -107,7 +111,7 @@ var account = integration.NewDualType(
 				return sd.Item.AcctNum, nil
 			},
 		},
-		"CurrentBalance": {
+		"currentBalance": {
 			Params: fibery.Field{
 				Name: "Balance",
 				Type: fibery.Number,
@@ -122,7 +126,7 @@ var account = integration.NewDualType(
 				return sd.Item.CurrentBalance, nil
 			},
 		},
-		"CurrentBalanceWithSubAccounts": {
+		"currentBalanceWithSubAccounts": {
 			Params: fibery.Field{
 				Name: "Balance With Sub-Accounts",
 				Type: fibery.Number,
@@ -137,7 +141,7 @@ var account = integration.NewDualType(
 				return sd.Item.CurrentBalanceWithSubAccounts, nil
 			},
 		},
-		"Classification": {
+		"classification": {
 			Params: fibery.Field{
 				Name:     "Classification",
 				Type:     fibery.Text,
@@ -165,7 +169,7 @@ var account = integration.NewDualType(
 				return sd.Item.Classification, nil
 			},
 		},
-		"AccountType": {
+		"accountType": {
 			Params: fibery.Field{
 				Name:     "Account Type",
 				Type:     fibery.Text,
@@ -176,7 +180,7 @@ var account = integration.NewDualType(
 				return sd.Item.AccountType, nil
 			},
 		},
-		"AccountSubType": {
+		"accountSubType": {
 			Params: fibery.Field{
 				Name:     "Account Sub-Type",
 				Type:     fibery.Text,
@@ -184,10 +188,16 @@ var account = integration.NewDualType(
 				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
-				return sd.Item.AccountSubType, nil
+				reg, err := regexp.Compile(`([a-z])([A-Z])`)
+				if err != nil {
+					return nil, fmt.Errorf("error creating regex: %w", err)
+				}
+
+				subtype := reg.ReplaceAllString(sd.Item.AccountSubType, `$1 $2`)
+				return subtype, nil
 			},
 		},
-		"ParentAccountId": {
+		"parentAccountId": {
 			Params: fibery.Field{
 				Name: "Parent Account ID",
 				Type: fibery.Text,
@@ -195,7 +205,7 @@ var account = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Parent Account",
 					TargetName:    "Sub-Accounts",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},

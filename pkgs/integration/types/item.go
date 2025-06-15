@@ -7,7 +7,7 @@ import (
 )
 
 var item = integration.NewDualType(
-	"item",
+	"Item",
 	"item",
 	"Item",
 	func(i quickbooks.Item) string {
@@ -31,16 +31,17 @@ var item = integration.NewDualType(
 		return cr.Item
 	},
 	map[string]integration.FieldDef[quickbooks.Item]{
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO ID",
-				Type: fibery.Text,
+				Name:     "QBO ID",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
-		"Name": {
+		"name": {
 			Params: fibery.Field{
 				Name: "Base Name",
 				Type: fibery.Text,
@@ -49,7 +50,7 @@ var item = integration.NewDualType(
 				return sd.Item.Name, nil
 			},
 		},
-		"FullyQualifiedName": {
+		"fullyQualifiedName": {
 			Params: fibery.Field{
 				Name:    "Full Name",
 				Type:    fibery.Text,
@@ -59,7 +60,7 @@ var item = integration.NewDualType(
 				return sd.Item.FullyQualifiedName, nil
 			},
 		},
-		"SyncToken": {
+		"syncToken": {
 			Params: fibery.Field{
 				Name:     "Sync Token",
 				Type:     fibery.Text,
@@ -78,7 +79,7 @@ var item = integration.NewDualType(
 				return fibery.SET, nil
 			},
 		},
-		"Active": {
+		"active": {
 			Params: fibery.Field{
 				Name:    "Active",
 				Type:    fibery.Text,
@@ -88,7 +89,7 @@ var item = integration.NewDualType(
 				return sd.Item.Active, nil
 			},
 		},
-		"Description": {
+		"description": {
 			Params: fibery.Field{
 				Name:    "Description",
 				Type:    fibery.Text,
@@ -98,7 +99,7 @@ var item = integration.NewDualType(
 				return sd.Item.Description, nil
 			},
 		},
-		"PurchaseDesc": {
+		"purchaseDesc": {
 			Params: fibery.Field{
 				Name: "Purchase Description",
 				Type: fibery.Text,
@@ -107,7 +108,7 @@ var item = integration.NewDualType(
 				return sd.Item.PurchaseDesc, nil
 			},
 		},
-		"InvStartDate": {
+		"invStartDate": {
 			Params: fibery.Field{
 				Name:    "Inventory Start",
 				Type:    fibery.DateType,
@@ -120,7 +121,7 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"Type": {
+		"type": {
 			Params: fibery.Field{
 				Name:     "Type",
 				Type:     fibery.Text,
@@ -136,6 +137,9 @@ var item = integration.NewDualType(
 					{
 						"name": "Non-Inventory",
 					},
+					{
+						"name": "Category",
+					},
 				},
 			},
 			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
@@ -146,12 +150,14 @@ var item = integration.NewDualType(
 					return "Service", nil
 				case "NonInventory":
 					return "Non-Inventory", nil
+				case "Category":
+					return "Category", nil
 				default:
 					return sd.Item.Type, nil
 				}
 			},
 		},
-		"QtyOnHand": {
+		"qtyOnHand": {
 			Params: fibery.Field{
 				Name: "Quantity On Hand",
 				Type: fibery.Number,
@@ -165,7 +171,7 @@ var item = integration.NewDualType(
 				return sd.Item.QtyOnHand, nil
 			},
 		},
-		"ReorderPoint": {
+		"reorderPoint": {
 			Params: fibery.Field{
 				Name: "Reorder Quantity",
 				Type: fibery.Number,
@@ -179,7 +185,7 @@ var item = integration.NewDualType(
 				return sd.Item.ReorderPoint, nil
 			},
 		},
-		"SKU": {
+		"sku": {
 			Params: fibery.Field{
 				Name: "SKU",
 				Type: fibery.Text,
@@ -188,7 +194,7 @@ var item = integration.NewDualType(
 				return sd.Item.SKU, nil
 			},
 		},
-		"Taxable": {
+		"taxable": {
 			Params: fibery.Field{
 				Name:    "Taxable",
 				Type:    fibery.Text,
@@ -198,7 +204,7 @@ var item = integration.NewDualType(
 				return sd.Item.Taxable, nil
 			},
 		},
-		"SalesTaxIncluded": {
+		"salesTaxIncluded": {
 			Params: fibery.Field{
 				Name:    "Sales Tax Included",
 				Type:    fibery.Text,
@@ -208,7 +214,7 @@ var item = integration.NewDualType(
 				return sd.Item.SalesTaxIncluded, nil
 			},
 		},
-		"PurchaseTaxIncluded": {
+		"purchaseTaxIncluded": {
 			Params: fibery.Field{
 				Name:    "Purchase Tax Included",
 				Type:    fibery.Text,
@@ -218,7 +224,7 @@ var item = integration.NewDualType(
 				return sd.Item.PurchaseTaxIncluded, nil
 			},
 		},
-		"SalesTaxCodeId": {
+		"salesTaxCodeId": {
 			Params: fibery.Field{
 				Name: "Sales Tax Code ID",
 				Type: fibery.Text,
@@ -226,7 +232,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Sales Tax",
 					TargetName:    "Sales Tax On Items",
-					TargetType:    "TaxCode",
+					TargetType:    "taxCode",
 					TargetFieldID: "id",
 				},
 			},
@@ -237,7 +243,7 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"PurchaseTaxCodeId": {
+		"purchaseTaxCodeId": {
 			Params: fibery.Field{
 				Name: "Purchase Tax Code ID",
 				Type: fibery.Text,
@@ -245,7 +251,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Purchase Tax",
 					TargetName:    "Purchase Tax On Items",
-					TargetType:    "TaxCode",
+					TargetType:    "taxCode",
 					TargetFieldID: "id",
 				},
 			},
@@ -256,7 +262,7 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"ClassId": {
+		"classId": {
 			Params: fibery.Field{
 				Name: "Class ID",
 				Type: fibery.Text,
@@ -264,7 +270,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Class",
 					TargetName:    "Items",
-					TargetType:    "Class",
+					TargetType:    "class",
 					TargetFieldID: "id",
 				},
 			},
@@ -275,7 +281,7 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"PrefVendorId": {
+		"prefVendorId": {
 			Params: fibery.Field{
 				Name: "Preferred Vendor ID",
 				Type: fibery.Text,
@@ -283,7 +289,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Preferred Vendor",
 					TargetName:    "Primary Sale Items",
-					TargetType:    "Vendor",
+					TargetType:    "vendor",
 					TargetFieldID: "id",
 				},
 			},
@@ -294,15 +300,15 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"ParentId": {
+		"categoryId": {
 			Params: fibery.Field{
 				Name: "Parent ID",
 				Type: fibery.Text,
 				Relation: &fibery.Relation{
 					Cardinality:   fibery.MTO,
-					Name:          "Parent",
-					TargetName:    "Sub-Items",
-					TargetType:    "Item",
+					Name:          "Category",
+					TargetName:    "Items",
+					TargetType:    "item",
 					TargetFieldID: "id",
 				},
 			},
@@ -313,7 +319,7 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"PurchaseCost": {
+		"purchaseCost": {
 			Params: fibery.Field{
 				Name: "Purchase Cost",
 				Type: fibery.Number,
@@ -328,7 +334,7 @@ var item = integration.NewDualType(
 				return sd.Item.PurchaseCost, nil
 			},
 		},
-		"UnitPrice": {
+		"unitPrice": {
 			Params: fibery.Field{
 				Name: "Unit Price",
 				Type: fibery.Number,
@@ -343,7 +349,7 @@ var item = integration.NewDualType(
 				return sd.Item.UnitPrice, nil
 			},
 		},
-		"AssetAccountId": {
+		"assetAccountId": {
 			Params: fibery.Field{
 				Name: "Asset Account ID",
 				Type: fibery.Text,
@@ -351,7 +357,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Asset Account",
 					TargetName:    "Inventory Items",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -359,7 +365,7 @@ var item = integration.NewDualType(
 				return sd.Item.AssetAccountRef.Value, nil
 			},
 		},
-		"ExpenseAccountId": {
+		"expenseAccountId": {
 			Params: fibery.Field{
 				Name: "Expense Account ID",
 				Type: fibery.Text,
@@ -367,7 +373,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Expense Account",
 					TargetName:    "Purchase Items",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -378,7 +384,7 @@ var item = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"IncomeAccountId": {
+		"incomeAccountId": {
 			Params: fibery.Field{
 				Name: "Income Account ID",
 				Type: fibery.Text,
@@ -386,7 +392,7 @@ var item = integration.NewDualType(
 					Cardinality:   fibery.MTO,
 					Name:          "Income Account",
 					TargetName:    "Sale Items",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -401,4 +407,3 @@ var item = integration.NewDualType(
 func init() {
 	integration.Types.Register(item)
 }
-

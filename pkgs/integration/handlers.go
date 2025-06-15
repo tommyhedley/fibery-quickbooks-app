@@ -133,9 +133,15 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	op.SubmitRequest(req)
+	err = op.SubmitRequest(req)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, err)
+		return
+	}
 
 	key := ResponseChannelKey(req.RequestedType, req.Pagination.Page)
+
+	slog.Debug(fmt.Sprintf("request submitted & key created"))
 
 	ch, err := op.GetChannel(key)
 	if err != nil {
@@ -143,18 +149,22 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Debug("channel found")
+
 	resp, ok := <-ch
 	if !ok {
 		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("channel prematurely closed for key: %s", key))
 		return
 	}
 
+	slog.Debug("received on channel")
+
 	if resp.Error != nil {
-		RespondWithError(w, http.StatusInternalServerError, err)
+		RespondWithError(w, http.StatusInternalServerError, resp.Error)
 		return
 	}
 
-	RespondWithJSON(w, http.StatusOK, resp)
+	RespondWithJSON(w, http.StatusOK, resp.DataHandlerResponse)
 }
 
 func (Integration) WebhookInitHandler(w http.ResponseWriter, r *http.Request) {

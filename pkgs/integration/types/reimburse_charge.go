@@ -11,9 +11,9 @@ import (
 )
 
 var reimburseCharge = integration.NewCDCType(
+	"Reimbursecharge",
 	"reimbursecharge",
-	"reimbursecharge",
-	"ReimburseCharge",
+	"Reimburse Charge",
 	func(r quickbooks.ReimburseCharge) string {
 		return r.Id
 	},
@@ -30,16 +30,17 @@ var reimburseCharge = integration.NewCDCType(
 		return cr.ReimburseCharge
 	},
 	map[string]integration.FieldDef[quickbooks.ReimburseCharge]{
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO ID",
-				Type: fibery.Text,
+				Name:     "QBO ID",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
-		"Name": {
+		"name": {
 			Params: fibery.Field{
 				Name:    "Name",
 				Type:    fibery.Text,
@@ -55,7 +56,7 @@ var reimburseCharge = integration.NewCDCType(
 				return name, nil
 			},
 		},
-		"Description": {
+		"description": {
 			Params: fibery.Field{
 				Name: "Description",
 				Type: fibery.Text,
@@ -73,16 +74,17 @@ var reimburseCharge = integration.NewCDCType(
 				return fibery.SET, nil
 			},
 		},
-		"SyncToken": {
+		"syncToken": {
 			Params: fibery.Field{
-				Name: "Sync Token",
-				Type: fibery.Text,
+				Name:     "Sync Token",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
-		"TxnDate": {
+		"txnDate": {
 			Params: fibery.Field{
 				Name:    "Date",
 				Type:    fibery.DateType,
@@ -95,7 +97,7 @@ var reimburseCharge = integration.NewCDCType(
 				return "", nil
 			},
 		},
-		"CustomerId": {
+		"customerId": {
 			Params: fibery.Field{
 				Name: "Customer ID",
 				Type: fibery.Text,
@@ -103,7 +105,7 @@ var reimburseCharge = integration.NewCDCType(
 					Cardinality:   fibery.MTO,
 					Name:          "Customer",
 					TargetName:    "Reimburse Charges",
-					TargetType:    "Customer",
+					TargetType:    "customer",
 					TargetFieldID: "id",
 				},
 			},
@@ -111,7 +113,7 @@ var reimburseCharge = integration.NewCDCType(
 				return sd.Item.CustomerRef.Value, nil
 			},
 		},
-		"TotalAmount": {
+		"totalAmount": {
 			Params: fibery.Field{
 				Name: "Total Amount",
 				Type: fibery.Number,
@@ -126,7 +128,7 @@ var reimburseCharge = integration.NewCDCType(
 				return sd.Item.Amount, nil
 			},
 		},
-		"Amount": {
+		"amount": {
 			Params: fibery.Field{
 				Name: "Amount",
 				Type: fibery.Number,
@@ -146,7 +148,7 @@ var reimburseCharge = integration.NewCDCType(
 				return 0, nil
 			},
 		},
-		"AccountId": {
+		"accountId": {
 			Params: fibery.Field{
 				Name: "Account ID",
 				Type: fibery.Text,
@@ -154,7 +156,7 @@ var reimburseCharge = integration.NewCDCType(
 					Cardinality:   fibery.MTO,
 					Name:          "Account",
 					TargetName:    "Reimburse Charges",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -167,7 +169,7 @@ var reimburseCharge = integration.NewCDCType(
 				return "", nil
 			},
 		},
-		"Markup": {
+		"markup": {
 			Params: fibery.Field{
 				Name: "Markup",
 				Type: fibery.Text,
@@ -200,7 +202,7 @@ var reimburseCharge = integration.NewCDCType(
 				return "", nil
 			},
 		},
-		"MarkupAccountId": {
+		"markupAccountId": {
 			Params: fibery.Field{
 				Name: "Markup Account ID",
 				Type: fibery.Text,
@@ -208,7 +210,7 @@ var reimburseCharge = integration.NewCDCType(
 					Cardinality:   fibery.MTO,
 					Name:          "Markup Account",
 					TargetName:    "Reimburse Charge Markup",
-					TargetType:    "Account",
+					TargetType:    "account",
 					TargetFieldID: "id",
 				},
 			},
@@ -221,7 +223,7 @@ var reimburseCharge = integration.NewCDCType(
 				return "", nil
 			},
 		},
-		"Taxable": {
+		"taxable": {
 			Params: fibery.Field{
 				Name:    "Taxable",
 				Type:    fibery.Text,
@@ -236,7 +238,7 @@ var reimburseCharge = integration.NewCDCType(
 				return false, nil
 			},
 		},
-		"LinkedInvoiceId": {
+		"linkedInvoiceId": {
 			Params: fibery.Field{
 				Name: "Linked Invoice ID",
 				Type: fibery.Text,
@@ -244,7 +246,7 @@ var reimburseCharge = integration.NewCDCType(
 					Cardinality:   fibery.MTO,
 					Name:          "Linked Invoice",
 					TargetName:    "Reimburse Charges",
-					TargetType:    "Invoice",
+					TargetType:    "invoice",
 					TargetFieldID: "id",
 				},
 			},

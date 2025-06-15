@@ -7,7 +7,7 @@ import (
 )
 
 var vendor = integration.NewDualType(
-	"vendor",
+	"Vendor",
 	"vendor",
 	"Vendor",
 	func(v quickbooks.Vendor) string {
@@ -31,16 +31,17 @@ var vendor = integration.NewDualType(
 		return cr.Vendor
 	},
 	map[string]integration.FieldDef[quickbooks.Vendor]{
-		"QBOId": {
+		"qboId": {
 			Params: fibery.Field{
-				Name: "QBO ID",
-				Type: fibery.Text,
+				Name:     "QBO ID",
+				Type:     fibery.Text,
+				ReadOnly: true,
 			},
 			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
-		"DisplayName": {
+		"displayName": {
 			Params: fibery.Field{
 				Name:    "Display Name",
 				Type:    fibery.Text,
@@ -50,7 +51,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.DisplayName, nil
 			},
 		},
-		"SyncToken": {
+		"syncToken": {
 			Params: fibery.Field{
 				Name:     "Sync Token",
 				Type:     fibery.Text,
@@ -69,7 +70,7 @@ var vendor = integration.NewDualType(
 				return fibery.SET, nil
 			},
 		},
-		"Active": {
+		"active": {
 			Params: fibery.Field{
 				Name:    "Active",
 				Type:    fibery.Text,
@@ -79,7 +80,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.Active, nil
 			},
 		},
-		"Title": {
+		"title": {
 			Params: fibery.Field{
 				Name: "Title",
 				Type: fibery.Text,
@@ -88,7 +89,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.Title, nil
 			},
 		},
-		"GivenName": {
+		"givenName": {
 			Params: fibery.Field{
 				Name: "First Name",
 				Type: fibery.Text,
@@ -97,7 +98,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.GivenName, nil
 			},
 		},
-		"MiddleName": {
+		"middleName": {
 			Params: fibery.Field{
 				Name: "Middle Name",
 				Type: fibery.Text,
@@ -106,7 +107,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.MiddleName, nil
 			},
 		},
-		"FamilyName": {
+		"familyName": {
 			Params: fibery.Field{
 				Name: "Last Name",
 				Type: fibery.Text,
@@ -115,7 +116,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.FamilyName, nil
 			},
 		},
-		"Suffix": {
+		"suffix": {
 			Params: fibery.Field{
 				Name: "Suffix",
 				Type: fibery.Text,
@@ -124,7 +125,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.Suffix, nil
 			},
 		},
-		"CompanyName": {
+		"companyName": {
 			Params: fibery.Field{
 				Name: "Company Name",
 				Type: fibery.Text,
@@ -133,7 +134,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.CompanyName, nil
 			},
 		},
-		"PrimaryEmail": {
+		"primaryEmail": {
 			Params: fibery.Field{
 				Name:    "Email",
 				Type:    fibery.Text,
@@ -146,7 +147,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"SalesTermId": {
+		"salesTermId": {
 			Params: fibery.Field{
 				Name: "Sales Term ID",
 				Type: fibery.Text,
@@ -165,7 +166,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"PrimaryPhone": {
+		"primaryPhone": {
 			Params: fibery.Field{
 				Name: "Phone",
 				Type: fibery.Text,
@@ -180,7 +181,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"AlternatePhone": {
+		"alternatePhone": {
 			Params: fibery.Field{
 				Name: "Alternate Phone",
 				Type: fibery.Text,
@@ -195,7 +196,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"Mobile": {
+		"mobile": {
 			Params: fibery.Field{
 				Name: "Mobile",
 				Type: fibery.Text,
@@ -210,7 +211,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"Fax": {
+		"fax": {
 			Params: fibery.Field{
 				Name: "Fax",
 				Type: fibery.Text,
@@ -236,7 +237,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.Vendor1099, nil
 			},
 		},
-		"CostRate": {
+		"costRate": {
 			Params: fibery.Field{
 				Name:        "Cost Rate",
 				Type:        fibery.Number,
@@ -252,7 +253,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.CostRate, nil
 			},
 		},
-		"BillRate": {
+		"billRate": {
 			Params: fibery.Field{
 				Name:        "Bill Rate",
 				Type:        fibery.Number,
@@ -268,7 +269,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.BillRate, nil
 			},
 		},
-		"Website": {
+		"website": {
 			Params: fibery.Field{
 				Name:    "Website",
 				Type:    fibery.Text,
@@ -281,7 +282,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"AccountNumber": {
+		"accountNumber": {
 			Params: fibery.Field{
 				Name:        "Account Number",
 				Type:        fibery.Text,
@@ -291,7 +292,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.AcctNum, nil
 			},
 		},
-		"Balance": {
+		"balance": {
 			Params: fibery.Field{
 				Name: "Balance",
 				Type: fibery.Number,
@@ -306,7 +307,7 @@ var vendor = integration.NewDualType(
 				return sd.Item.Balance, nil
 			},
 		},
-		"BillingLine1": {
+		"billingLine1": {
 			Params: fibery.Field{
 				Name: "Billing Line 1",
 				Type: fibery.Text,
@@ -318,7 +319,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingLine2": {
+		"billingLine2": {
 			Params: fibery.Field{
 				Name: "Billing Line 2",
 				Type: fibery.Text,
@@ -330,7 +331,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingLine3": {
+		"billingLine3": {
 			Params: fibery.Field{
 				Name: "Billing Line 3",
 				Type: fibery.Text,
@@ -342,7 +343,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingLine4": {
+		"billingLine4": {
 			Params: fibery.Field{
 				Name: "Billing Line 4",
 				Type: fibery.Text,
@@ -354,7 +355,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingLine5": {
+		"billingLine5": {
 			Params: fibery.Field{
 				Name: "Billing Line 5",
 				Type: fibery.Text,
@@ -366,7 +367,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingCity": {
+		"billingCity": {
 			Params: fibery.Field{
 				Name: "Billing City",
 				Type: fibery.Text,
@@ -378,7 +379,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingState": {
+		"billingState": {
 			Params: fibery.Field{
 				Name: "Billing State",
 				Type: fibery.Text,
@@ -390,7 +391,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingPostalCode": {
+		"billingPostalCode": {
 			Params: fibery.Field{
 				Name: "Billing Postal Code",
 				Type: fibery.Text,
@@ -402,7 +403,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingCountry": {
+		"billingCountry": {
 			Params: fibery.Field{
 				Name: "Billing Country",
 				Type: fibery.Text,
@@ -414,7 +415,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingLat": {
+		"billingLat": {
 			Params: fibery.Field{
 				Name: "Billing Latitude",
 				Type: fibery.Text,
@@ -426,7 +427,7 @@ var vendor = integration.NewDualType(
 				return "", nil
 			},
 		},
-		"BillingLong": {
+		"billingLong": {
 			Params: fibery.Field{
 				Name: "Billing Longitude",
 				Type: fibery.Text,
@@ -445,4 +446,3 @@ var vendor = integration.NewDualType(
 func init() {
 	integration.Types.Register(vendor)
 }
-

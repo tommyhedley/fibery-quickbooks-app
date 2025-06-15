@@ -79,9 +79,11 @@ func (om *OperationManager) GetOrAddOperation(req SyncRequest, i *Integration) (
 	om.Lock()
 	defer om.Unlock()
 	if op, exists := om.Operations[req.OperationId]; exists {
-		slog.Debug(fmt.Sprintf("requested operation: %s exists: %t", req.OperationId, exists))
+		slog.Debug(fmt.Sprintf("requested operation: %s exists", req.OperationId))
 		return op, nil
 	}
+
+	slog.Debug(fmt.Sprintf("requested operation: %s does not exist", req.OperationId))
 
 	op := buildOperation(req, i)
 
@@ -107,10 +109,21 @@ func (om *OperationManager) CleanupExpired() {
 	now := time.Now()
 	for opId, op := range om.Operations {
 		if !op.lastRequest.IsZero() && now.Sub(op.lastRequest) > om.ttl {
+			slog.Warn(fmt.Sprintf("operation %s exceeded timeout of %v, cancelling and cleaning up", opId, om.ttl))
+
+			// Cancel the operation context to stop any ongoing work
 			if op.cancel != nil {
 				op.cancel()
 			}
+
+			// Propagate timeout error to all waiting channels
+			timeoutErr := fmt.Errorf("operation %s timed out after %v without completion or new requests", opId, om.ttl)
+			op.propagateError(timeoutErr)
+
+			// Remove the operation from the manager
 			delete(om.Operations, opId)
+
+			slog.Debug(fmt.Sprintf("operation %s cleaned up due to timeout", opId))
 		}
 	}
 }
@@ -126,11 +139,13 @@ func buildOperation(req SyncRequest, i *Integration) *Operation {
 		account:       req.Account,
 		requestTypes:  make(map[string]fibery.Type, len(req.Types)),
 		sourceGroups:  make(map[string]*SourceGroup, len(req.Types)),
+		lastRequest:   time.Now(),
 		chans:         make(map[string]chan OperationDataHandlerResponse, len(req.Types)),
 		ctx:           ctx,
 		cancel:        cancel,
 	}
 	op.wg.Add(len(req.Types))
+	slog.Debug(fmt.Sprintf("operation: %s built with %d waitgroup", op.id, len(req.Types)))
 	return op
 }
 
@@ -138,11 +153,15 @@ func (op *Operation) propagateError(err error) {
 	op.cancel()
 
 	op.cleanupOnce.Do(func() {
-		for key, ch := range op.chans {
-			ch <- OperationDataHandlerResponse{
-				Error: err,
-			}
-			delete(op.chans, key)
+		op.Lock()
+		keys := make([]string, 0, len(op.chans))
+		for k := range op.chans {
+			keys = append(keys, k)
+		}
+		op.Unlock()
+
+		for _, k := range keys {
+			op.completeChannel(k, OperationDataHandlerResponse{Error: err})
 		}
 	})
 }
@@ -227,6 +246,14 @@ func ResponseChannelKey(id string, page int) string {
 }
 
 func (op *Operation) SubmitRequest(req SyncRequest) error {
+	defer op.wg.Done()
+
+	select {
+	case <-op.ctx.Done():
+		return fmt.Errorf("operation %s has been cancelled", op.id)
+	default:
+	}
+
 	op.Lock()
 	op.lastRequest = time.Now()
 	op.Unlock()
@@ -261,7 +288,6 @@ func (op *Operation) SubmitRequest(req SyncRequest) error {
 
 			respChan <- resp
 
-			op.wg.Done()
 			return nil
 
 		case UnionType:
@@ -272,12 +298,13 @@ func (op *Operation) SubmitRequest(req SyncRequest) error {
 
 			getAttach := attachableField(schema, attachableFieldId)
 
-			for _, sourceTypeId := range t.Types() {
-				inner, ok := op.integration.types.Get(sourceTypeId)
-				if !ok {
-					return fmt.Errorf("inner type %s not found", sourceTypeId)
+			for _, sourceType := range t.Types() {
+				innerReq := req
+				if !t.CDC() {
+					innerReq.LastSyncronizedAt = time.Time{}
 				}
-				if err := op.processTypeEntry(inner, req, getAttach); err != nil {
+
+				if err := op.processTypeEntry(sourceType, innerReq, getAttach); err != nil {
 					return err
 				}
 			}
@@ -300,7 +327,7 @@ func (op *Operation) SubmitRequest(req SyncRequest) error {
 		}
 
 		op.Unlock()
-		op.wg.Done()
+		slog.Debug(fmt.Sprintf("type: %s submitted, waitgroup decremented", req.RequestedType))
 		op.startOnce.Do(func() {
 			go func() {
 				op.wg.Wait()
@@ -312,6 +339,12 @@ func (op *Operation) SubmitRequest(req SyncRequest) error {
 }
 
 func (op *Operation) GetChannel(key string) (<-chan OperationDataHandlerResponse, error) {
+	select {
+	case <-op.ctx.Done():
+		return nil, fmt.Errorf("operation %s has been cancelled", op.id)
+	default:
+	}
+
 	op.Lock()
 	defer op.Unlock()
 
@@ -323,6 +356,21 @@ func (op *Operation) GetChannel(key string) (<-chan OperationDataHandlerResponse
 	return ch, nil
 }
 
+func (op *Operation) completeChannel(key string, resp OperationDataHandlerResponse) {
+	op.Lock()
+	ch, ok := op.chans[key]
+	if ok {
+		delete(op.chans, key)
+	}
+	op.Unlock()
+
+	if !ok {
+		return
+	}
+	ch <- resp
+	close(ch)
+}
+
 func (op *Operation) TryCleanup() {
 	op.Lock()
 	shouldDelete := len(op.requestTypes) == 0
@@ -331,11 +379,13 @@ func (op *Operation) TryCleanup() {
 
 	if shouldDelete {
 		op.integration.opManager.DeleteOperation(opId)
+		slog.Debug(fmt.Sprintf("operation %s deleted", opId))
 	}
 }
 
 func (op *Operation) indexBatchQuery(batch []quickbooks.BatchItemResponse) (map[string]struct{}, error) {
 	moreAttachables := map[string]struct{}{}
+	op.Lock()
 	for _, resp := range batch {
 		faults := resp.Fault.Faults
 		if len(faults) > 0 {
@@ -346,9 +396,6 @@ func (op *Operation) indexBatchQuery(batch []quickbooks.BatchItemResponse) (map[
 		if err != nil {
 			return nil, fmt.Errorf("error decoding query BID: %w", err)
 		}
-
-		op.Lock()
-		defer op.Unlock()
 
 		sourceGroup, exists := op.sourceGroups[entityType]
 		if !exists {
@@ -376,6 +423,7 @@ func (op *Operation) indexBatchQuery(batch []quickbooks.BatchItemResponse) (map[
 			sourceGroup.batchPages[startPosition] = &resp
 		}
 	}
+	op.Unlock()
 
 	return moreAttachables, nil
 }
@@ -385,17 +433,27 @@ func (op *Operation) doBatch(req []quickbooks.BatchItemRequest, params quickbook
 
 	page := 1
 
-	for {
+	slog.Debug("starting inital batch loop")
 
+	for {
+		slog.Debug("in loop")
 		batch, err := client.BatchRequest(params, req)
 		if err != nil {
+			slog.Error(fmt.Sprintf("error fetching inital batch: %s", err.Error()))
 			op.propagateError(fmt.Errorf("error fetching inital batch: %w", err))
+			return
 		}
+
+		slog.Debug("batch request complete")
 
 		nextAttachEntities, err := op.indexBatchQuery(batch)
 		if err != nil {
+			slog.Error(fmt.Sprintf("error indexing inital batch: %s", err.Error()))
 			op.propagateError(fmt.Errorf("error indexing inital batch: %w", err))
+			return
 		}
+
+		slog.Debug(fmt.Sprintf("inital batch page query: %d complete", page))
 
 		if len(nextAttachEntities) > 0 {
 			page++
@@ -410,7 +468,7 @@ func (op *Operation) doBatch(req []quickbooks.BatchItemRequest, params quickbook
 			break
 		}
 	}
-
+	slog.Debug("inital batch complete")
 }
 
 func (op *Operation) doCDC(req []string, params quickbooks.RequestParameters) {
@@ -425,9 +483,18 @@ func (op *Operation) doCDC(req []string, params quickbooks.RequestParameters) {
 	defer op.Unlock()
 
 	op.changeDataCapture = &cdc
+	slog.Debug("inital cdc complete")
 }
 
-func (op *Operation) fetchAll() {
+func (op *Operation) fetchAll() error {
+	slog.Debug("fetch started")
+
+	select {
+	case <-op.ctx.Done():
+		return fmt.Errorf("operation %s has been cancelled", op.id)
+	default:
+	}
+
 	var (
 		initalFetch sync.WaitGroup
 		batchReq    []quickbooks.BatchItemRequest
@@ -459,6 +526,7 @@ func (op *Operation) fetchAll() {
 	}
 
 	if len(cdcReq) > 0 {
+		slog.Debug("making cdc request")
 		initalFetch.Add(1)
 		go func(req []string) {
 			defer initalFetch.Done()
@@ -467,6 +535,7 @@ func (op *Operation) fetchAll() {
 	}
 
 	if len(batchReq) > 0 {
+		slog.Debug("making batch request")
 		initalFetch.Add(1)
 		go func(req []quickbooks.BatchItemRequest) {
 			defer initalFetch.Done()
@@ -475,10 +544,23 @@ func (op *Operation) fetchAll() {
 	}
 
 	initalFetch.Wait()
+
+	slog.Debug("inital fetch complete")
+
+	time.Sleep(30 * time.Second)
+
 	op.dispatchPages()
+
+	return nil
 }
 
-func (op *Operation) dispatchPages() {
+func (op *Operation) dispatchPages() error {
+	select {
+	case <-op.ctx.Done():
+		return fmt.Errorf("operation %s has been cancelled", op.id)
+	default:
+	}
+
 	params := quickbooks.RequestParameters{
 		Ctx:             op.ctx,
 		RealmId:         op.account.RealmId,
@@ -493,11 +575,10 @@ func (op *Operation) dispatchPages() {
 
 		for typeId, regType := range op.requestTypes {
 			key := ResponseChannelKey(typeId, page)
-			ch, ok := op.chans[key]
+			_, ok := op.chans[key]
 			if !ok {
 				op.propagateError(fmt.Errorf("missing channel %s", key))
-				delete(op.requestTypes, typeId)
-				continue
+				break
 			}
 
 			var src string
@@ -514,10 +595,11 @@ func (op *Operation) dispatchPages() {
 				request := ChangeDataCapture
 				batchResponses := make(map[string]*quickbooks.BatchItemResponse)
 
-				for _, typeId := range t.Types() {
-					sg, ok := op.sourceGroups[typeId]
+				for _, sourceType := range t.Types() {
+					sg, ok := op.sourceGroups[sourceType.Type()]
 					if !ok {
-						op.propagateError(fmt.Errorf("no sourceGroup found for %s", typeId))
+						op.propagateError(fmt.Errorf("no sourceGroup found for %s", sourceType.Type()))
+						break
 					}
 
 					if sg.request == Normal {
@@ -525,9 +607,10 @@ func (op *Operation) dispatchPages() {
 
 						batchData, ok := sg.batchPages[page]
 						if !ok {
-							op.propagateError(fmt.Errorf("no batch data for sourceGroup %s, page %d", typeId, page))
+							op.propagateError(fmt.Errorf("no batch data for sourceGroup %s, page %d", sourceType.Type(), page))
+							break
 						}
-						batchResponses[typeId] = batchData
+						batchResponses[sourceType.Type()] = batchData
 					}
 				}
 
@@ -535,11 +618,13 @@ func (op *Operation) dispatchPages() {
 				case ChangeDataCapture:
 					if op.changeDataCapture == nil {
 						op.propagateError(fmt.Errorf("nil reference for op.changeDataCapture"))
+						break
 					}
 
 					items, err := t.ProcessCDCQuery(op.changeDataCapture, pageSize)
 					if err != nil {
 						op.propagateError(fmt.Errorf("error processing changeDataCapture: %w", err))
+						break
 					}
 
 					resp := OperationDataHandlerResponse{
@@ -550,16 +635,14 @@ func (op *Operation) dispatchPages() {
 					}
 
 					resp.DataHandlerResponse.Pagination.HasNext = false
-					ch <- resp
-					close(ch)
+					op.completeChannel(key, resp)
 
-					for _, typeId := range t.Types() {
-						sg := op.sourceGroups[typeId]
+					for _, sourceType := range t.Types() {
+						sg := op.sourceGroups[sourceType.Type()]
 						sg.expectedUses--
 						if sg.expectedUses == 0 {
-							delete(op.sourceGroups, typeId)
+							delete(op.sourceGroups, sourceType.Type())
 						}
-
 					}
 
 					delete(op.requestTypes, t.Id())
@@ -585,38 +668,32 @@ func (op *Operation) dispatchPages() {
 
 						resp.DataHandlerResponse.Pagination.HasNext = true
 						resp.DataHandlerResponse.Pagination.NextPageConfig.Page = page + 1
-						ch <- resp
-						close(ch)
+						op.completeChannel(key, resp)
 					} else {
 						resp.DataHandlerResponse.Pagination.HasNext = false
-						ch <- resp
-						close(ch)
+						op.completeChannel(key, resp)
 
-						for _, typeId := range t.Types() {
-							sg := op.sourceGroups[typeId]
+						for _, sourceType := range t.Types() {
+							sg := op.sourceGroups[sourceType.Type()]
 							sg.expectedUses--
 							if sg.expectedUses == 0 {
-								delete(op.sourceGroups, typeId)
+								delete(op.sourceGroups, sourceType.Type())
 							}
-
 						}
+
 						delete(op.requestTypes, t.Id())
 					}
 				}
 				continue
 			default:
 				op.propagateError(fmt.Errorf("unsupported type %T", regType))
-				close(ch)
-				delete(op.requestTypes, typeId)
-				continue
+				break
 			}
 
 			grp, exists := op.sourceGroups[src]
 			if !exists {
 				op.propagateError(fmt.Errorf("no sourceGroup for %s", src))
-				close(ch)
-				delete(op.requestTypes, typeId)
-				continue
+				break
 			}
 
 			var (
@@ -654,17 +731,13 @@ func (op *Operation) dispatchPages() {
 
 				default:
 					op.propagateError(fmt.Errorf("type %T not CDC-capable", regType))
-					close(ch)
-					delete(op.requestTypes, typeId)
-					continue
+					break
 				}
 			case Normal:
 				batchResp, ok := grp.batchPages[page]
 				if !ok {
 					op.propagateError(fmt.Errorf("no batch data for %s page %d", src, page))
-					close(ch)
-					delete(op.requestTypes, typeId)
-					continue
+					break
 				}
 
 				switch t := regType.(type) {
@@ -696,9 +769,7 @@ func (op *Operation) dispatchPages() {
 
 				default:
 					op.propagateError(fmt.Errorf("type %T not Batch-capable", regType))
-					close(ch)
-					delete(op.requestTypes, typeId)
-					continue
+					break
 				}
 
 				if more {
@@ -709,8 +780,7 @@ func (op *Operation) dispatchPages() {
 				}
 			}
 
-			ch <- OperationDataHandlerResponse{Error: err, DataHandlerResponse: resp}
-			close(ch)
+			op.completeChannel(key, OperationDataHandlerResponse{Error: err, DataHandlerResponse: resp})
 
 			grp.expectedUses--
 			if grp.expectedUses == 0 {
@@ -721,6 +791,8 @@ func (op *Operation) dispatchPages() {
 				delete(op.requestTypes, typeId)
 			}
 		}
+
+		slog.Debug("inital dispatch")
 
 		if len(nextBatchSources) == 0 {
 			break
@@ -736,13 +808,14 @@ func (op *Operation) dispatchPages() {
 		resps, err := op.integration.client.BatchRequest(params, batchReqs)
 		if err != nil {
 			op.propagateError(fmt.Errorf("batch page %d failed: %w", page, err))
-			return
+			break
 		}
 		if _, err := op.indexBatchQuery(resps); err != nil {
 			op.propagateError(fmt.Errorf("indexing page %d: %w", page, err))
-			return
+			break
 		}
 	}
 
 	op.TryCleanup()
+	return nil
 }
