@@ -79,6 +79,18 @@ func (om *OperationManager) GetOrAddOperation(req SyncRequest, i *Integration) (
 	om.Lock()
 	defer om.Unlock()
 	if op, exists := om.Operations[req.OperationId]; exists {
+		if !op.lastRequest.IsZero() && time.Since(op.lastRequest) > om.ttl {
+			if op.cancel != nil {
+				op.cancel()
+			}
+
+			timeoutErr := fmt.Errorf("operation %s timed out after %v without new requests", req.OperationId, om.ttl)
+
+			op.propagateError(timeoutErr)
+			delete(om.Operations, req.OperationId)
+			return nil, timeoutErr
+		}
+
 		slog.Debug(fmt.Sprintf("requested operation: %s exists", req.OperationId))
 		return op, nil
 	}
@@ -111,16 +123,10 @@ func (om *OperationManager) CleanupExpired() {
 		if !op.lastRequest.IsZero() && now.Sub(op.lastRequest) > om.ttl {
 			slog.Warn(fmt.Sprintf("operation %s exceeded timeout of %v, cancelling and cleaning up", opId, om.ttl))
 
-			// Cancel the operation context to stop any ongoing work
 			if op.cancel != nil {
 				op.cancel()
 			}
 
-			// Propagate timeout error to all waiting channels
-			timeoutErr := fmt.Errorf("operation %s timed out after %v without completion or new requests", opId, om.ttl)
-			op.propagateError(timeoutErr)
-
-			// Remove the operation from the manager
 			delete(om.Operations, opId)
 
 			slog.Debug(fmt.Sprintf("operation %s cleaned up due to timeout", opId))
@@ -247,12 +253,6 @@ func ResponseChannelKey(id string, page int) string {
 
 func (op *Operation) SubmitRequest(req SyncRequest) error {
 	defer op.wg.Done()
-
-	select {
-	case <-op.ctx.Done():
-		return fmt.Errorf("operation %s has been cancelled", op.id)
-	default:
-	}
 
 	op.Lock()
 	op.lastRequest = time.Now()
@@ -486,14 +486,8 @@ func (op *Operation) doCDC(req []string, params quickbooks.RequestParameters) {
 	slog.Debug("inital cdc complete")
 }
 
-func (op *Operation) fetchAll() error {
+func (op *Operation) fetchAll() {
 	slog.Debug("fetch started")
-
-	select {
-	case <-op.ctx.Done():
-		return fmt.Errorf("operation %s has been cancelled", op.id)
-	default:
-	}
 
 	var (
 		initalFetch sync.WaitGroup
@@ -517,6 +511,8 @@ func (op *Operation) fetchAll() error {
 			batchReq = append(batchReq, req)
 		}
 	}
+
+	time.Sleep(30 * time.Second)
 
 	params := quickbooks.RequestParameters{
 		Ctx:             op.ctx,
@@ -547,20 +543,10 @@ func (op *Operation) fetchAll() error {
 
 	slog.Debug("inital fetch complete")
 
-	time.Sleep(30 * time.Second)
-
 	op.dispatchPages()
-
-	return nil
 }
 
-func (op *Operation) dispatchPages() error {
-	select {
-	case <-op.ctx.Done():
-		return fmt.Errorf("operation %s has been cancelled", op.id)
-	default:
-	}
-
+func (op *Operation) dispatchPages() {
 	params := quickbooks.RequestParameters{
 		Ctx:             op.ctx,
 		RealmId:         op.account.RealmId,
@@ -817,5 +803,4 @@ func (op *Operation) dispatchPages() error {
 	}
 
 	op.TryCleanup()
-	return nil
 }

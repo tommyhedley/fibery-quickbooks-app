@@ -45,7 +45,7 @@ func main() {
 			return shutdownCtx
 		},
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 60 * time.Second, // Increased to allow operation timeout to work properly
 		IdleTimeout:  15 * time.Second,
 	}
 

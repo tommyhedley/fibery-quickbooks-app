@@ -151,20 +151,23 @@ func (i *Integration) SyncDataHandler(w http.ResponseWriter, r *http.Request) {
 
 	slog.Debug("channel found")
 
-	resp, ok := <-ch
-	if !ok {
-		RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("channel prematurely closed for key: %s", key))
+	select {
+	case resp, ok := <-ch:
+		if !ok {
+			RespondWithError(w, http.StatusInternalServerError, fmt.Errorf("channel prematurely closed for key: %s", key))
+			return
+		}
+
+		if resp.Error != nil {
+			RespondWithError(w, http.StatusInternalServerError, resp.Error)
+			return
+		}
+
+		RespondWithJSON(w, http.StatusOK, resp.DataHandlerResponse)
+	case <-op.ctx.Done():
+		RespondWithError(w, http.StatusGatewayTimeout, fmt.Errorf("operation %s cancelled or timed out", req.OperationId))
 		return
 	}
-
-	slog.Debug("received on channel")
-
-	if resp.Error != nil {
-		RespondWithError(w, http.StatusInternalServerError, resp.Error)
-		return
-	}
-
-	RespondWithJSON(w, http.StatusOK, resp.DataHandlerResponse)
 }
 
 func (Integration) WebhookInitHandler(w http.ResponseWriter, r *http.Request) {
