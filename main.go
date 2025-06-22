@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
-	_ "github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration/types"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
+	_ "github.com/tommyhedley/fibery-quickbooks-app/pkgs/app/types"
 )
 
 func main() {
@@ -24,7 +24,7 @@ func main() {
 	)
 	defer shutdownCancel()
 
-	params := integration.Parameters{
+	params := app.Parameters{
 		Version:                    "dev-v0.0.3",
 		PageSize:                   1000,
 		RefreshSecBeforeExpiration: 600,
@@ -33,19 +33,19 @@ func main() {
 		IdCacheTTL:                 time.Duration(24 * time.Hour),
 	}
 
-	integ, err := integration.New(shutdownCtx, params)
+	a, err := app.New(shutdownCtx, params)
 	if err != nil {
 		log.Fatalf("unable to create new integration: %s", err.Error())
 	}
 
 	server := &http.Server{
-		Addr:    ":" + integ.Port(),
-		Handler: integration.NewHandler(integ),
+		Addr:    ":" + a.Port(),
+		Handler: app.NewHandler(a),
 		BaseContext: func(net.Listener) context.Context {
 			return shutdownCtx
 		},
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 60 * time.Second, // Increased to allow operation timeout to work properly
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
 
@@ -61,10 +61,10 @@ func main() {
 		}
 	}()
 
-	slog.Info(fmt.Sprintf("Server starting at port %s...", integ.Port()))
+	slog.Info(fmt.Sprintf("Server starting at port %s...", a.Port()))
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error(fmt.Sprintf("Could not listen on :%s %+v", integ.Port(), err))
+		slog.Error(fmt.Sprintf("Could not listen on :%s %+v", a.Port(), err))
 	}
 
 	slog.Info("Server stopped")

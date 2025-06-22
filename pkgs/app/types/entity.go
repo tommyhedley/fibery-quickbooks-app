@@ -3,15 +3,15 @@ package types
 import (
 	"fmt"
 
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 )
 
-var entity = integration.NewUnionType(
-	[]integration.StandardType{customer, vendor, employee},
+var entity = app.NewUnionType(
+	[]app.StandardType{customer, vendor, employee},
 	"entity",
 	"Entity",
-	map[string]integration.UnionFieldDef{
+	map[string]app.UnionFieldDef{
 		"id": {
 			Params: fibery.Field{
 				Name: "ID",
@@ -176,5 +176,5 @@ var entity = integration.NewUnionType(
 )
 
 func init() {
-	integration.Types.Register(entity)
+	app.Types.Register(entity)
 }

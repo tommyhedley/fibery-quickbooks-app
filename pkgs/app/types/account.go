@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var account = integration.NewDualType(
+var account = app.NewDualType(
 	"Account",
 	"account",
 	"Account",
@@ -33,14 +33,14 @@ var account = integration.NewDualType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.Account {
 		return cr.Account
 	},
-	map[string]integration.FieldDef[quickbooks.Account]{
+	map[string]app.FieldDef[quickbooks.Account]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO Id",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
@@ -49,7 +49,7 @@ var account = integration.NewDualType(
 				Name: "Base Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.Name, nil
 			},
 		},
@@ -59,7 +59,7 @@ var account = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.FullyQualifiedName, nil
 			},
 		},
@@ -69,7 +69,7 @@ var account = integration.NewDualType(
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
@@ -78,7 +78,7 @@ var account = integration.NewDualType(
 				Type: fibery.Text,
 				Name: "Sync Action",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -88,7 +88,7 @@ var account = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.Active, nil
 			},
 		},
@@ -98,7 +98,7 @@ var account = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.MD,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.Description, nil
 			},
 		},
@@ -107,7 +107,7 @@ var account = integration.NewDualType(
 				Name: "Account Number",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.AcctNum, nil
 			},
 		},
@@ -122,7 +122,7 @@ var account = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.CurrentBalance, nil
 			},
 		},
@@ -137,7 +137,7 @@ var account = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.CurrentBalanceWithSubAccounts, nil
 			},
 		},
@@ -165,7 +165,7 @@ var account = integration.NewDualType(
 					},
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.Classification, nil
 			},
 		},
@@ -176,7 +176,7 @@ var account = integration.NewDualType(
 				SubType:  fibery.SingleSelect,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				return sd.Item.AccountType, nil
 			},
 		},
@@ -187,7 +187,7 @@ var account = integration.NewDualType(
 				SubType:  fibery.SingleSelect,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				reg, err := regexp.Compile(`([a-z])([A-Z])`)
 				if err != nil {
 					return nil, fmt.Errorf("error creating regex: %w", err)
@@ -209,7 +209,7 @@ var account = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Account]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Account]) (any, error) {
 				var parentAccountId string
 				if sd.Item.ParentRef != nil {
 					parentAccountId = sd.Item.ParentRef.Value
@@ -222,5 +222,5 @@ var account = integration.NewDualType(
 )
 
 func init() {
-	integration.Types.Register(account)
+	app.Types.Register(account)
 }

@@ -1,12 +1,12 @@
 package types
 
 import (
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var vendor = integration.NewDualType(
+var vendor = app.NewDualType(
 	"Vendor",
 	"vendor",
 	"Vendor",
@@ -30,14 +30,14 @@ var vendor = integration.NewDualType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.Vendor {
 		return cr.Vendor
 	},
-	map[string]integration.FieldDef[quickbooks.Vendor]{
+	map[string]app.FieldDef[quickbooks.Vendor]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO ID",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
@@ -47,7 +47,7 @@ var vendor = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.DisplayName, nil
 			},
 		},
@@ -57,7 +57,7 @@ var vendor = integration.NewDualType(
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
@@ -66,7 +66,7 @@ var vendor = integration.NewDualType(
 				Type: fibery.Text,
 				Name: "Sync Action",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -76,7 +76,7 @@ var vendor = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Active, nil
 			},
 		},
@@ -85,7 +85,7 @@ var vendor = integration.NewDualType(
 				Name: "Title",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Title, nil
 			},
 		},
@@ -94,7 +94,7 @@ var vendor = integration.NewDualType(
 				Name: "First Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.GivenName, nil
 			},
 		},
@@ -103,7 +103,7 @@ var vendor = integration.NewDualType(
 				Name: "Middle Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.MiddleName, nil
 			},
 		},
@@ -112,7 +112,7 @@ var vendor = integration.NewDualType(
 				Name: "Last Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.FamilyName, nil
 			},
 		},
@@ -121,7 +121,7 @@ var vendor = integration.NewDualType(
 				Name: "Suffix",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Suffix, nil
 			},
 		},
@@ -130,7 +130,7 @@ var vendor = integration.NewDualType(
 				Name: "Company Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.CompanyName, nil
 			},
 		},
@@ -140,7 +140,7 @@ var vendor = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Email,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.PrimaryEmailAddr != nil {
 					return sd.Item.PrimaryEmailAddr.Address, nil
 				}
@@ -159,7 +159,7 @@ var vendor = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.TermRef != nil {
 					return sd.Item.TermRef.Value, nil
 				}
@@ -174,7 +174,7 @@ var vendor = integration.NewDualType(
 					"format": "phone",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.PrimaryPhone != nil {
 					return sd.Item.PrimaryPhone.FreeFormNumber, nil
 				}
@@ -189,7 +189,7 @@ var vendor = integration.NewDualType(
 					"format": "phone",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.AlternatePhone != nil {
 					return sd.Item.AlternatePhone.FreeFormNumber, nil
 				}
@@ -204,7 +204,7 @@ var vendor = integration.NewDualType(
 					"format": "phone",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.Mobile != nil {
 					return sd.Item.Mobile.FreeFormNumber, nil
 				}
@@ -219,7 +219,7 @@ var vendor = integration.NewDualType(
 					"format": "phone",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.Fax != nil {
 					return sd.Item.Fax.FreeFormNumber, nil
 				}
@@ -233,7 +233,7 @@ var vendor = integration.NewDualType(
 				SubType:     fibery.Boolean,
 				Description: "Is the Vendor a 1099 contractor?",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Vendor1099, nil
 			},
 		},
@@ -249,7 +249,7 @@ var vendor = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.CostRate, nil
 			},
 		},
@@ -265,7 +265,7 @@ var vendor = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.BillRate, nil
 			},
 		},
@@ -275,7 +275,7 @@ var vendor = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.URL,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.WebAddr != nil {
 					return sd.Item.WebAddr.URI, nil
 				}
@@ -288,7 +288,7 @@ var vendor = integration.NewDualType(
 				Type:        fibery.Text,
 				Description: "Name or number of the account associated with this vendor",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.AcctNum, nil
 			},
 		},
@@ -303,7 +303,7 @@ var vendor = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				return sd.Item.Balance, nil
 			},
 		},
@@ -312,7 +312,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Line 1",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Line1, nil
 				}
@@ -324,7 +324,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Line 2",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Line2, nil
 				}
@@ -336,7 +336,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Line 3",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Line3, nil
 				}
@@ -348,7 +348,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Line 4",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Line4, nil
 				}
@@ -360,7 +360,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Line 5",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Line5, nil
 				}
@@ -372,7 +372,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing City",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.City, nil
 				}
@@ -384,7 +384,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing State",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.CountrySubDivisionCode, nil
 				}
@@ -396,7 +396,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Postal Code",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.PostalCode, nil
 				}
@@ -408,7 +408,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Country",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Country, nil
 				}
@@ -420,7 +420,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Latitude",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Lat, nil
 				}
@@ -432,7 +432,7 @@ var vendor = integration.NewDualType(
 				Name: "Billing Longitude",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Vendor]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Vendor]) (any, error) {
 				if sd.Item.BillAddr != nil {
 					return sd.Item.BillAddr.Long, nil
 				}
@@ -444,5 +444,5 @@ var vendor = integration.NewDualType(
 )
 
 func init() {
-	integration.Types.Register(vendor)
+	app.Types.Register(vendor)
 }

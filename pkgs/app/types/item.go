@@ -1,12 +1,12 @@
 package types
 
 import (
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var item = integration.NewDualType(
+var item = app.NewDualType(
 	"Item",
 	"item",
 	"Item",
@@ -30,14 +30,14 @@ var item = integration.NewDualType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.Item {
 		return cr.Item
 	},
-	map[string]integration.FieldDef[quickbooks.Item]{
+	map[string]app.FieldDef[quickbooks.Item]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO ID",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
@@ -46,7 +46,7 @@ var item = integration.NewDualType(
 				Name: "Base Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.Name, nil
 			},
 		},
@@ -56,7 +56,7 @@ var item = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.FullyQualifiedName, nil
 			},
 		},
@@ -66,7 +66,7 @@ var item = integration.NewDualType(
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
@@ -75,7 +75,7 @@ var item = integration.NewDualType(
 				Type: fibery.Text,
 				Name: "Sync Action",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -85,7 +85,7 @@ var item = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.Active, nil
 			},
 		},
@@ -95,7 +95,7 @@ var item = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.MD,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.Description, nil
 			},
 		},
@@ -104,7 +104,7 @@ var item = integration.NewDualType(
 				Name: "Purchase Description",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.PurchaseDesc, nil
 			},
 		},
@@ -114,7 +114,7 @@ var item = integration.NewDualType(
 				Type:    fibery.DateType,
 				SubType: fibery.Day,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if !sd.Item.InvStartDate.IsZero() {
 					return sd.Item.InvStartDate.Format(fibery.DateFormat), nil
 				}
@@ -142,7 +142,7 @@ var item = integration.NewDualType(
 					},
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				switch sd.Item.Type {
 				case "Inventory":
 					return "Inventory", nil
@@ -167,7 +167,7 @@ var item = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.QtyOnHand, nil
 			},
 		},
@@ -181,7 +181,7 @@ var item = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.ReorderPoint, nil
 			},
 		},
@@ -190,7 +190,7 @@ var item = integration.NewDualType(
 				Name: "SKU",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.SKU, nil
 			},
 		},
@@ -200,7 +200,7 @@ var item = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.Taxable, nil
 			},
 		},
@@ -210,7 +210,7 @@ var item = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.SalesTaxIncluded, nil
 			},
 		},
@@ -220,7 +220,7 @@ var item = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.PurchaseTaxIncluded, nil
 			},
 		},
@@ -236,7 +236,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if sd.Item.SalesTaxCodeRef != nil {
 					return sd.Item.SalesTaxCodeRef.Value, nil
 				}
@@ -255,7 +255,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if sd.Item.PurchaseTaxCodeRef != nil {
 					return sd.Item.PurchaseTaxCodeRef.Value, nil
 				}
@@ -274,7 +274,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if sd.Item.ClassRef != nil {
 					return sd.Item.ClassRef.Value, nil
 				}
@@ -293,7 +293,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if sd.Item.PrefVendorRef != nil {
 					return sd.Item.PrefVendorRef.Value, nil
 				}
@@ -312,7 +312,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if sd.Item.ParentRef != nil {
 					return sd.Item.ParentRef.Value, nil
 				}
@@ -330,7 +330,7 @@ var item = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.PurchaseCost, nil
 			},
 		},
@@ -345,7 +345,7 @@ var item = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.UnitPrice, nil
 			},
 		},
@@ -361,7 +361,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.AssetAccountRef.Value, nil
 			},
 		},
@@ -377,7 +377,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				if sd.Item.ExpenseAccountRef != nil {
 					return sd.Item.ExpenseAccountRef.Value, nil
 				}
@@ -396,7 +396,7 @@ var item = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Item]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Item]) (any, error) {
 				return sd.Item.IncomeAccountRef.Value, nil
 			},
 		},
@@ -405,5 +405,5 @@ var item = integration.NewDualType(
 )
 
 func init() {
-	integration.Types.Register(item)
+	app.Types.Register(item)
 }

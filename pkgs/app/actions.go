@@ -1,4 +1,4 @@
-package integration
+package app
 
 import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 

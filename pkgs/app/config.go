@@ -1,4 +1,4 @@
-package integration
+package app
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
@@ -20,6 +21,8 @@ var loggerLevels = map[string]slog.Level{
 }
 
 type Config struct {
+	fiberyApp                  fibery.AppConfig
+	fiberySync                 fibery.SyncConfig
 	Mode                       string
 	Port                       string
 	LoggerLevel                slog.Level

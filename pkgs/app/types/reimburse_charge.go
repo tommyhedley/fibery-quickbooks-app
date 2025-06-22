@@ -5,12 +5,12 @@ import (
 	"math"
 	"strings"
 
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var reimburseCharge = integration.NewCDCType(
+var reimburseCharge = app.NewCDCType(
 	"Reimbursecharge",
 	"reimbursecharge",
 	"Reimburse Charge",
@@ -29,14 +29,14 @@ var reimburseCharge = integration.NewCDCType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.ReimburseCharge {
 		return cr.ReimburseCharge
 	},
-	map[string]integration.FieldDef[quickbooks.ReimburseCharge]{
+	map[string]app.FieldDef[quickbooks.ReimburseCharge]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO ID",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
@@ -46,7 +46,7 @@ var reimburseCharge = integration.NewCDCType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				var name string
 				if sd.Item.PrivateNote != "" {
 					name = sd.Item.CustomerRef.Name + " - " + sd.Item.PrivateNote
@@ -61,7 +61,7 @@ var reimburseCharge = integration.NewCDCType(
 				Name: "Description",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.PrivateNote, nil
 			},
 		},
@@ -70,7 +70,7 @@ var reimburseCharge = integration.NewCDCType(
 				Type: fibery.Text,
 				Name: "Sync Action",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -80,7 +80,7 @@ var reimburseCharge = integration.NewCDCType(
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
@@ -90,7 +90,7 @@ var reimburseCharge = integration.NewCDCType(
 				Type:    fibery.DateType,
 				SubType: fibery.Day,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				if sd.Item.TxnDate != nil {
 					return sd.Item.TxnDate.Format(fibery.DateFormat), nil
 				}
@@ -109,7 +109,7 @@ var reimburseCharge = integration.NewCDCType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.CustomerRef.Value, nil
 			},
 		},
@@ -124,7 +124,7 @@ var reimburseCharge = integration.NewCDCType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				return sd.Item.Amount, nil
 			},
 		},
@@ -139,7 +139,7 @@ var reimburseCharge = integration.NewCDCType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				for _, line := range sd.Item.Line {
 					if line.LineNum == 1 {
 						return line.Amount, nil
@@ -160,7 +160,7 @@ var reimburseCharge = integration.NewCDCType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				for _, line := range sd.Item.Line {
 					if line.LineNum == 1 {
 						return line.ReimburseLineDetail.ItemAccountRef.Value, nil
@@ -174,7 +174,7 @@ var reimburseCharge = integration.NewCDCType(
 				Name: "Markup",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				for _, line := range sd.Item.Line {
 					if line.LineNum == 2 {
 						markupAmount, err := line.Amount.Float64()
@@ -214,7 +214,7 @@ var reimburseCharge = integration.NewCDCType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				for _, line := range sd.Item.Line {
 					if line.LineNum == 2 {
 						return line.ReimburseLineDetail.ItemRef.Value, nil
@@ -229,7 +229,7 @@ var reimburseCharge = integration.NewCDCType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				for _, line := range sd.Item.Line {
 					if line.LineNum == 1 {
 						return line.ReimburseLineDetail.TaxCodeRef.Value == "TAX", nil
@@ -250,7 +250,7 @@ var reimburseCharge = integration.NewCDCType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.ReimburseCharge]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.ReimburseCharge]) (any, error) {
 				for _, txn := range sd.Item.LinkedTxn {
 					if txn.TxnType == "Invoice" {
 						return txn.TxnId, nil
@@ -263,5 +263,5 @@ var reimburseCharge = integration.NewCDCType(
 )
 
 func init() {
-	integration.Types.Register(reimburseCharge)
+	app.Types.Register(reimburseCharge)
 }

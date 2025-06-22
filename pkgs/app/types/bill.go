@@ -3,12 +3,12 @@ package types
 import (
 	"fmt"
 
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var bill = integration.NewDualType(
+var bill = app.NewDualType(
 	"Bill",
 	"bill",
 	"Bill",
@@ -32,14 +32,14 @@ var bill = integration.NewDualType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.Bill {
 		return cr.Bill
 	},
-	map[string]integration.FieldDef[quickbooks.Bill]{
+	map[string]app.FieldDef[quickbooks.Bill]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO Id",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
@@ -49,7 +49,7 @@ var bill = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				if sd.Item.PrivateNote == "" {
 					return sd.Item.VendorRef.Name, nil
 				}
@@ -62,7 +62,7 @@ var bill = integration.NewDualType(
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
@@ -71,7 +71,7 @@ var bill = integration.NewDualType(
 				Name: "Sync Action",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -80,7 +80,7 @@ var bill = integration.NewDualType(
 				Name: "Bill Number",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.DocNumber, nil
 			},
 		},
@@ -90,7 +90,7 @@ var bill = integration.NewDualType(
 				Type:    fibery.DateType,
 				SubType: fibery.Day,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				if sd.Item.TxnDate.IsZero() {
 					return "", nil
 				}
@@ -103,7 +103,7 @@ var bill = integration.NewDualType(
 				Type:    fibery.DateType,
 				SubType: fibery.Day,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				if sd.Item.DueDate.IsZero() {
 					return "", nil
 				}
@@ -116,7 +116,7 @@ var bill = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.MD,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.PrivateNote, nil
 			},
 		},
@@ -131,7 +131,7 @@ var bill = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.TotalAmt, nil
 			},
 		},
@@ -146,7 +146,7 @@ var bill = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.Balance, nil
 			},
 		},
@@ -162,7 +162,7 @@ var bill = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				return sd.Item.VendorRef.Value, nil
 			},
 		},
@@ -178,7 +178,7 @@ var bill = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				if sd.Item.APAccountRef != nil {
 					return sd.Item.APAccountRef.Value, nil
 				}
@@ -197,7 +197,7 @@ var bill = integration.NewDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				if sd.Item.SalesTermRef != nil {
 					return sd.Item.SalesTermRef.Value, nil
 				}
@@ -210,12 +210,12 @@ var bill = integration.NewDualType(
 				Type:    fibery.TextArray,
 				SubType: fibery.File,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Bill]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Bill]) (any, error) {
 				id := sd.Item.Id
 				if attachables, ok := sd.Attachables[id]; ok {
 					output := make([]string, 0, len(attachables))
 					for _, attachable := range attachables {
-						url := integration.AttachableURL(attachable)
+						url := app.AttachableURL(attachable)
 						output = append(output, url)
 					}
 					return output, nil
@@ -224,10 +224,10 @@ var bill = integration.NewDualType(
 			},
 		},
 	},
-	[]integration.CDCType{reimburseCharge},
+	[]app.CDCType{reimburseCharge},
 )
 
-var billItemLine = integration.NewDependentDualType(
+var billItemLine = app.NewDependentDualType(
 	"Bill",
 	"billItemLine",
 	"Bill Item Line",
@@ -270,14 +270,14 @@ var billItemLine = integration.NewDependentDualType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.Bill {
 		return cr.Bill
 	},
-	map[string]integration.DependentFieldDef[quickbooks.Bill, quickbooks.Line]{
+	map[string]app.DependentFieldDef[quickbooks.Bill, quickbooks.Line]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO ID",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.Id, nil
 			},
 		},
@@ -287,7 +287,7 @@ var billItemLine = integration.NewDependentDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				var name string
 				if dd.Item.Description == "" {
 					name = dd.Item.ItemBasedExpenseLineDetail.ItemRef.Name
@@ -302,7 +302,7 @@ var billItemLine = integration.NewDependentDualType(
 				Name: "Description",
 				Type: fibery.Text,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.Description, nil
 			},
 		},
@@ -311,7 +311,7 @@ var billItemLine = integration.NewDependentDualType(
 				Type: fibery.Text,
 				Name: "Sync Action",
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -321,7 +321,7 @@ var billItemLine = integration.NewDependentDualType(
 				Type:    fibery.Number,
 				SubType: fibery.Integer,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.LineNum, nil
 			},
 		},
@@ -331,7 +331,7 @@ var billItemLine = integration.NewDependentDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				tax := false
 				if dd.Item.ItemBasedExpenseLineDetail.TaxCodeRef.Value == "TAX" {
 					tax = true
@@ -345,7 +345,7 @@ var billItemLine = integration.NewDependentDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				var billable bool
 				switch dd.Item.ItemBasedExpenseLineDetail.BillableStatus {
 				case quickbooks.BillableStatusType:
@@ -364,7 +364,7 @@ var billItemLine = integration.NewDependentDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				billed := false
 				if dd.Item.ItemBasedExpenseLineDetail.BillableStatus == quickbooks.HasBeenBilledStatusType {
 					billed = true
@@ -382,7 +382,7 @@ var billItemLine = integration.NewDependentDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.Qty, nil
 			},
 		},
@@ -397,7 +397,7 @@ var billItemLine = integration.NewDependentDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.UnitPrice, nil
 			},
 		},
@@ -410,7 +410,7 @@ var billItemLine = integration.NewDependentDualType(
 					"precision": 2,
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.MarkupInfo, nil
 			},
 		},
@@ -425,7 +425,7 @@ var billItemLine = integration.NewDependentDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.Amount, nil
 			},
 		},
@@ -441,7 +441,7 @@ var billItemLine = integration.NewDependentDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.SourceItem.Id, nil
 			},
 		},
@@ -457,7 +457,7 @@ var billItemLine = integration.NewDependentDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.ItemRef.Value, nil
 			},
 		},
@@ -473,7 +473,7 @@ var billItemLine = integration.NewDependentDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.CustomerRef.Value, nil
 			},
 		},
@@ -489,7 +489,7 @@ var billItemLine = integration.NewDependentDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.ClassRef.Value, nil
 			},
 		},
@@ -505,7 +505,7 @@ var billItemLine = integration.NewDependentDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				return dd.Item.ItemBasedExpenseLineDetail.MarkupInfo.MarkUpIncomeAccountRef.Value, nil
 			},
 		},
@@ -521,7 +521,7 @@ var billItemLine = integration.NewDependentDualType(
 					TargetFieldID: "id",
 				},
 			},
-			Convert: func(dd integration.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
+			Convert: func(dd app.DependentData[quickbooks.Bill, quickbooks.Line]) (any, error) {
 				var reimburseChargeId string
 				for _, txn := range dd.Item.LinkedTxn {
 					if txn.TxnType == "ReimburseCharge" {
@@ -535,6 +535,6 @@ var billItemLine = integration.NewDependentDualType(
 )
 
 func init() {
-	integration.Types.Register(bill)
-	integration.Types.Register(billItemLine)
+	app.Types.Register(bill)
+	app.Types.Register(billItemLine)
 }

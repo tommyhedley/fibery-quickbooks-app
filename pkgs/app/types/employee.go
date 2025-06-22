@@ -1,12 +1,12 @@
 package types
 
 import (
+	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/app"
 	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
-	"github.com/tommyhedley/fibery-quickbooks-app/pkgs/integration"
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-var employee = integration.NewDualType(
+var employee = app.NewDualType(
 	"Employee",
 	"employee",
 	"Employee",
@@ -30,14 +30,14 @@ var employee = integration.NewDualType(
 	func(cr quickbooks.CDCQueryResponse) []quickbooks.Employee {
 		return cr.Employee
 	},
-	map[string]integration.FieldDef[quickbooks.Employee]{
+	map[string]app.FieldDef[quickbooks.Employee]{
 		"qboId": {
 			Params: fibery.Field{
 				Name:     "QBO ID",
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.Id, nil
 			},
 		},
@@ -47,7 +47,7 @@ var employee = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Title,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.DisplayName, nil
 			},
 		},
@@ -57,7 +57,7 @@ var employee = integration.NewDualType(
 				Type:     fibery.Text,
 				ReadOnly: true,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.SyncToken, nil
 			},
 		},
@@ -66,7 +66,7 @@ var employee = integration.NewDualType(
 				Type: fibery.Text,
 				Name: "Sync Action",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return fibery.SET, nil
 			},
 		},
@@ -76,7 +76,7 @@ var employee = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Boolean,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.Active, nil
 			},
 		},
@@ -85,7 +85,7 @@ var employee = integration.NewDualType(
 				Name: "Title",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.Title, nil
 			},
 		},
@@ -94,7 +94,7 @@ var employee = integration.NewDualType(
 				Name: "First Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.GivenName, nil
 			},
 		},
@@ -103,7 +103,7 @@ var employee = integration.NewDualType(
 				Name: "Middle Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.MiddleName, nil
 			},
 		},
@@ -112,7 +112,7 @@ var employee = integration.NewDualType(
 				Name: "Last Name",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.FamilyName, nil
 			},
 		},
@@ -121,7 +121,7 @@ var employee = integration.NewDualType(
 				Name: "Suffix",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.Suffix, nil
 			},
 		},
@@ -131,7 +131,7 @@ var employee = integration.NewDualType(
 				Type:    fibery.Text,
 				SubType: fibery.Email,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				if sd.Item.PrimaryEmailAddr != nil {
 					return sd.Item.PrimaryEmailAddr.Address, nil
 				}
@@ -145,7 +145,7 @@ var employee = integration.NewDualType(
 				SubType:     fibery.Boolean,
 				Description: "Is the entity enabled for use in QuickBooks?",
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.BillableTime, nil
 			},
 		},
@@ -155,7 +155,7 @@ var employee = integration.NewDualType(
 				Type:    fibery.DateType,
 				SubType: fibery.Day,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				if sd.Item.BirthDate != nil {
 					return sd.Item.BirthDate.Format(fibery.DateFormat), nil
 				}
@@ -170,7 +170,7 @@ var employee = integration.NewDualType(
 					"format": "phone",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				if sd.Item.PrimaryPhone != nil {
 					return sd.Item.PrimaryPhone.FreeFormNumber, nil
 				}
@@ -185,7 +185,7 @@ var employee = integration.NewDualType(
 					"format": "phone",
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				if sd.Item.Mobile != nil {
 					return sd.Item.Mobile.FreeFormNumber, nil
 				}
@@ -203,7 +203,7 @@ var employee = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.CostRate, nil
 			},
 		},
@@ -218,7 +218,7 @@ var employee = integration.NewDualType(
 					"precision":            2,
 				},
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.BillRate, nil
 			},
 		},
@@ -227,7 +227,7 @@ var employee = integration.NewDualType(
 				Name: "Employee ID",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.EmployeeNumber, nil
 			},
 		},
@@ -236,7 +236,7 @@ var employee = integration.NewDualType(
 				Name: "Address Line 1",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Line1, nil
 			},
 		},
@@ -245,7 +245,7 @@ var employee = integration.NewDualType(
 				Name: "Address Line 2",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Line2, nil
 			},
 		},
@@ -254,7 +254,7 @@ var employee = integration.NewDualType(
 				Name: "Address Line 3",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Line3, nil
 			},
 		},
@@ -263,7 +263,7 @@ var employee = integration.NewDualType(
 				Name: "Address Line 4",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Line4, nil
 			},
 		},
@@ -272,7 +272,7 @@ var employee = integration.NewDualType(
 				Name: "Address Line 5",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Line5, nil
 			},
 		},
@@ -281,7 +281,7 @@ var employee = integration.NewDualType(
 				Name: "Address City",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.City, nil
 			},
 		},
@@ -290,7 +290,7 @@ var employee = integration.NewDualType(
 				Name: "Address State",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.CountrySubDivisionCode, nil
 			},
 		},
@@ -299,7 +299,7 @@ var employee = integration.NewDualType(
 				Name: "Address Postal Code",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.PostalCode, nil
 			},
 		},
@@ -308,7 +308,7 @@ var employee = integration.NewDualType(
 				Name: "Address Country",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Country, nil
 			},
 		},
@@ -317,7 +317,7 @@ var employee = integration.NewDualType(
 				Name: "Address Latitude",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Lat, nil
 			},
 		},
@@ -326,7 +326,7 @@ var employee = integration.NewDualType(
 				Name: "Address Longitude",
 				Type: fibery.Text,
 			},
-			Convert: func(sd integration.StandardData[quickbooks.Employee]) (any, error) {
+			Convert: func(sd app.StandardData[quickbooks.Employee]) (any, error) {
 				return sd.Item.PrimaryAddr.Long, nil
 			},
 		},
@@ -335,5 +335,5 @@ var employee = integration.NewDualType(
 )
 
 func init() {
-	integration.Types.Register(employee)
+	app.Types.Register(employee)
 }
