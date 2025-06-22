@@ -120,6 +120,7 @@ type DependentTypeDef[ST, T any] struct {
 	FiberyId            string
 	FiberyName          string
 	ItemId              func(ST, T) string
+	ItemCheck           func(ST, T) bool
 	ItemExtractor       func(ST) []T
 	Fields              map[string]DependentFieldDef[ST, T]
 	BatchItemExtractor  func(quickbooks.BatchItemResponse) ST
@@ -274,6 +275,7 @@ func NewDualType[T any](
 func NewDependentType[ST, T any](
 	sourceTypeId, fiberyId, fiberyName string,
 	itemId func(ST, T) string,
+	itemCheck func(ST, T) bool,
 	itemExtractor func(ST) []T,
 	batchItemExtractor func(quickbooks.BatchItemResponse) ST,
 	batchQueryExtractor func(quickbooks.BatchQueryResponse) []ST,
@@ -298,6 +300,7 @@ func NewDependentType[ST, T any](
 		FiberyId:            fiberyId,
 		FiberyName:          fiberyName,
 		ItemId:              itemId,
+		ItemCheck:           itemCheck,
 		ItemExtractor:       itemExtractor,
 		Fields:              fields,
 		BatchItemExtractor:  batchItemExtractor,
@@ -308,6 +311,7 @@ func NewDependentType[ST, T any](
 func NewDependentCDCType[ST, T any](
 	sourceTypeId, fiberyId, fiberyName string,
 	itemId func(ST, T) string,
+	itemCheck func(ST, T) bool,
 	itemExtractor func(ST) []T,
 	sourceId func(ST) string,
 	sourceStatus func(ST) string,
@@ -321,6 +325,7 @@ func NewDependentCDCType[ST, T any](
 			sourceTypeId,
 			fiberyId, fiberyName,
 			itemId,
+			itemCheck,
 			itemExtractor,
 			batchItemExtractor,
 			batchQueryExtractor,
@@ -335,6 +340,7 @@ func NewDependentCDCType[ST, T any](
 func NewDependentWebhookType[ST, T any](
 	sourceTypeId, fiberyId, fiberyName string,
 	itemId func(ST, T) string,
+	itemCheck func(ST, T) bool,
 	itemExtractor func(ST) []T,
 	sourceId func(ST) string,
 	sourceBuilder func(id string) ST,
@@ -348,6 +354,7 @@ func NewDependentWebhookType[ST, T any](
 			sourceTypeId,
 			fiberyId, fiberyName,
 			itemId,
+			itemCheck,
 			itemExtractor,
 			batchItemExtractor,
 			batchQueryExtractor,
@@ -361,6 +368,7 @@ func NewDependentWebhookType[ST, T any](
 func NewDependentDualType[ST, T any](
 	sourceTypeId, fiberyId, fiberyName string,
 	itemId func(ST, T) string,
+	itemCheck func(ST, T) bool,
 	itemExtractor func(ST) []T,
 	sourceId func(ST) string,
 	sourceStatus func(ST) string,
@@ -376,6 +384,7 @@ func NewDependentDualType[ST, T any](
 				sourceTypeId,
 				fiberyId, fiberyName,
 				itemId,
+				itemCheck,
 				itemExtractor,
 				batchItemExtractor,
 				batchQueryExtractor,

@@ -228,11 +228,18 @@ var bill = integration.NewDualType(
 )
 
 var billItemLine = integration.NewDependentDualType(
-	"bill",
+	"Bill",
 	"billItemLine",
 	"Bill Item Line",
 	func(b quickbooks.Bill, l quickbooks.Line) string {
 		return fmt.Sprintf("%s:i:%s", b.Id, l.Id)
+	},
+	func(b quickbooks.Bill, l quickbooks.Line) bool {
+		var valid bool
+		if l.DetailType == quickbooks.ItemExpenseLine {
+			valid = true
+		}
+		return valid
 	},
 	func(b quickbooks.Bill) []quickbooks.Line {
 		items := make([]quickbooks.Line, 0)
