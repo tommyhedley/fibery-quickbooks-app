@@ -35,7 +35,7 @@ func main() {
 
 	integ, err := integration.New(shutdownCtx, params)
 	if err != nil {
-		log.Fatalf("unable to create new integration: %w", err)
+		log.Fatalf("unable to create new integration: %s", err.Error())
 	}
 
 	server := &http.Server{
