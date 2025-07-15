@@ -16,6 +16,8 @@ import (
 	_ "github.com/tommyhedley/fibery-quickbooks-app/pkgs/app/types"
 )
 
+const version string = "dev-v0.0.3"
+
 func main() {
 	shutdownCtx, shutdownCancel := signal.NotifyContext(
 		context.Background(),
@@ -24,16 +26,7 @@ func main() {
 	)
 	defer shutdownCancel()
 
-	params := app.Parameters{
-		Version:                    "dev-v0.0.3",
-		PageSize:                   1000,
-		RefreshSecBeforeExpiration: 600,
-		AttachableFieldId:          "attachables",
-		OperationTTL:               time.Duration(15 * time.Second),
-		IdCacheTTL:                 time.Duration(24 * time.Hour),
-	}
-
-	a, err := app.New(shutdownCtx, params)
+	a, err := app.New(shutdownCtx, version)
 	if err != nil {
 		log.Fatalf("unable to create new integration: %s", err.Error())
 	}

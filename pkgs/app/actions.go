@@ -2,6 +2,29 @@ package app
 
 import "github.com/tommyhedley/fibery-quickbooks-app/pkgs/fibery"
 
+type ActionRegistry map[string]fibery.Action
+
+func (ar ActionRegistry) Register(a fibery.Action) {
+	ar[a.ActionId] = a
+}
+
+func (ar ActionRegistry) Get(id string) (fibery.Action, bool) {
+	if action, exists := ar[id]; exists {
+		return action, true
+	}
+	return fibery.Action{}, false
+}
+
+func (ar ActionRegistry) GetAll() []fibery.Action {
+	actions := make([]fibery.Action, 0, len(ar))
+	for _, action := range ar {
+		actions = append(actions, action)
+	}
+	return actions
+}
+
+var Actions = make(ActionRegistry)
+
 var testAction = fibery.Action{
 	ActionId:    "test",
 	Name:        "Test Action",

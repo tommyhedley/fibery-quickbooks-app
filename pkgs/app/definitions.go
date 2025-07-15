@@ -11,55 +11,6 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
-type TypeRegistry map[string]fibery.Type
-
-func (tr TypeRegistry) Register(t fibery.Type) {
-	tr[t.Id()] = t
-}
-
-func (tr TypeRegistry) Get(id string) (fibery.Type, bool) {
-	if typ, exists := tr[id]; exists {
-		return typ, true
-	}
-	return nil, false
-}
-
-func (tr TypeRegistry) GetAll() []fibery.SyncConfigTypes {
-	types := make([]fibery.SyncConfigTypes, 0, len(tr))
-	for _, typ := range tr {
-		types = append(types, fibery.SyncConfigTypes{
-			Id:   typ.Id(),
-			Name: typ.Name(),
-		})
-	}
-	return types
-}
-
-var Types = make(TypeRegistry)
-
-type ActionRegistry map[string]fibery.Action
-
-func (ar ActionRegistry) Register(a fibery.Action) {
-	ar[a.ActionId] = a
-}
-
-func (ar ActionRegistry) Get(id string) (fibery.Action, bool) {
-	if action, exists := ar[id]; exists {
-		return action, true
-	}
-	return fibery.Action{}, false
-}
-
-func (ar ActionRegistry) GetAll() []fibery.Action {
-	actions := make([]fibery.Action, 0, len(ar))
-	for _, action := range ar {
-		actions = append(actions, action)
-	}
-	return actions
-}
-
-var Actions = make(ActionRegistry)
-
 type Integration struct {
 	appConfig  fibery.AppConfig
 	syncConfig fibery.SyncConfig
@@ -72,9 +23,9 @@ type Integration struct {
 	cancel     context.CancelFunc
 }
 
-func New(parentCtx context.Context, params Parameters) (*Integration, error) {
+func New(parentCtx context.Context, version string) (*Integration, error) {
 	ctx, cancel := context.WithCancel(parentCtx)
-	config, err := BuildConfig(params)
+	config, err := NewConfig(version)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("unable to build config: %w", err)
@@ -94,14 +45,14 @@ func New(parentCtx context.Context, params Parameters) (*Integration, error) {
 		return nil, fmt.Errorf("error creating quickbooks client: %w", err)
 	}
 
-	opManager := NewOperationManager(params.OperationTTL)
-	idStore := NewIdStore(params.IdCacheTTL)
+	opManager := NewOperationManager(config.OperationTTL)
+	idStore := NewIdStore(config.IdCacheTTL)
 	integration := &Integration{
 		appConfig: fibery.AppConfig{
 			Id:          "qbo",
 			Name:        "QuickBooks Online",
 			Website:     "https://quickbooks.intuit.com",
-			Version:     params.Version,
+			Version:     config.Version,
 			Description: "Integrate QuickBooks Online data with Fibery",
 			Authentication: []fibery.Authentication{
 				{

@@ -7,6 +7,32 @@ import (
 	"github.com/tommyhedley/quickbooks-go"
 )
 
+type TypeRegistry map[string]fibery.Type
+
+func (tr TypeRegistry) Register(t fibery.Type) {
+	tr[t.Id()] = t
+}
+
+func (tr TypeRegistry) Get(id string) (fibery.Type, bool) {
+	if typ, exists := tr[id]; exists {
+		return typ, true
+	}
+	return nil, false
+}
+
+func (tr TypeRegistry) GetAll() []fibery.SyncConfigTypes {
+	types := make([]fibery.SyncConfigTypes, 0, len(tr))
+	for _, typ := range tr {
+		types = append(types, fibery.SyncConfigTypes{
+			Id:   typ.Id(),
+			Name: typ.Name(),
+		})
+	}
+	return types
+}
+
+var Types = make(TypeRegistry)
+
 type StandardType interface {
 	fibery.Type
 	Type() string

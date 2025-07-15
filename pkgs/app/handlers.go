@@ -39,7 +39,7 @@ func (i *Integration) AccountValidateHandler(w http.ResponseWriter, r *http.Requ
 
 	token := &reqBody.Fields.BearerToken
 
-	refreshNeeded := token.CheckExpiration(i.config.RefreshSecBeforeExpriation)
+	refreshNeeded := token.CheckExpiration(int(i.config.TokenRefreshWindow.Seconds()))
 
 	if refreshNeeded {
 		newToken, err := i.client.RefreshToken(token.RefreshToken)

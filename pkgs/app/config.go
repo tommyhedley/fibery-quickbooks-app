@@ -1,11 +1,13 @@
 package app
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -20,16 +22,52 @@ var loggerLevels = map[string]slog.Level{
 	"warn":  slog.LevelWarn,
 }
 
+func getRequiredEnv(key string) (string, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return "", fmt.Errorf("missing environment variable: %s", key)
+	}
+	return v, nil
+}
+
+func parseDurationEnv(key string) (time.Duration, error) {
+	raw, err := getRequiredEnv(key)
+	if err != nil {
+		return 0, err
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return d, nil
+}
+
+func parseIntEnv(key string) (int, error) {
+	raw, err := getRequiredEnv(key)
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return n, nil
+}
+
 type Config struct {
-	fiberyApp                  fibery.AppConfig
-	fiberySync                 fibery.SyncConfig
-	Mode                       string
-	Port                       string
-	LoggerLevel                slog.Level
-	LoggerStyle                string
-	RefreshSecBeforeExpriation int
-	AttachableFieldId          string
-	QuickBooks                 struct {
+	fiberyApp          fibery.AppConfig
+	fiberySync         fibery.SyncConfig
+	Version            string
+	Mode               string
+	Port               string
+	LoggerLevel        slog.Level
+	LoggerStyle        string
+	TokenRefreshWindow time.Duration
+	PageSize           int
+	AttachableFieldId  string
+	OperationTTL       time.Duration
+	IdCacheTTL         time.Duration
+	QuickBooks         struct {
 		PageSize                    int
 		MinorVersion                string
 		Scope                       string
@@ -45,134 +83,139 @@ type Config struct {
 	}
 }
 
-type Parameters struct {
-	PageSize                   int
-	RefreshSecBeforeExpiration int
-	Version                    string
-	AttachableFieldId          string
-	OperationTTL               time.Duration
-	IdCacheTTL                 time.Duration
-}
-
-func BuildConfig(params Parameters) (Config, error) {
-	config := Config{}
-	err := config.Load(params.PageSize, params.RefreshSecBeforeExpiration, params.AttachableFieldId)
+func NewConfig(version string) (Config, error) {
+	config := Config{Version: version}
+	err := config.Load()
 	if err != nil {
 		return Config{}, err
 	}
 	return config, nil
 }
 
-func (c *Config) Load(pageSize, refreshSecBeforeExpiration int, attachableFieldId string) error {
-	err := godotenv.Load()
-	if err != nil {
-		return fmt.Errorf("unable to find .env file")
+func (c *Config) Load() error {
+	filtered := []string{os.Args[0]}
+	for _, a := range os.Args[1:] {
+		if a == "--dotenv" || a == "-dotenv" {
+			if err := godotenv.Load(); err != nil {
+				return fmt.Errorf("unable to load .env: %w", err)
+			}
+			continue
+		}
+		filtered = append(filtered, a)
+	}
+	os.Args = filtered
+
+	flag.StringVar(&c.Mode, "mode", os.Getenv("MODE"), "run the server in 'sandbox' or 'production'")
+	flag.StringVar(&c.Port, "port", os.Getenv("PORT"), "http listen port")
+
+	var logLevelStr string
+	flag.StringVar(&logLevelStr, "log_level", os.Getenv("LOGGER_LEVEL"), "slog logger level: 'info','debug','error','warn'")
+	flag.StringVar(&c.LoggerStyle, "log_style", os.Getenv("LOGGER_STYLE"), "slog logger style: 'text','json','dev'")
+
+	flag.DurationVar(&c.TokenRefreshWindow, "token_refresh", 0, "duration before token expiration to refresh token")
+	flag.DurationVar(&c.OperationTTL, "op_ttl", 0, "operation time to live")
+	flag.DurationVar(&c.IdCacheTTL, "cache_ttl", 0, "cache time to live")
+
+	flag.IntVar(&c.QuickBooks.PageSize, "page_size", 0, "quickbooks query page size → max 1000")
+	flag.StringVar(&c.AttachableFieldId, "attachable_field", os.Getenv("ATTACHABLE_FIELD_ID"), "attachables field id")
+
+	flag.Parse()
+
+	if c.Mode != "sandbox" && c.Mode != "production" {
+		return fmt.Errorf("MODE must be 'sandbox' or 'production'; got %q", c.Mode)
+	}
+	if c.Port == "" {
+		return fmt.Errorf("PORT is required")
 	}
 
-	mode := os.Getenv("MODE")
-	if mode != "production" && mode != "sandbox" {
-		return fmt.Errorf("invalid environment variable: MODE = %s\nvalid options: 'sandbox' or 'production'\n", mode)
-	}
-	c.Mode = mode
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		return fmt.Errorf("invalid environment variable: PORT is required")
-	}
-	c.Port = port
-
-	loggerLevel := os.Getenv("LOGGER_LEVEL")
-	slogLevel := slog.LevelInfo
-	if level, exists := loggerLevels[loggerLevel]; exists {
-		slogLevel = level
+	if lvl, ok := loggerLevels[logLevelStr]; ok {
+		c.LoggerLevel = lvl
 	} else {
-		log.Printf("invalid environment variable: LOGGER_LEVEL = %s, 'info' used by default\nvalid options: 'info', 'debug', 'error', 'warn'\n", slogLevel)
+		log.Printf("invalid LOGGER_LEVEL=%q, defaulting to 'info'\n", logLevelStr)
+		c.LoggerLevel = slog.LevelInfo
 	}
-	c.LoggerLevel = slogLevel
-
-	loggerStyle := os.Getenv("LOGGER_STYLE")
-	c.LoggerStyle = loggerStyle
-
-	if refreshSecBeforeExpiration == 0 {
-		return fmt.Errorf("invalid config variable: refreshSecBeforeExpiration must be more than 0")
+	switch c.LoggerStyle {
+	case "text", "json", "dev":
+	default:
+		log.Printf("invalid LOGGER_STYLE=%q, defaulting to 'text'\n", c.LoggerStyle)
+		c.LoggerStyle = "text"
 	}
-	c.RefreshSecBeforeExpriation = refreshSecBeforeExpiration
 
-	if attachableFieldId == "" {
-		return fmt.Errorf("no specified id for an quickbooks.Attachables schema field")
+	if c.TokenRefreshWindow == 0 {
+		d, err := parseDurationEnv("TOKEN_REFRESH_WINDOW")
+		if err != nil {
+			return err
+		}
+		c.TokenRefreshWindow = d
 	}
-	c.AttachableFieldId = attachableFieldId
+	if c.OperationTTL == 0 {
+		d, err := parseDurationEnv("OPERATION_TTL")
+		if err != nil {
+			return err
+		}
+		c.OperationTTL = d
+	}
+	if c.IdCacheTTL == 0 {
+		d, err := parseDurationEnv("CACHE_TTL")
+		if err != nil {
+			return err
+		}
+		c.IdCacheTTL = d
+	}
 
-	if pageSize < 1 || pageSize > 1000 {
-		return fmt.Errorf("missing or invalid config variable: pageSize must be more than 0 and less than 1000")
+	if c.QuickBooks.PageSize == 0 {
+		n, err := parseIntEnv("PAGE_SIZE")
+		if err != nil {
+			return err
+		}
+		c.QuickBooks.PageSize = n
 	}
-	c.QuickBooks.PageSize = pageSize
+	if c.QuickBooks.PageSize < 1 || c.QuickBooks.PageSize > 1000 {
+		return fmt.Errorf("page_size must be between 1 and 1000")
+	}
 
-	minorVersion := os.Getenv("MINOR_VERSION")
-	if minorVersion == "" {
-		return fmt.Errorf("missing environment variable: SCOPE is required")
+	if c.AttachableFieldId == "" {
+		return fmt.Errorf("ATTACHABLE_FIELD_ID is required")
 	}
-	c.QuickBooks.MinorVersion = minorVersion
 
-	scope := os.Getenv("SCOPE")
-	if scope == "" {
-		return fmt.Errorf("missing environment variable: SCOPE is required")
+	var err error
+	c.QuickBooks.MinorVersion, err = getRequiredEnv("MINOR_VERSION")
+	if err != nil {
+		return err
 	}
-	c.QuickBooks.Scope = scope
+	c.QuickBooks.Scope, err = getRequiredEnv("SCOPE")
+	if err != nil {
+		return err
+	}
+	c.QuickBooks.WebhookToken, err = getRequiredEnv("WEBHOOK_TOKEN")
+	if err != nil {
+		return err
+	}
 
-	webhookToken := os.Getenv("WEBHOOK_TOKEN")
-	if webhookToken == "" {
-		return fmt.Errorf("missing environment variable: WEBHOOK_TOKEN is required")
-	}
-	c.QuickBooks.WebhookToken = webhookToken
+	c.QuickBooks.DiscoveryEndpointSandbox = os.Getenv("DISCOVERY_ENDPOINT_SANDBOX")
+	c.QuickBooks.DiscoveryEndpointProduction = os.Getenv("DISCOVERY_ENDPOINT_PRODUCTION")
+	c.QuickBooks.EndpointSandbox = os.Getenv("ENDPOINT_SANDBOX")
+	c.QuickBooks.EndpointProduction = os.Getenv("ENDPOINT_PRODUCTION")
+	c.QuickBooks.OauthClientIdSandbox = os.Getenv("OAUTH_CLIENT_ID_SANDBOX")
+	c.QuickBooks.OauthClientSecretSandbox = os.Getenv("OAUTH_CLIENT_SECRET_SANDBOX")
+	c.QuickBooks.OauthClientIdProduction = os.Getenv("OAUTH_CLIENT_ID_PRODUCTION")
+	c.QuickBooks.OauthClientSecretProduction = os.Getenv("OAUTH_CLIENT_SECRET_PRODUCTION")
 
-	discoveryEndpointSandbox := os.Getenv("DISCOVERY_ENDPOINT_SANDBOX")
-	if mode == "sandbox" && discoveryEndpointSandbox == "" {
-		return fmt.Errorf("missing environment variable: DISCOVERY_ENDPOINT_SANDBOX is required")
+	if c.Mode == "sandbox" {
+		if c.QuickBooks.DiscoveryEndpointSandbox == "" ||
+			c.QuickBooks.EndpointSandbox == "" ||
+			c.QuickBooks.OauthClientIdSandbox == "" ||
+			c.QuickBooks.OauthClientSecretSandbox == "" {
+			return fmt.Errorf("all sandbox QuickBooks settings are required")
+		}
+	} else {
+		if c.QuickBooks.DiscoveryEndpointProduction == "" ||
+			c.QuickBooks.EndpointProduction == "" ||
+			c.QuickBooks.OauthClientIdProduction == "" ||
+			c.QuickBooks.OauthClientSecretProduction == "" {
+			return fmt.Errorf("all production QuickBooks settings are required")
+		}
 	}
-	c.QuickBooks.DiscoveryEndpointSandbox = discoveryEndpointSandbox
-
-	discoveryEndpointProduction := os.Getenv("DISCOVERY_ENDPOINT_PRODUCTION")
-	if mode == "production" && discoveryEndpointProduction == "" {
-		return fmt.Errorf("missing environment variable: DISCOVERY_ENDPOINT_PRODUCTION is required")
-	}
-	c.QuickBooks.DiscoveryEndpointProduction = discoveryEndpointProduction
-
-	endpointSandbox := os.Getenv("ENDPOINT_SANDBOX")
-	if mode == "sandbox" && endpointSandbox == "" {
-		return fmt.Errorf("missing environment variable: ENDPOINT_SANDBOX is required")
-	}
-	c.QuickBooks.EndpointSandbox = endpointSandbox
-
-	endpointProduction := os.Getenv("ENDPOINT_PRODUCTION")
-	if mode == "production" && endpointProduction == "" {
-		return fmt.Errorf("missing environment variable: ENDPOINT_PRODUCTION is required")
-	}
-	c.QuickBooks.EndpointProduction = endpointProduction
-
-	oauthClientIdSandbox := os.Getenv("OAUTH_CLIENT_ID_SANDBOX")
-	if mode == "sandbox" && oauthClientIdSandbox == "" {
-		return fmt.Errorf("missing environment variable: OAUTH_CLIENT_ID_SANDBOX is required")
-	}
-	c.QuickBooks.OauthClientIdSandbox = oauthClientIdSandbox
-
-	oauthClientSecretSandbox := os.Getenv("OAUTH_CLIENT_SECRET_SANDBOX")
-	if mode == "sandbox" && oauthClientSecretSandbox == "" {
-		return fmt.Errorf("missing environment variable: OAUTH_CLIENT_SECRET_SANDBOX is required")
-	}
-	c.QuickBooks.OauthClientSecretSandbox = oauthClientSecretSandbox
-
-	oauthClientIdProduction := os.Getenv("OAUTH_CLIENT_ID_PRODUCTION")
-	if mode == "production" && oauthClientIdProduction == "" {
-		return fmt.Errorf("missing environment variable: OAUTH_CLIENT_ID_PRODUCTION is required")
-	}
-	c.QuickBooks.OauthClientIdProduction = oauthClientIdProduction
-
-	oauthClientSecretProduction := os.Getenv("OAUTH_CLIENT_SECRET_PRODUCTION")
-	if mode == "production" && oauthClientSecretProduction == "" {
-		return fmt.Errorf("missing environment variable: OAUTH_CLIENT_SECRET_PRODUTION is required")
-	}
-	c.QuickBooks.OauthClientSecretProduction = oauthClientSecretProduction
 
 	return nil
 }
